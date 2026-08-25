@@ -32,11 +32,16 @@ npm run desktop:dev
 `desktop:dev` construye el frontend, compila `core/bin/zajuna-core.exe`,
 lanza Electron y abre el navegador cuando `/api/health` responde.
 
-Si **ya compilaste** antes:
+Si Electron no descarga el binario (`path.txt` ausente), el core Go basta:
 
 ```powershell
-npm run desktop:start
+npm run build
+.\core\bin\zajuna-core.exe
 ```
+
+El core imprime `Zajuna App local disponible en http://127.0.0.1:<puerto>` y
+abre el navegador. Electron solo supervisa ese proceso; no es obligatorio
+para desarrollar la interfaz.
 
 Cerrar la pestaña del navegador **no** apaga el core. Para salir, cierra
 Electron (icono de la bandeja / proceso) o termina el terminal.
