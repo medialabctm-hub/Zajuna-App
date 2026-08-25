@@ -5,9 +5,9 @@ Issue madre: [MDL-25](https://linear.app/medialab-sena/issue/MDL-25).
 
 ## Decisión
 
-**Release comercial: bloqueado.** M0/M1 están en código y el PR #3 ya está en
-`main`. M2 no está cerrado: no hay certificados de firma, no hay smoke nativo
-de macOS/Linux y no hay E2E autenticado contra Zajuna real.
+**Release comercial: bloqueado.** M0/M1 están en código. M2: instaladores
+Windows/Linux sin firma; macOS aplazado. El E2E autenticado de login+sync
+pasó en esta estación (credenciales solo en entorno).
 
 ## Hechos de la estación (Windows)
 
@@ -15,20 +15,21 @@ de macOS/Linux y no hay E2E autenticado contra Zajuna real.
 - Los commits citados en Linear el 24 ago (`72f9fb7`, `302c078`) no existían
   en el repositorio; el trabajo de CI/firma y la evidencia de accesibilidad
   se versiona hoy en la rama `feat/m2-ci-native-gate`.
-- No hay `CSC_LINK`, `APPLE_ID` ni `ZAJUNA_E2E` en el entorno.
+- `ZAJUNA_E2E=1` se ejecutó en esta estación; credenciales no se versionan.
+- No hay `CSC_LINK`. macOS no entra al release.
 
 ## Issues
 
 | Issue | Estado al cierre de esta acta | Nota |
 |---|---|---|
 | MDL-26 … MDL-31, MDL-28, MDL-27 | Done | M0/M1 de código en `main` |
-| MDL-32 | Done en Linear; evidencia ahora en git | NVDA/VoiceOver no ejecutados |
-| MDL-29 | In Progress | CI + `smoke:native`; firma bloqueada sin certificado |
-| MDL-33 | In Progress | Fixtures sí; E2E vivo no |
-| MDL-34 | In Progress | Matriz local + esta acta; gate no aprueba release |
+| MDL-32 | In Review | Evidencia en PR #4; NVDA no ejecutado |
+| MDL-29 | In Progress | CI Win/Linux; firma Windows bloqueada; macOS aplazado |
+| MDL-33 | In Review | E2E vivo: login + sync de fichas OK |
+| MDL-34 | In Progress | Gate no aprueba release (sin firma) |
 
 ## Próximos pasos
 
-1. Cargar secretos de firma en GitHub y disparar el workflow `native`.
-2. Cuenta de prueba para `ZAJUNA_E2E=1`.
-3. Pasada NVDA/VoiceOver cuando haya lector en la estación.
+1. Certificado Authenticode para Windows cuando exista; Linux sigue por SHA256.
+2. Mergear PR #4 y disparar job `native` (Win/Linux).
+3. Pasada NVDA cuando haya lector en la estación.

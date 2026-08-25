@@ -212,7 +212,7 @@ El gate del 2026-08-25 está en [`release-gate-2026-08-25.md`](release-gate-2026
 
 1. Ejecutar el E2E autenticado con cuenta de prueba (`ZAJUNA_E2E=1`) y registrar
    selectores no sensibles (MDL-33).
-2. Firmar instaladores y correr smoke nativo en Windows, macOS y Linux (MDL-29).
+2. Empaquetar y smoke nativo en Windows y Linux (MDL-29). macOS aplazado.
 3. Pasada NVDA/VoiceOver; teclado/zoom ya documentados (MDL-32).
 4. Gate de release con matriz y acta; no marcar Done sin artefactos (MDL-34).
 5. Solo después preparar logo, iconos, actualización automática y publicación.

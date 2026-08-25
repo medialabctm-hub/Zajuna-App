@@ -17,7 +17,8 @@ Este roadmap solo muestra el estado de trabajo y las tareas que faltan.
 | Fidelidad visual y accesibilidad automatizada | Implementado | Sistema de diseño, motion, responsive y smoke de tres viewports. |
 | Seguridad OWASP | Hardening principal implementado | Capability, Host/Origin, anti-SSRF, cookies de captura acotadas, redacción y symlink guard. |
 | Instalador Windows | Construido y probado | NSIS x64 con core + Chromium; **sin firma**. CI nativo opcional en Actions. |
-| macOS/Linux | Cross-build preparado | Falta ejecutar instalador y smoke en runners nativos (MDL-29). |
+| macOS | Aplazado | No hay certificado Developer ID; no entra al release actual. |
+| Linux | Cross-build + AppImage en runner nativo | Checksum SHA256; sin firma de paquete. |
 
 ## Fases cerradas
 
@@ -61,11 +62,11 @@ firma nativa, WCAG manual y gate de release. Ver Linear MDL-25.
 
 ### P0 — Antes de entregar una versión comercial
 
-1. Firmar el instalador y ejecutables con certificados del cliente (MDL-29).
-2. Crear y probar DMG macOS y AppImage Linux en máquinas nativas (MDL-29).
-3. Probar instalación limpia, actualización, desinstalación y ausencia de
-   procesos huérfanos (MDL-29).
-4. Ejecutar flujo autenticado con cuenta de prueba en Windows (MDL-33, E2E vivo).
+1. Firmar el instalador Windows cuando exista certificado Authenticode (MDL-29).
+2. Construir y probar AppImage Linux en runner nativo (MDL-29).
+3. Probar instalación limpia, actualización y desinstalación en Windows y Linux.
+4. Ejecutar flujo autenticado con cuenta de prueba (MDL-33).
+5. macOS (DMG/notarización) queda fuera de alcance hasta haber certificados.
 
 ### P1 — Antes de beta amplia
 

@@ -86,15 +86,13 @@ correcto:
 
 ```powershell
 npm run package:windows
-npm run package:macos
 npm run package:linux
 ```
 
 `npm run build:platforms` genera los cores Go para Windows/Linux/macOS x64 y
-ARM64. `scripts/package.cjs` exige que el runner coincida con la plataforma,
-staging del core + Playwright, y genera `dist/release-manifest.json` y
-`dist/sbom.cyclonedx.json`. El instalador Windows probado está en `dist/` y
-actualmente no tiene firma digital.
+ARM64. El **release actual** solo empaqueta Windows y Linux; macOS queda
+fuera hasta haber certificado. `scripts/package.cjs` exige que el runner
+coincida con la plataforma. El instalador Windows sigue **sin firma digital**.
 
 El smoke específico del modo externo puede ejecutarse contra un paquete o,
 durante desarrollo, contra Electron directamente:

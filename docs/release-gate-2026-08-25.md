@@ -15,14 +15,14 @@ Commit de trabajo: rama `feat/m2-ci-native-gate`.
 | `node scripts/prepare-downloads.test.cjs` | 3 passed | Sin lenguaje de bypass |
 | `node scripts/smoke-native.test.cjs` | 4 passed | |
 | `npm run smoke:native` | exit 0, `releaseBlocked: true` | Sin `dist/` de instalador ni `CSC_LINK` |
-| `TestAuthenticatedZajunaE2E` | no ejecutado | Falta `ZAJUNA_E2E=1` y cuenta de prueba |
+| `TestAuthenticatedZajunaE2E` | exit 0 (5.08s) | Login y sync: 8 fichas locales. Credenciales solo en entorno |
 | `npm run test:smoke:packaged` | no ejecutado | No hay `win-unpacked` en esta corrida |
-| `npm run package:macos` / `package:linux` | no ejecutado | Host Windows; Chromium de otro OS prohibido |
-| Authenticode / notarización | no ejecutado | Sin certificados |
+| `npm run package:linux` | no ejecutado en este host | Debe correr en Ubuntu; macOS fuera de alcance |
+| Authenticode Windows | no ejecutado | Sin certificado; Linux usa checksum |
 | NVDA / VoiceOver | no ejecutado | Sin lector en la estación |
 
 El workflow `.github/workflows/ci.yml` cubre frontend, Go y descargas en cada
-PR. El job `native` (Windows/macOS/Linux + firma) solo corre con
+PR. El job `native` (Windows y Linux; **sin macOS**) solo corre con
 `workflow_dispatch` y el input `native=true`.
 
 Acta: [`committee-minutes-2026-08-25.md`](committee-minutes-2026-08-25.md).
