@@ -1,8 +1,8 @@
 # Roadmap vigente de Zajuna App
 
 El documento completo de migración está en [`desktop-migration.md`](desktop-migration.md).
-El cierre de la jornada 2026-08-20 está en [`hardening-2026-08-20.md`](hardening-2026-08-20.md).
-Este roadmap solo muestra el estado de trabajo y las tareas que faltan.
+Cómo arrancar: [`run-local.md`](run-local.md).
+macOS aplazado: [`macos-deferred.md`](macos-deferred.md).
 
 ## Estado actual
 
@@ -58,15 +58,27 @@ Se cerraron en código los bloqueadores de build/pruebas, las transiciones de
 jobs, el restore seguro de SQLite y el aborto de CAPTCHA/MFA. Queda M2:
 firma nativa, WCAG manual y gate de release. Ver Linear MDL-25.
 
-## Trabajo restante priorizado
+## Plan de trabajo vigente (2026-08-25)
+
+| Prioridad | Trabajo | Estado Linear |
+|---|---|---|
+| Hecho | M0/M1 en `main` (captura, build, descargas, jobs, backups) | MDL-26…31 Done |
+| Hecho (código) | Login+sync E2E vivo (8 fichas); credenciales solo en entorno | MDL-33 In Review |
+| En curso | CI e instaladores **Windows y Linux**; Windows sin Authenticode | MDL-29 In Progress |
+| En curso | Accesibilidad: skip link/44px en PR #4; falta NVDA | MDL-32 In Review |
+| En curso | Gate de release: acta roja hasta firmar Windows | MDL-34 In Progress |
+| Aplazado | DMG macOS / notarización | Ver [`macos-deferred.md`](macos-deferred.md) |
+
+Siguiente: mergear [PR #4](https://github.com/medialabctm-hub/Zajuna-App/pull/4),
+smoke nativo Win/Linux, pasada NVDA, firma Windows cuando haya certificado.
 
 ### P0 — Antes de entregar una versión comercial
 
 1. Firmar el instalador Windows cuando exista certificado Authenticode (MDL-29).
 2. Construir y probar AppImage Linux en runner nativo (MDL-29).
 3. Probar instalación limpia, actualización y desinstalación en Windows y Linux.
-4. Ejecutar flujo autenticado con cuenta de prueba (MDL-33).
-5. macOS (DMG/notarización) queda fuera de alcance hasta haber certificados.
+4. E2E autenticado: login+sync hecho; mapa/captura y sesión vencida en vivo pendientes (MDL-33).
+5. macOS (DMG/notarización) **aplazado**. Motivo: [`macos-deferred.md`](macos-deferred.md).
 
 ### P1 — Antes de beta amplia
 
@@ -83,7 +95,8 @@ firma nativa, WCAG manual y gate de release. Ver Linear MDL-25.
 
 ## Criterio de finalización
 
-La versión estará lista cuando pueda instalarse en los tres sistemas, configure
-credenciales sin exponerlas, sincronice una ficha, capture evidencia, genere
-PDF, recupere/cancele jobs, restaure un backup válido, cierre limpiamente y
-pase las pruebas unitarias, integración, browser, visuales, WCAG y OWASP.
+La versión comercial Windows/Linux estará lista cuando se instale en esos
+sistemas, configure credenciales sin exponerlas, sincronice una ficha, capture
+evidencia, genere PDF, recupere jobs, restaure un backup y pase las pruebas
+acordadas. macOS no forma parte de este criterio hasta retomar
+[`macos-deferred.md`](macos-deferred.md).

@@ -12,8 +12,8 @@ La migración completa, las decisiones técnicas, las tareas abiertas y la
 matriz de pruebas están en [`docs/desktop-migration.md`](docs/desktop-migration.md).
 El cierre de Linear M0/M1 (2026-08-20) está en
 [`docs/hardening-2026-08-20.md`](docs/hardening-2026-08-20.md).
-Firma y smoke nativo: [`docs/signing.md`](docs/signing.md).
-Gate 2026-08-25: [`docs/release-gate-2026-08-25.md`](docs/release-gate-2026-08-25.md).
+Cómo arrancar en local: [`docs/run-local.md`](docs/run-local.md).
+Por qué no hay instalador macOS: [`docs/macos-deferred.md`](docs/macos-deferred.md).
 
 ## Arquitectura actual
 
