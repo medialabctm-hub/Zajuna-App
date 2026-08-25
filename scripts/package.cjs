@@ -79,6 +79,16 @@ const config = {
   mac: { target: 'dmg' },
   linux: { target: 'AppImage' },
 };
+const signingEnabled = Boolean(process.env.CSC_LINK || process.env.CSC_NAME);
+config.forceCodeSigning = signingEnabled;
+config.win.signAndEditExecutable = signingEnabled;
+config.mac.notarize = false;
+if (process.env.APPLE_ID && process.env.APPLE_TEAM_ID) {
+  config.mac.notarize = { teamId: process.env.APPLE_TEAM_ID };
+}
+if (!signingEnabled) {
+  console.log('Empaquetado sin CSC_LINK/CSC_NAME: el instalador queda como bloqueo de release (MDL-29).');
+}
 fs.writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`);
 
 const cliPath = require.resolve('electron-builder/cli.js');
@@ -105,3 +115,4 @@ if (result.status !== 0) process.exit(result.status ?? 1);
 
 writeMetadata();
 writeDownloadsPage();
+require('./smoke-native.cjs').writeReport(projectRoot);

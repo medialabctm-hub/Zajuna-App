@@ -22,11 +22,13 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <ToastContext.Provider value={{ toast }}>
       {children}
-      {entries.map((entry) => (
-        <div key={entry.id} className={`toast${entry.error ? ' error' : ''}`} role={entry.error ? 'alert' : 'status'}>
-          {entry.message}
-        </div>
-      ))}
+      <div className="toast-region" aria-live="polite" aria-relevant="additions" aria-atomic="false">
+        {entries.map((entry) => (
+          <div key={entry.id} className={`toast${entry.error ? ' error' : ''}`} role={entry.error ? 'alert' : 'status'}>
+            {entry.message}
+          </div>
+        ))}
+      </div>
     </ToastContext.Provider>
   )
 }

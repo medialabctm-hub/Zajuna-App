@@ -102,7 +102,7 @@ generan para x64 y ARM64, pero el instalador debe probarse nativamente.
 
 ## Riesgos aún abiertos
 
-- Firma digital y notarización (MDL-29).
+- Firma digital y notarización (MDL-29). Ver [`signing.md`](signing.md).
 - Smoke nativo de DMG/AppImage y ciclo instalar/actualizar/desinstalar (MDL-29).
 - Prueba manual WCAG con lector de pantalla (MDL-32).
 - E2E autenticado con cuenta de prueba real (MDL-33).

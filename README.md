@@ -12,6 +12,8 @@ La migración completa, las decisiones técnicas, las tareas abiertas y la
 matriz de pruebas están en [`docs/desktop-migration.md`](docs/desktop-migration.md).
 El cierre de Linear M0/M1 (2026-08-20) está en
 [`docs/hardening-2026-08-20.md`](docs/hardening-2026-08-20.md).
+Firma y smoke nativo: [`docs/signing.md`](docs/signing.md).
+Gate 2026-08-25: [`docs/release-gate-2026-08-25.md`](docs/release-gate-2026-08-25.md).
 
 ## Arquitectura actual
 
@@ -68,6 +70,7 @@ npm run lint --prefix frontend
 go -C core test ./...
 go -C core vet ./...
 npm run test:downloads
+npm run test:smoke:native
 npm audit --omit=dev --audit-level=high
 npm run test:browser:core
 ```

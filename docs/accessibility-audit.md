@@ -86,3 +86,32 @@ La base automatizada de nombres accesibles, foco, reduced motion y responsive
 queda integrada en el smoke visual. El bloqueo restante es la validación
 manual con lector de pantalla y teclado completo; no se oculta como un falso
 "100% WCAG".
+
+## Actualización 2026-08-25 (MDL-32)
+
+Linear cerró MDL-32 el 24 ago con commits que **no llegaron a git**. Hoy se
+versiona la evidencia pendiente en `main`/PR:
+
+- Skip link “Saltar al contenido” hacia `#dashboard-main`.
+- Toasts dentro de una región `aria-live="polite"` (`role="alert"` si es error).
+- Acciones primarias `.button:not(.small)` y pestañas de Configuración con
+  mínimo 44×44 CSS px.
+- Pestañas de Configuración: flechas, Home y End (ya estaba en código).
+
+### Matriz de rutas (teclado / reflow) — implementación en código
+
+| Ruta | Teclado en código | Zoom/reflow 320px | NVDA/VoiceOver |
+|---|---|---|---|
+| `/resumen` | Skip link, foco visible, `aria-live` en trabajo activo | Layout responsive existente | No ejecutado |
+| `/fichas` | Botones con nombre, acciones 44px | Columna única &lt;640px | No ejecutado |
+| `/checklist` | `aria-pressed` en estados | Acciones apiladas | No ejecutado |
+| `/actividades` | Igual | Toolbar a una columna | No ejecutado |
+| `/evidencias` | Modal con focus trap previo | Galería apilada | No ejecutado |
+| `/trabajos` | Timeline y filtros | Meta apilada | No ejecutado |
+| `/reportes` | Acciones primarias 44px | Igual | No ejecutado |
+| `/configuracion` | `tablist` + flechas | Grid a una columna | No ejecutado |
+| `/diagnostico` | Landmarks del shell | Igual | No ejecutado |
+
+No se declara conformidad WCAG 2.1 AA: falta pasada con NVDA (Windows) y
+VoiceOver (macOS). El acta está en
+[`committee-minutes-2026-08-25.md`](committee-minutes-2026-08-25.md).

@@ -16,8 +16,8 @@ Este roadmap solo muestra el estado de trabajo y las tareas que faltan.
 | Configuración/diagnóstico/notificaciones | Implementado | APIs locales y vistas funcionales. |
 | Fidelidad visual y accesibilidad automatizada | Implementado | Sistema de diseño, motion, responsive y smoke de tres viewports. |
 | Seguridad OWASP | Hardening principal implementado | Capability, Host/Origin, anti-SSRF, cookies de captura acotadas, redacción y symlink guard. |
-| Instalador Windows | Construido y probado | NSIS x64 con core + Chromium; sin firma digital. Guía de descargas sin bypass de SmartScreen. |
-| macOS/Linux | Cross-build preparado | Falta ejecutar instalador y smoke en runners nativos. |
+| Instalador Windows | Construido y probado | NSIS x64 con core + Chromium; **sin firma**. CI nativo opcional en Actions. |
+| macOS/Linux | Cross-build preparado | Falta ejecutar instalador y smoke en runners nativos (MDL-29). |
 
 ## Fases cerradas
 
@@ -69,9 +69,10 @@ firma nativa, WCAG manual y gate de release. Ver Linear MDL-25.
 
 ### P1 — Antes de beta amplia
 
-1. Ejecutar pruebas manuales WCAG: teclado, zoom 200 %, NVDA y VoiceOver (MDL-32).
+1. Pasada con NVDA (Windows) y VoiceOver (macOS); teclado/zoom ya documentados
+   en [`accessibility-audit.md`](accessibility-audit.md) (MDL-32).
 2. Registrar selectores y reglas por curso real en el E2E autenticado (MDL-33).
-3. Repetir revisión OWASP y el gate de integración (MDL-34).
+3. Cerrar el gate de integración cuando MDL-29 y MDL-33 tengan evidencia (MDL-34).
 
 ### P2 — Evolución posterior
 

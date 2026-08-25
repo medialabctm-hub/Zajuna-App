@@ -42,7 +42,7 @@ es una dependencia de ejecución.
 | Launcher local | Supervisor, recovery, instancia única, logs rotativos y navegador predeterminado sin BrowserWindow | Completado | Probar doble lanzamiento, cierre forzado y core ausente en cada OS. |
 | Core Windows | NSIS x64 con core + Playwright | Completado | Entregar instalador a QA Windows. |
 | Core ARM64/cross-build | Windows/Linux/macOS x64 y ARM64 | Completado | Smoke nativo de cada instalador. |
-| Firma y publicación | Manifest SHA256, SBOM y guía de descargas | Hardening | Firma, notarización y canal oficial (MDL-29, MDL-28). |
+| Firma y publicación | Manifest SHA256, SBOM, guía de descargas y `smoke:native` | Hardening | Firma, notarización y canal oficial (MDL-29). |
 
 ## Infraestructura descartada
 

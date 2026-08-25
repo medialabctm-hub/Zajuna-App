@@ -24,6 +24,8 @@
     "release:metadata": "node scripts/release-metadata.cjs",
     "release:downloads": "node scripts/prepare-downloads.cjs",
     "test:downloads": "node scripts/prepare-downloads.test.cjs",
+    "smoke:native": "node scripts/smoke-native.cjs",
+    "test:smoke:native": "node scripts/smoke-native.test.cjs",
     "test:smoke:packaged": "node scripts/smoke-packaged.cjs",
     "test:smoke:external-browser": "node scripts/smoke-external-browser.cjs",
     "test:core": "go -C core test ./...",

@@ -33,11 +33,12 @@ export function AppShell() {
 
   return (
     <div className="app-layout">
+      <a className="skip-link" href="#dashboard-main">Saltar al contenido</a>
       <Sidebar open={mobileNavOpen} onClose={() => { setMobileNavOpen(false); menuButtonRef.current?.focus() }} />
       {mobileNavOpen && <button className="mobile-nav-backdrop" type="button" aria-label="Cerrar navegación" onClick={() => { setMobileNavOpen(false); menuButtonRef.current?.focus() }} />}
       <div className="app-content">
         <Topbar mobileMenuOpen={mobileNavOpen} onToggleMobileMenu={() => setMobileNavOpen((open) => !open)} menuButtonRef={menuButtonRef} />
-        <main id="dashboard-main" className="shell app-main" aria-labelledby="dashboard-title">
+        <main id="dashboard-main" className="shell app-main" aria-labelledby="dashboard-title" tabIndex={-1}>
           <h1 id="dashboard-title" className="sr-only">
             Espacio de trabajo de Zajuna App
           </h1>

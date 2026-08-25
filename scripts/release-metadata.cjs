@@ -49,6 +49,7 @@ function writeMetadata() {
     productName: packageJson.build?.productName ?? packageJson.name,
     version: packageJson.version,
     node: process.version,
+    signed: process.env.ZAJUNA_SIGNED === '1',
     artifacts,
   };
   fs.writeFileSync(path.join(distRoot, 'release-manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`);
