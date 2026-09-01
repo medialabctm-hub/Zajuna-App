@@ -10,6 +10,10 @@ jobs:
   package-and-smoke:
     name: ${{ matrix.name }} installer
     runs-on: ${{ matrix.runner }}
+    env:
+      CSC_LINK: ${{ secrets.CSC_LINK }}
+      CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+      CSC_IDENTITY_AUTO_DISCOVERY: "false"
     strategy:
       fail-fast: false
       matrix:
@@ -17,8 +21,14 @@ jobs:
           - name: Windows
             runner: windows-latest
             package_script: package:windows
+          # La plataforma Linux objetivo es Linux Mint 22.3 "Zena", que esta
+          # construida sobre Ubuntu 24.04.3 LTS. Se fija el runner a 24.04 en
+          # vez de ubuntu-latest para que el AppImage se compile contra la
+          # misma linea base de glibc y librerias del sistema que el objetivo,
+          # y para que un salto futuro de ubuntu-latest no lo desalinee.
+          # GitHub no ofrece runners de Mint; 24.04 es la base de Mint 22.3.
           - name: Linux
-            runner: ubuntu-latest
+            runner: ubuntu-24.04
             package_script: package:linux
     steps:
       - uses: actions/checkout@v4
@@ -40,16 +50,19 @@ jobs:
 
       - name: Package native installer
         run: npm run ${{ matrix.package_script }}
-        env:
-          CSC_LINK: ${{ secrets.CSC_LINK }}
-          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
-          CSC_IDENTITY_AUTO_DISCOVERY: "false"
 
-      - name: Smoke packaged application
+      - name: Smoke packaged application (Windows)
+        if: runner.os == 'Windows'
         run: npm run test:smoke:packaged
 
+      # Electron necesita un servidor X aunque no abra BrowserWindow:
+      # el runner Linux es headless, asi que el smoke corre bajo Xvfb.
+      - name: Smoke packaged application (Linux)
+        if: runner.os == 'Linux'
+        run: xvfb-run --auto-servernum npm run test:smoke:packaged
+
       - name: Verify Windows Authenticode
-        if: runner.os == 'Windows' && secrets.CSC_LINK != ''
+        if: runner.os == 'Windows' && env.CSC_LINK != ''
         shell: pwsh
         run: |
           $installer = Get-ChildItem dist -Filter '*.exe' | Select-Object -First 1
@@ -57,7 +70,10 @@ jobs:
           $signature = Get-AuthenticodeSignature $installer.FullName
           if ($signature.Status -ne 'Valid') { throw "Firma inválida: $($signature.Status)" }
 
+      # always(): si el smoke falla queremos igual el instalador para poder
+      # reproducir el fallo en una maquina real.
       - name: Upload release evidence
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: zajuna-${{ matrix.name }}-native

@@ -18,7 +18,7 @@ Este roadmap solo muestra el estado de trabajo y las tareas que faltan.
 | Fidelidad visual y accesibilidad automatizada | Implementado | Sistema de diseño, motion, responsive y smoke de tres viewports. |
 | Seguridad OWASP | Hardening principal implementado | Capability, Host/Origin, anti-SSRF, cookies de captura acotadas, redacción y symlink guard. |
 | Instalador Windows | Construido y probado | NSIS x64 con core + Chromium; sin firma digital. Guía de descargas sin bypass de SmartScreen. |
-| macOS/Linux | Cross-build preparado | Falta ejecutar instalador y smoke en runners nativos. |
+| Linux (Mint 22.3 «Zena») | AppImage construido y con smoke verde en runner nativo | Falta instalar y probar en una máquina Mint real. macOS fuera de alcance. |
 
 ## Fases cerradas
 
@@ -63,7 +63,7 @@ firma nativa, WCAG manual y gate de release. Ver Linear MDL-25.
 ### P0 — Antes de entregar una versión comercial
 
 1. Firmar el instalador y ejecutables con certificados del cliente (MDL-29).
-2. Crear y probar DMG macOS y AppImage Linux en máquinas nativas (MDL-29).
+2. Instalar y probar el AppImage en un PC con Linux Mint 22.3 «Zena» real (MDL-29).
 3. Probar instalación limpia, actualización, desinstalación y ausencia de
    procesos huérfanos (MDL-29).
 4. Corregir con un instructor la regla del ítem 3.1 y los selectores de
@@ -86,7 +86,8 @@ firma nativa, WCAG manual y gate de release. Ver Linear MDL-25.
 
 ## Criterio de finalización
 
-La versión estará lista cuando pueda instalarse en los tres sistemas, configure
+La versión estará lista cuando pueda instalarse en Windows y en Linux Mint 22.3
+«Zena», configure
 credenciales sin exponerlas, sincronice una ficha, capture evidencia, genere
 PDF, recupere/cancele jobs, restaure un backup válido, cierre limpiamente y
 pase las pruebas unitarias, integración, browser, visuales, WCAG y OWASP.

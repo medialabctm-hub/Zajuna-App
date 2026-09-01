@@ -96,6 +96,12 @@ if (!filteredArgs.some((arg) => arg === '--' || arg.startsWith('--win') || arg.s
   filteredArgs.push(`--${platform}`);
 }
 filteredArgs.push('--config', configPath);
+// electron-builder detecta CI y activa publicacion implicita, que aborta el
+// empaquetado con "GitHub Personal Access Token is not set". Este script solo
+// produce artefactos locales: publicar es un paso aparte.
+if (!filteredArgs.some((arg) => arg === '--publish' || arg.startsWith('--publish='))) {
+  filteredArgs.push('--publish', 'never');
+}
 
 console.log(`Empaquetando ${platform}/${arch} con ${path.relative(projectRoot, sourceBinary)}.`);
 const result = spawnSync(process.execPath, [cliPath, ...filteredArgs], { cwd: projectRoot, stdio: 'inherit' });

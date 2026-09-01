@@ -5,9 +5,43 @@ const path = require('node:path');
 
 const projectRoot = path.resolve(__dirname, '..');
 
+// electron-builder nombra el ejecutable distinto en cada plataforma: en Windows
+// usa productName ("Zajuna App.exe") y en Linux `appInfo.sanitizedName`
+// minusculo, es decir el campo `name` de package.json ("zajuna-app"). Buscar
+// "Zajuna App" en linux-unpacked hacia fallar el smoke con el paquete correcto
+// ya construido.
+const NON_APP_BINARIES = new Set(['chrome-sandbox', 'chrome_crashpad_handler']);
+
+function firstExistingPath(candidates) {
+  return candidates.find((candidate) => fsSync.existsSync(candidate));
+}
+
+function discoverLinuxExecutable(unpackedDir) {
+  if (!fsSync.existsSync(unpackedDir)) return undefined;
+  return fsSync
+    .readdirSync(unpackedDir, { withFileTypes: true })
+    .filter((entry) => entry.isFile() && !NON_APP_BINARIES.has(entry.name) && path.extname(entry.name) === '')
+    .map((entry) => path.join(unpackedDir, entry.name))
+    .find((candidate) => {
+      try {
+        fsSync.accessSync(candidate, fsSync.constants.X_OK);
+        return true;
+      } catch {
+        return false;
+      }
+    });
+}
+
 function defaultExecutable() {
-  if (process.platform === 'win32') return path.join(projectRoot, 'dist', 'win-unpacked', 'Zajuna App.exe');
-  return path.join(projectRoot, 'dist', 'linux-unpacked', 'Zajuna App');
+  if (process.platform === 'win32') {
+    return path.join(projectRoot, 'dist', 'win-unpacked', 'Zajuna App.exe');
+  }
+  const unpackedDir = path.join(projectRoot, 'dist', 'linux-unpacked');
+  const named = firstExistingPath([
+    path.join(unpackedDir, 'zajuna-app'),
+    path.join(unpackedDir, 'Zajuna App'),
+  ]);
+  return named || discoverLinuxExecutable(unpackedDir) || path.join(unpackedDir, 'zajuna-app');
 }
 
 function packagedCoreDir(executable) {
@@ -35,6 +69,26 @@ async function endpointFor(pid, timeoutMs = 20000) {
     await sleep(250);
   }
   throw new Error(`El paquete no expuso /api/health en ${timeoutMs} ms (pid ${pid}).`);
+}
+
+// Guarda una cola acotada de la salida del proceso empaquetado: sin esto un
+// fallo de arranque solo se ve como "no expuso /api/health".
+function collectChildOutput(child, maxChars = 4000) {
+  const chunks = [];
+  let total = 0;
+  const append = (stream, label) => {
+    if (!stream) return;
+    stream.setEncoding('utf8');
+    stream.on('data', (chunk) => {
+      chunks.push(`[${label}] ${chunk}`);
+      total += chunk.length;
+      while (total > maxChars && chunks.length > 1) total -= chunks.shift().length;
+    });
+    stream.on('error', () => {});
+  };
+  append(child.stdout, 'stdout');
+  append(child.stderr, 'stderr');
+  return { tail: () => chunks.join('').trim().slice(-maxChars) };
 }
 
 async function stopProcess(child) {
@@ -79,12 +133,26 @@ async function main() {
   console.log(`Iniciando smoke del paquete: ${executable}`);
   const userDataDir = path.join(projectRoot, 'tmp', 'smoke-packaged-user-data');
   await fs.rm(userDataDir, { recursive: true, force: true });
-  const child = spawn(executable, [`--user-data-dir=${userDataDir}`], {
+  // El smoke corre el directorio `linux-unpacked` recien extraido, donde
+  // `chrome-sandbox` no puede ser setuid root, asi que Chromium aborta con
+  // "The SUID sandbox helper binary ... is not configured correctly". Este
+  // smoke valida el core Go y el frontend embebido, no el sandbox de Chromium:
+  // el launcher no abre BrowserWindow ni carga contenido remoto en Electron.
+  // Esto NO cambia la app entregada; solo esta invocacion de prueba.
+  const launchArgs = [`--user-data-dir=${userDataDir}`];
+  if (process.platform === 'linux') {
+    console.log('Linux: el paquete sin instalar se lanza con --no-sandbox (chrome-sandbox no es setuid en dist/).');
+    launchArgs.push('--no-sandbox');
+  }
+  const child = spawn(executable, launchArgs, {
     cwd: path.dirname(executable),
     windowsHide: true,
-    stdio: 'ignore',
+    // Capturado, no descartado: cuando el paquete no publica endpoint la unica
+    // pista de por que esta en la salida del launcher.
+    stdio: ['ignore', 'pipe', 'pipe'],
     env: { ...process.env, ZAJUNA_SKIP_EXTERNAL_OPEN: '1' },
   });
+  const childOutput = collectChildOutput(child);
   try {
     const { endpoint, file } = await endpointFor(child.pid);
     const parsedEndpoint = new URL(endpoint.url);
@@ -109,7 +177,10 @@ async function main() {
   } catch (error) {
     await stopProcess(child);
     await fs.rm(userDataDir, { recursive: true, force: true });
-    throw error;
+    const tail = childOutput.tail();
+    throw new Error(tail ? `${error.message}
+Salida del paquete:
+${tail}` : error.message);
   }
 }
 
