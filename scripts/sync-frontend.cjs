@@ -30,4 +30,10 @@ fs.rmSync(embeddedWeb, { recursive: true, force: true });
 fs.mkdirSync(embeddedWeb, { recursive: true });
 fs.cpSync(frontendDist, embeddedWeb, { recursive: true });
 
+// Vite conserva los finales de línea del HTML fuente. Normalizarlos evita que
+// el mismo build genere diffs CRLF distintos en estaciones Windows y Linux.
+const embeddedIndexPath = path.join(embeddedWeb, 'index.html');
+const embeddedIndex = fs.readFileSync(embeddedIndexPath, 'utf8').replace(/\r\n/g, '\n');
+fs.writeFileSync(embeddedIndexPath, embeddedIndex, 'utf8');
+
 console.log('Frontend React sincronizado en ' + path.relative(projectRoot, embeddedWeb));

@@ -506,3 +506,82 @@
     white-space: normal;
   }
 }
+
+/* Portabilidad de escritorio: conserva la geometría entre Windows y Linux. */
+html {
+  min-width: 320px;
+  scrollbar-gutter: stable;
+}
+body {
+  min-width: 320px;
+  min-height: 100vh;
+}
+input:not([type="checkbox"]):not([type="radio"]),
+select,
+textarea {
+  min-height: 44px;
+}
+.button.small {
+  display: inline-flex;
+  min-width: 44px;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+}
+.activity-list,
+.checklist-category-list,
+.route-list,
+.evidence-dialog,
+.ficha-table {
+  scrollbar-color: #a9c4d2 transparent;
+  scrollbar-width: thin;
+}
+.page-head,
+.section-toolbar,
+.settings-row,
+.backup-row,
+.report-row,
+.job-top {
+  min-width: 0;
+}
+.page-head > *,
+.section-toolbar > *,
+.settings-row > *,
+.backup-row > *,
+.report-row > *,
+.job-top > * {
+  min-width: 0;
+}
+.helper,
+.muted,
+.task-desc,
+.route-note,
+.settings-row span,
+.job small {
+  overflow-wrap: break-word;
+}
+@media (hover: none) {
+  .button:hover,
+  .tab:hover,
+  .process-job-card:hover,
+  .evidence-miniature:hover {
+    transform: none;
+  }
+}
+@media (max-width:640px) {
+  .form-actions,
+  .backup-actions {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+  .form-actions .button,
+  .backup-actions .button {
+    flex: 1 1 auto;
+  }
+  .section-toolbar,
+  .settings-row,
+  .backup-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}
