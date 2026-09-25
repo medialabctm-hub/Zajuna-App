@@ -2,7 +2,6 @@ import { Fragment, useEffect, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import {
   useActivities,
-  useCapture,
   useDashboard,
   useDeleteEvidence,
   useDiscoverCourseMaps,
@@ -29,6 +28,7 @@ import { evidenceDownloadUrl } from '../api/client'
 import { useToast } from '../hooks/useToast'
 import { friendlyError } from '../lib/friendlyError'
 import { RouteDiscoveryAction } from '../components/RouteDiscoveryAction'
+import { CaptureAction } from '../components/WorkflowActions'
 import { ActivitySelector } from '../components/ActivitySelector'
 import type {
   DashboardCategory,
@@ -540,7 +540,6 @@ export function Checklist() {
 
   const setItemStatus = useSetItemStatus()
   const saveReview = useSaveReview()
-  const capture = useCapture()
   const generateReport = useGenerateReport()
   const discoverCourseMaps = useDiscoverCourseMaps()
   const deleteEvidence = useDeleteEvidence()
@@ -626,25 +625,6 @@ export function Checklist() {
       const top = section.getBoundingClientRect().top + window.scrollY - 24
       window.scrollTo({ top, behavior: 'smooth' })
     })
-  }
-
-  function handleCapture() {
-    if (!dashboard) return
-    if (!targetsQuery.data?.targets?.length) {
-      toast('Primero busca las rutas de esta ficha.', true)
-      return
-    }
-    capture.mutate(
-      {
-        fichaId: dashboard.activeFichaId,
-        username: setupQuery.data?.zajunaUsername || '',
-        documentType: setupQuery.data?.zajunaDocumentType || 'CC',
-      },
-      {
-        onSuccess: () => toast('Estamos preparando tus evidencias.'),
-        onError: (error) => toast(friendlyError(error.message), true),
-      },
-    )
   }
 
   function handleExportReport() {
@@ -767,9 +747,7 @@ export function Checklist() {
                 <button className="button ghost small" onClick={handleExportReport} disabled={generateReport.isPending}>
                   Generar PDF
                 </button>
-                <button className="button primary small" onClick={handleCapture} disabled={capture.isPending || !targetsQuery.data?.targets?.length}>
-                  Preparar evidencias
-                </button>
+                <CaptureAction compact />
               </div>
             </div>
             <div className="checklist-progress">

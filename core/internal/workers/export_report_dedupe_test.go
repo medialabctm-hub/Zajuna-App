@@ -31,7 +31,7 @@ func TestGroupedReportEmbedsEachImageOnce(t *testing.T) {
 		{Title: "Grupo C", ItemCodes: []string{"1.2.1"}, Evidences: []evidence.Record{{ID: "c", ItemCode: "1.2.1", Name: "c.png", FilePath: nohash, Format: "png"}}},
 		{Title: "Grupo D", ItemCodes: []string{"1.2.2"}, Evidences: []evidence.Record{{ID: "d", ItemCode: "1.2.2", Name: "d.png", FilePath: nohash, Format: "png"}}},
 	}
-	text := buildGroupedReportHTML(dataDir, "Reporte", "ficha", groups)
+	text := buildGroupedReportHTML(dataDir, "Reporte", "ficha", groups, 0)
 	if count := strings.Count(text, "data:image/png;base64,"); count != 2 {
 		t.Fatalf("expected 2 embedded images, got %d", count)
 	}

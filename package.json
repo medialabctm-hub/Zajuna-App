@@ -1,6 +1,6 @@
 {
   "name": "zajuna-app",
-  "version": "0.1.3",
+  "version": "0.1.6",
   "author": "Zajuna App",
   "description": "Aplicación de escritorio multiplataforma para Zajuna",
   "private": true,
@@ -31,7 +31,7 @@
     "test:core": "go -C core test ./...",
     "test:e2e:core": "go -C core test ./cmd/zajuna-core -run TestLocalE2ESetupCaptureReportBackup -v",
     "test:visual:core": "powershell -NoProfile -Command \"$env:ZAJUNA_PLAYWRIGHT_DIR=(Join-Path (Get-Location) 'core/bin/playwright'); $env:ZAJUNA_RUN_BROWSER_SMOKE='1'; go -C core test ./cmd/zajuna-core -run TestDashboardBrowserSmoke -v\"",
-    "test:browser:core": "powershell -NoProfile -Command \"$env:ZAJUNA_PLAYWRIGHT_DIR=(Join-Path (Get-Location) 'core/bin/playwright'); $env:ZAJUNA_RUN_BROWSER_SMOKE='1'; go -C core test ./... -run 'TestDashboardBrowserSmoke|TestEvidenciasBrowserSmoke|TestLocalE2ESetupCaptureReportBackup|TestCaptureBrowserWorkerPersistsPNGSmoke|TestCaptureBrowserWorkerTransfersEphemeralSessionToChromium' -v\"",
+    "test:browser:core": "powershell -NoProfile -Command \"$env:ZAJUNA_PLAYWRIGHT_DIR=(Join-Path (Get-Location) 'core/bin/playwright'); $env:ZAJUNA_RUN_BROWSER_SMOKE='1'; go -C core test ./... -run 'TestDashboardBrowserSmoke|TestEvidenciasBrowserSmoke|TestCriticalPagesBrowserSmoke|TestLocalE2ESetupCaptureReportBackup|TestCaptureBrowserWorkerPersistsPNGSmoke|TestCaptureBrowserWorkerTransfersEphemeralSessionToChromium' -v\"",
     "test:e2e:zajuna": "powershell -NoProfile -Command \"$env:ZAJUNA_PLAYWRIGHT_DIR=(Join-Path (Get-Location) 'core/bin/playwright'); go -C core test ./cmd/zajuna-core -run TestAuthenticatedZajunaE2E -v\""
   },
   "devDependencies": {

@@ -90,10 +90,16 @@ func TestOrderedFanoutClaimsContiguousFIFOBeforeParallelWork(t *testing.T) {
 	if len(claims) != n {
 		t.Fatalf("expected %d claims, got %#v", n, claims)
 	}
-	for i, index := range claims {
-		if index != i {
-			t.Fatalf("claim order must be contiguous FIFO 0..n-1, got %#v", claims)
+	// Indices are claimed FIFO under the fanout's mutex (the first-window
+	// checks above prove 0..concurrency-1 start before any later index). This
+	// test records them inside run, after that mutex is released, so a claimed
+	// index may be recorded late under load: only require every index once.
+	seen := make(map[int]bool, n)
+	for _, index := range claims {
+		if index < 0 || index >= n || seen[index] {
+			t.Fatalf("claims must be a permutation of 0..n-1, got %#v", claims)
 		}
+		seen[index] = true
 	}
 	if got := atomic.LoadInt32(&maxInFlight); got > int32(concurrency) {
 		t.Fatalf("max in-flight %d exceeds concurrency %d", got, concurrency)

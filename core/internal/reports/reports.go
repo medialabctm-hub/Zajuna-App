@@ -7,15 +7,15 @@ import (
 )
 
 type Record struct {
-	ID         string
-	Name       string
-	FilePath   string
-	Format     string
-	Status     string
-	SHA256     string
-	Metadata   json.RawMessage
-	CreatedAt  time.Time
-	UpdatedAt  time.Time
+	ID        string
+	Name      string
+	FilePath  string
+	Format    string
+	Status    string
+	SHA256    string
+	Metadata  json.RawMessage
+	CreatedAt time.Time
+	UpdatedAt time.Time
 }
 
 type Store interface {

@@ -1,9 +1,25 @@
-import { useEffect, useRef } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { ApiError, api } from '../api/client'
-import type { JobStatus } from '../types'
+import { readStoredConnectionTest, writeStoredConnectionTest, type StoredConnectionTest } from '../lib/connectionStatus'
+import type { Job, JobStatus } from '../types'
 
 const POLL_MS = 5000
+// Without active work nothing changes on its own: user actions and finished
+// jobs already invalidate what they touch, so idle polling only has to catch
+// changes made elsewhere (a scheduled run, another window).
+const IDLE_POLL_MS = 30_000
+const IDLE_JOBS_POLL_MS = 15_000
+const ACTIVE_JOB_STATUSES: JobStatus[] = ['queued', 'running', 'waiting_user', 'retrying']
+
+function hasActiveJobs(jobs: Job[] | undefined) {
+  return !!jobs?.some((job) => ACTIVE_JOB_STATUSES.includes(job.status))
+}
+
+/** Polls fast only while a job is running; otherwise falls back to the idle rate. */
+function activityPollInterval(queryClient: QueryClient) {
+  return () => (hasActiveJobs(queryClient.getQueryData<Job[]>(['jobs'])) ? POLL_MS : IDLE_POLL_MS)
+}
 
 export function isNotFound(error: unknown) {
   return error instanceof ApiError && error.status === 404
@@ -32,11 +48,12 @@ export function useSaveSettings() {
 }
 
 export function useDiagnostics() {
-  return useQuery({ queryKey: ['diagnostics'], queryFn: api.getDiagnostics, refetchInterval: 15000 })
+  return useQuery({ queryKey: ['diagnostics'], queryFn: api.getDiagnostics, refetchInterval: IDLE_POLL_MS })
 }
 
 export function useNotifications() {
-  return useQuery({ queryKey: ['notifications'], queryFn: api.listNotifications, refetchInterval: POLL_MS })
+  const queryClient = useQueryClient()
+  return useQuery({ queryKey: ['notifications'], queryFn: api.listNotifications, refetchInterval: activityPollInterval(queryClient) })
 }
 
 export function useMarkNotificationRead() {
@@ -91,8 +108,37 @@ export function useSaveSetup() {
   })
 }
 
+/**
+ * Encola la prueba real de conexión (`test-zajuna-connection`) y sigue el
+ * resultado del último job. El id se recuerda en este equipo para que el
+ * estado sobreviva a recargas; se olvida al guardar credenciales nuevas.
+ */
+export function useZajunaConnectionTest(username?: string) {
+  const queryClient = useQueryClient()
+  const [stored, setStored] = useState<StoredConnectionTest | null>(() => readStoredConnectionTest())
+  const jobId = stored && stored.username === (username || '') ? stored.jobId : undefined
+  const jobQuery = useJob(jobId)
+  const mutation = useMutation({
+    mutationFn: api.testZajunaConnection,
+    onSuccess: (job) => {
+      const next = { jobId: job.id, username: username || '' }
+      writeStoredConnectionTest(next)
+      setStored(next)
+      queryClient.setQueryData(['job', job.id], job)
+      queryClient.invalidateQueries({ queryKey: ['jobs'] })
+    },
+  })
+  const forget = useCallback(() => {
+    writeStoredConnectionTest(null)
+    setStored(null)
+  }, [])
+  const job = jobQuery.isError ? undefined : jobQuery.data
+  return { job, start: mutation.mutateAsync, isStarting: mutation.isPending, forget }
+}
+
 export function useFichas() {
-  return useQuery({ queryKey: ['fichas'], queryFn: () => api.listFichas(100), refetchInterval: POLL_MS })
+  const queryClient = useQueryClient()
+  return useQuery({ queryKey: ['fichas'], queryFn: () => api.listFichas(100), refetchInterval: activityPollInterval(queryClient) })
 }
 
 export function useSyncFichas() {
@@ -124,17 +170,27 @@ export function useSetActiveFicha() {
 export function useJobs() {
   const queryClient = useQueryClient()
   const previousStatuses = useRef<Record<string, string>>({})
-  const query = useQuery({ queryKey: ['jobs'], queryFn: () => api.listJobs(50), refetchInterval: POLL_MS })
+  const query = useQuery({
+    queryKey: ['jobs'],
+    queryFn: () => api.listJobs(50),
+    refetchInterval: (current) => (hasActiveJobs(current.state.data) ? POLL_MS : IDLE_JOBS_POLL_MS),
+  })
 
   useEffect(() => {
     if (!query.data) return
     const terminal = new Set(['completed', 'failed', 'cancelled'])
     const previous = previousStatuses.current
     const completedCapture = query.data.some((job) => {
-      const wasActive = ['queued', 'running', 'waiting_user', 'retrying'].includes(previous[job.id] || '')
+      const wasActive = ACTIVE_JOB_STATUSES.includes(previous[job.id] as JobStatus)
       return wasActive && terminal.has(job.status)
     })
+    const startedWork = query.data.some(
+      (job) => ACTIVE_JOB_STATUSES.includes(job.status) && !ACTIVE_JOB_STATUSES.includes(previous[job.id] as JobStatus),
+    )
     previousStatuses.current = Object.fromEntries(query.data.map((job) => [job.id, job.status]))
+    // Refetching now moves the dashboard to the fast rate without waiting
+    // for its next idle tick.
+    if (startedWork) queryClient.invalidateQueries({ queryKey: ['dashboard'] })
     if (!completedCapture) return
     queryClient.invalidateQueries({ queryKey: ['dashboard'] })
     queryClient.invalidateQueries({ queryKey: ['evidenceGroups'] })
@@ -143,6 +199,10 @@ export function useJobs() {
     queryClient.invalidateQueries({ queryKey: ['targets'] })
     queryClient.invalidateQueries({ queryKey: ['reviews'] })
     queryClient.invalidateQueries({ queryKey: ['reports'] })
+    queryClient.invalidateQueries({ queryKey: ['evidenceReview'] })
+    // Finished jobs create notifications and a ficha sync rewrites the list.
+    queryClient.invalidateQueries({ queryKey: ['notifications'] })
+    queryClient.invalidateQueries({ queryKey: ['fichas'] })
   }, [query.data, queryClient])
 
   return query
@@ -204,7 +264,8 @@ export function useCancelJob() {
 }
 
 export function useSchedules() {
-  return useQuery({ queryKey: ['schedules'], queryFn: api.listSchedules, refetchInterval: POLL_MS })
+  const queryClient = useQueryClient()
+  return useQuery({ queryKey: ['schedules'], queryFn: api.listSchedules, refetchInterval: activityPollInterval(queryClient) })
 }
 
 export function useCreateSchedule() {
@@ -224,11 +285,18 @@ export function useSetScheduleEnabled() {
 }
 
 export function useDashboard(fichaId?: string) {
+  const queryClient = useQueryClient()
+  const pollInterval = activityPollInterval(queryClient)
   return useQuery({
     queryKey: ['dashboard', fichaId ?? 'active'],
     queryFn: () => api.getDashboard(fichaId),
     retry: retryTransient,
-    refetchInterval: (query) => (isNotFound(query.state.error) ? false : POLL_MS),
+    // Sin ficha activa el core responde 404. Volver a pedirlo cada vez que se
+    // monta un componente que lo usa devolvía la consulta a «cargando», el
+    // Resumen desmontaba y montaba sus botones y eso entraba en bucle (cientos
+    // de peticiones por segundo). Elegir una ficha invalida 'dashboard'.
+    retryOnMount: false,
+    refetchInterval: (query) => (isNotFound(query.state.error) ? false : pollInterval()),
   })
 }
 
@@ -399,14 +467,20 @@ export function useClearEvidences() {
 }
 
 export function useReports() {
-  return useQuery({ queryKey: ['reports'], queryFn: () => api.listReports(50), refetchInterval: POLL_MS })
+  const queryClient = useQueryClient()
+  return useQuery({ queryKey: ['reports'], queryFn: () => api.listReports(50), refetchInterval: activityPollInterval(queryClient) })
 }
 
 export function useGenerateReport() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: api.generateReport,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['reports'] }),
+    onSuccess: () => {
+      // The report row appears when its job finishes; tracking the job keeps
+      // polling fast until then.
+      queryClient.invalidateQueries({ queryKey: ['jobs'] })
+      queryClient.invalidateQueries({ queryKey: ['reports'] })
+    },
   })
 }
 
@@ -415,5 +489,41 @@ export function useCreateBackup() {
   return useMutation({
     mutationFn: api.createBackup,
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['backups'] }),
+  })
+}
+
+export function useEvidenceReview(fichaId?: string) {
+  return useQuery({
+    queryKey: ['evidenceReview', fichaId],
+    queryFn: () => api.getEvidenceReview(fichaId as string),
+    enabled: !!fichaId,
+    retry: retryTransient,
+    refetchOnWindowFocus: true,
+  })
+}
+
+export function useVerifyEvidences() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (fichaId: string) => api.verifyEvidences(fichaId),
+    onSuccess: (data, fichaId) => {
+      queryClient.setQueryData(['evidenceReview', fichaId], data)
+      queryClient.invalidateQueries({ queryKey: ['evidenceReview'] })
+      // Verifying marks fully approved items as fulfilled in the checklist.
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+    },
+  })
+}
+
+export function useSetEvidenceReview() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ evidenceId, ...input }: { evidenceId: string; status: 'approved' | 'pending' | 'rejected'; note?: string }) =>
+      api.setEvidenceReview(evidenceId, input),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['evidenceReview'] })
+      // A decision can mark (or withdraw) the item in the checklist.
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+    },
   })
 }

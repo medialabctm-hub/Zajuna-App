@@ -47,6 +47,12 @@ func (p *browserSessionPool) acquire(ctx context.Context) (checklistBrowserSessi
 		return session, nil
 	}
 	p.mu.Unlock()
+	return p.acquireFresh(ctx)
+}
+
+// acquireFresh always opens a new session (a new Zajuna login), skipping
+// idle ones that may have expired together with the one being replaced.
+func (p *browserSessionPool) acquireFresh(ctx context.Context) (checklistBrowserSession, error) {
 	var lastErr error
 	for attempt := 0; attempt < p.attempts; attempt++ {
 		if attempt > 0 {

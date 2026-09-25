@@ -14,7 +14,6 @@ import (
 type reportView struct {
 	ID        string `json:"id"`
 	Name      string `json:"name"`
-	FilePath  string `json:"filePath"`
 	Format    string `json:"format"`
 	Status    string `json:"status"`
 	SHA256    string `json:"sha256"`
@@ -36,11 +35,11 @@ func registerReportRoutes(mux *http.ServeMux, store reports.Store, runtime *jobs
 			writeError(w, http.StatusServiceUnavailable, errors.New("el almacenamiento de reportes no está disponible"))
 			return
 		}
-		limit := 20
+		limit := 1000
 		if rawLimit := r.URL.Query().Get("limit"); rawLimit != "" {
 			parsed, err := strconv.Atoi(rawLimit)
-			if err != nil || parsed < 1 || parsed > 100 {
-				writeError(w, http.StatusBadRequest, errors.New("limit debe ser un número entre 1 y 100"))
+			if err != nil || parsed < 1 || parsed > 10000 {
+				writeError(w, http.StatusBadRequest, errors.New("limit debe ser un número entre 1 y 10000"))
 				return
 			}
 			limit = parsed
@@ -94,5 +93,5 @@ func registerReportRoutes(mux *http.ServeMux, store reports.Store, runtime *jobs
 }
 
 func toReportView(item reports.Record) reportView {
-	return reportView{ID: item.ID, Name: item.Name, FilePath: item.FilePath, Format: item.Format, Status: item.Status, SHA256: item.SHA256, CreatedAt: item.CreatedAt.Format("2006-01-02T15:04:05.999Z07:00"), UpdatedAt: item.UpdatedAt.Format("2006-01-02T15:04:05.999Z07:00")}
+	return reportView{ID: item.ID, Name: item.Name, Format: item.Format, Status: item.Status, SHA256: item.SHA256, CreatedAt: item.CreatedAt.Format("2006-01-02T15:04:05.999Z07:00"), UpdatedAt: item.UpdatedAt.Format("2006-01-02T15:04:05.999Z07:00")}
 }

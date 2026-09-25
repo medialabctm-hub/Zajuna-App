@@ -11,7 +11,6 @@ fs.mkdirSync(path.dirname(outputPath), { recursive: true });
 const result = spawnSync('go', ['build', '-o', outputPath, './cmd/zajuna-core'], {
   cwd: path.join(projectRoot, 'core'),
   stdio: 'inherit',
-  shell: process.platform === 'win32',
 });
 
 if (result.error) {

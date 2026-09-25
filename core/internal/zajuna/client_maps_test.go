@@ -24,7 +24,6 @@ func TestGroupRoutesProjectsGenericKindsIntoChecklistItemCodes(t *testing.T) {
 		"1.1.1": routes[0].URL,
 		"1.2.1": routes[1].URL,
 		"2.1.1": routes[2].URL,
-		"9.1.1": routes[3].URL,
 		"5.1":   routes[4].URL,
 	} {
 		var values []string
@@ -37,6 +36,11 @@ func TestGroupRoutesProjectsGenericKindsIntoChecklistItemCodes(t *testing.T) {
 	}
 	if _, ok := groups["route.page"]; !ok {
 		t.Fatal("generic route.page group should remain available")
+	}
+	// Forum items are title-resolved: an untitled forum is not assigned.
+	var forum []string
+	if err := json.Unmarshal(groups["9.1.1"], &forum); err != nil || len(forum) != 0 {
+		t.Fatalf("an untitled forum must not be projected into 9.1.1: %#v (%v)", forum, err)
 	}
 }
 
@@ -65,7 +69,7 @@ func TestGroupRoutesUsesTitlesToResolveChecklistActivitiesAndSlots(t *testing.T)
 	assertMappedURL("9.1.1", "https://zajuna.sena.edu.co/zajuna/mod/forum/view.php?forceview=1&id=20")
 	assertMappedURL("9.1.3", "https://zajuna.sena.edu.co/zajuna/mod/forum/view.php?forceview=1&id=21")
 	assertMappedURL("10.1.1", "https://zajuna.sena.edu.co/zajuna/mod/assign/view.php?forceview=1&id=30")
-	assertMappedURL("5.1", "https://zajuna.sena.edu.co/zajuna/grade/report/grader/index.php?id=41080")
+	assertMappedURL("5.1", "https://zajuna.sena.edu.co/zajuna/grade/edit/tree/index.php?id=41080")
 	assertMappedURL("2.1.1", "https://zajuna.sena.edu.co/zajuna/user/profile.php")
 	assertMappedURL("4.1", "https://zajuna.sena.edu.co/zajuna/course/view.php?id=41080")
 
@@ -114,5 +118,23 @@ func TestDiscoverCourseMapReadsJumpOptionsWithActivityTitles(t *testing.T) {
 	}
 	if record.Routes[0].Title == "" {
 		t.Fatalf("expected route title from jump option: %#v", record.Routes)
+	}
+}
+
+func TestIsCourseMapFollowCandidateStaysOnCourse(t *testing.T) {
+	course := "https://zajuna.sena.edu.co/zajuna/course/view.php?id=41080"
+	other := "https://zajuna.sena.edu.co/zajuna/course/view.php?id=99999"
+	forum := "https://zajuna.sena.edu.co/zajuna/mod/forum/view.php?id=12"
+	if !isCourseMapFollowCandidate(course, "course", "41080") {
+		t.Fatal("same course page must be followed")
+	}
+	if isCourseMapFollowCandidate(other, "course", "41080") {
+		t.Fatal("other course pages must not be crawled")
+	}
+	if !isCourseMapFollowCandidate(forum, "forum", "41080") {
+		t.Fatal("same-site activity pages remain follow candidates")
+	}
+	if fallbackRouteTitle(forum, "forum") == "" {
+		t.Fatal("empty anchors still get a title fallback")
 	}
 }

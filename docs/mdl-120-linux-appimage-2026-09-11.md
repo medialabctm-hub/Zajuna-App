@@ -52,6 +52,9 @@ Hay un `main.cjs` duplicado en la raíz del repo (el módulo real es
 toqué porque no forma parte de esta tarea, pero queda como hallazgo: alguien
 debería confirmar si se puede eliminar.
 
+> Resuelto (2026-09-24): el `main.cjs` de la raíz se eliminó. El único entry
+> de Electron es `desktop/main.cjs`.
+
 ## Evidencia de ejecución
 
 ```text

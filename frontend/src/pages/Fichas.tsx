@@ -1,22 +1,20 @@
 import { useState } from 'react'
 import type { ChangeEvent } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import { PageError, PageSkeleton } from '../components/AsyncState'
 import {
   useActivities,
-  useCapture,
   useDashboard,
   useFichas,
   useSetActiveFicha,
-  useSetupStatus,
-  useSyncFichas,
-  useTargets,
 } from '../hooks/api'
 import { formatDate } from '../lib/format'
 import { useToast } from '../hooks/useToast'
 import { friendlyError } from '../lib/friendlyError'
 import type { Ficha } from '../types'
 import { RouteDiscoveryAction } from '../components/RouteDiscoveryAction'
+import { CaptureAction, SyncFichasAction } from '../components/WorkflowActions'
+import { StepBadge } from '../components/WorkflowSteps'
 
 function FichaTableRow({
   ficha,
@@ -79,11 +77,8 @@ export function Fichas() {
   const fichasQuery = useFichas()
   const fichasData = fichasQuery.data
   const { data: dashboard } = useDashboard()
-  const { data: setupStatus } = useSetupStatus()
 
-  const syncFichas = useSyncFichas()
   const setActiveFicha = useSetActiveFicha()
-  const capture = useCapture()
 
   const [fichaQuery, setFichaQuery] = useState('')
 
@@ -91,8 +86,6 @@ export function Fichas() {
   const active = dashboard?.activeFichaId
   const activitiesQuery = useActivities(active)
   const activities = activitiesQuery.data
-  const targetsQuery = useTargets(active)
-  const routesReady = targetsQuery.data?.mapReady !== false && Boolean(targetsQuery.data?.targets?.length)
 
   if (fichasQuery.isLoading) return <PageSkeleton label="Cargando fichas locales" />
   if (fichasQuery.isError) return <PageError message="No pudimos cargar las fichas locales." action={<button className="button" onClick={() => fichasQuery.refetch()}>Reintentar</button>} />
@@ -113,33 +106,6 @@ export function Fichas() {
       ),
   )
 
-  const username = setupStatus?.zajunaUsername ?? ''
-  const documentType = setupStatus?.zajunaDocumentType ?? 'CC'
-
-  const handleSync = () => {
-    syncFichas.mutate(
-      { username, documentType },
-      {
-        onSuccess: () => toast('Estamos actualizando tus fichas.'),
-        onError: (error: Error) => toast(friendlyError(error.message), true),
-      },
-    )
-  }
-
-  const handleCapture = () => {
-    if (!active) return
-    if (!routesReady) {
-      toast('Busca las rutas del curso antes de preparar evidencias.', true)
-      return
-    }
-    capture.mutate(
-      { fichaId: active, username, documentType },
-      {
-        onSuccess: () => toast('Estamos preparando las evidencias de esta ficha.'),
-        onError: (error: Error) => toast(friendlyError(error.message), true),
-      },
-    )
-  }
 
   const handleSelect = (fichaId: string) => {
     setActiveFicha.mutate(fichaId, {
@@ -161,11 +127,6 @@ export function Fichas() {
           <div>
             <div className="eyebrow">
               Ficha activa
-              {activeFicha ? (
-                <span className="badge" style={{ marginLeft: 8, background: 'var(--brand)', color: '#fff' }}>
-                  FICHA ACTIVA
-                </span>
-              ) : null}
             </div>
             <h2>{activeFicha ? activeFicha.name : 'Sin ficha seleccionada'}</h2>
             <div className="active-ficha-meta">
@@ -174,9 +135,7 @@ export function Fichas() {
               <span>Actualizada {activeFicha ? formatDate(activeFicha.updatedAt) : '—'}</span>
             </div>
           </div>
-          <button className="button primary" disabled={syncFichas.isPending} onClick={handleSync}>
-            Sincronizar fichas
-          </button>
+          <SyncFichasAction />
         </div>
         <div className="active-ficha-grid">
           <div className="active-ficha-stat">
@@ -201,14 +160,19 @@ export function Fichas() {
             Abrir checklist
           </button>
           <div className="ficha-action-group">
-            <span className="ficha-action-label">Paso 1 · mapa del curso</span>
+            <span className="ficha-action-label">Mapa del curso</span>
             <RouteDiscoveryAction compact variant="primary" />
           </div>
           <div className="ficha-action-group">
-            <span className="ficha-action-label">Paso 2 · captura</span>
-            <button className="button ghost small" disabled={!active || !routesReady || capture.isPending} onClick={handleCapture}>
-              Preparar evidencias
-            </button>
+            <span className="ficha-action-label">Tus actividades</span>
+            <Link className="button ghost small" to="/actividades">
+              <StepBadge step="activities" />
+              Seleccionar actividades
+            </Link>
+          </div>
+          <div className="ficha-action-group">
+            <span className="ficha-action-label">Captura</span>
+            <CaptureAction compact />
           </div>
         </div>
       </section>

@@ -11,7 +11,7 @@ Este roadmap solo muestra el estado de trabajo y las tareas que faltan.
 |---|---|---|
 | Launcher Electron + core Go | Implementado | Launcher silencioso, endpoint dinámico, instancia única, recuperación y navegador predeterminado. |
 | React embebido | Implementado | Vite → `go:embed`, PostCSS local, fallback SPA y API same-origin. |
-| SQLite y secretos | Implementado | Schema v12, keyring, backups con hash/`integrity_check` y rollback si el restore no abre. |
+| SQLite y secretos | Implementado | Schema v14, keyring, backups con hash/`integrity_check` y rollback si el restore no abre. |
 | Jobs y scheduler | Implementado | CAS, un worker por job, recuperación de huérfanos al arrancar, eventos y schedules. |
 | Checklist/evidencias/reportes | Implementado | 62 ítems, detalle, galería, capturas y PDF/HTML. |
 | Configuración/diagnóstico/notificaciones | Implementado | APIs locales y vistas funcionales. |
@@ -38,7 +38,7 @@ almacén seguro del sistema operativo.
 
 Se implementaron fichas, cursos, mapas de captura, checklist, slots,
 evidencias, reportes, backups, settings, diagnóstico y notificaciones. El
-schema actual es v12.
+schema actual es v14 (v13: una evidencia vigente por ficha, ítem, ranura y origen; v14: revisión de evidencias).
 
 ### Fase 4 — React y maqueta
 

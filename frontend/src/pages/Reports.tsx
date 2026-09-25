@@ -95,7 +95,7 @@ export function Reports() {
         <div className="card-pad">
           <div className="confidence-intro">
             <div>
-              <div className="eyebrow">Tus entregables</div>
+              <div className="eyebrow">Historial de reportes</div>
               <h3 style={{ marginTop: 7 }}>Reportes disponibles</h3>
               <p className="helper" style={{ marginTop: 6 }}>
                 Genera un PDF cuando termines de revisar y ábrelo o descárgalo desde este equipo.

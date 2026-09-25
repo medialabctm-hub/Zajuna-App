@@ -6,20 +6,66 @@ interfaz integrada.
 
 ## Protección del origen local
 
-Al iniciar el core se genera una capability aleatoria por proceso. Las
-respuestas emiten la cookie `zajuna_capability` con `HttpOnly` y
-`SameSite=Strict`; el navegador integrado la reenvía automáticamente en las
-mutaciones. `POST`, `PUT`, `PATCH` y `DELETE` requieren además:
+Invariantes que cualquier versión del core mantiene:
+
+- El servidor escucha solo en loopback y toda petición con `Host` que no sea
+  loopback (`127.0.0.1`, `::1`, `localhost`) se rechaza con `400`.
+- Las mutaciones (`POST`, `PUT`, `PATCH`, `DELETE` bajo `/api/`) exigen una
+  credencial local emitida por el propio proceso, que cambia en cada arranque
+  y solo se obtiene a través del lanzador.
+- Las mutaciones cross-site o con `Origin` distinto del core se rechazan.
+- Los cuerpos con datos declaran `application/json` (o `multipart/form-data`
+  en `/api/evidences/upload`) y tienen límite de tamaño; el servidor aplica
+  timeouts y `MaxHeaderBytes`.
+
+Implementación vigente:
+
+Al iniciar, el core genera por proceso tres secretos: el de la cookie de
+sesión, el de la cabecera de sesión y el del lanzador. Ninguna respuesta
+normal emite cookies: la sesión solo se obtiene con un enlace de un solo uso.
+
+1. El lanzador Electron crea `ZAJUNA_LAUNCHER_SECRET` y se lo pasa al core en
+   su entorno (el core lo borra de su entorno al arrancar para que Chromium no
+   lo herede).
+2. En cada lanzamiento (primero, segunda instancia, recuperación del core) el
+   lanzador llama `POST /api/session/bootstrap` con
+   `Authorization: Bearer <secreto>` y recibe `{"path":"/api/session/start?token=..."}`.
+   El token vence a los 2 minutos, se usa una sola vez y hay como máximo 32
+   pendientes.
+3. El navegador abre esa URL. `GET /api/session/start` canjea el token, emite
+   la cookie `zajuna_capability_<puerto>` (`HttpOnly`, `SameSite=Strict`) y
+   redirige con `303` a `/#zc=<secreto de cabecera>`. El fragmento nunca viaja
+   a un servidor; React lo guarda en `localStorage` (aislado por origen, es
+   decir, por puerto) y lo borra de la URL.
+4. Cada llamada de React envía la cookie y la cabecera `X-Zajuna-Capability`.
+
+Todo `/api/*` exige cookie y cabecera, lecturas incluidas, excepto:
+
+- `GET /api/health`, sin sesión y con la respuesta mínima `{"status":"ok"}`.
+- `GET /api/{evidences,reports,backups}/{id}/download` y
+  `GET /api/evidences/{id}/thumbnail`, que solo exigen la cookie porque se
+  cargan con `<img>`/`<a href>`.
+
+Las cookies no se aíslan por puerto: otro proceso escuchando en
+`127.0.0.1:<otro puerto>` podría recibirlas si el navegador lo visita. Por eso
+la cookie sola no permite leer JSON ni mutar; como mucho permitiría descargas.
+Sin sesión la API responde `401` con `"code":"local_session_required"`, y la
+interfaz pide volver a abrir la app desde su acceso directo. Un core
+standalone (sin supervisor) abre el navegador con su propio enlace; con
+`--no-browser` lo escribe en el log.
+
+`POST`, `PUT`, `PATCH` y `DELETE` requieren además:
 
 - `Host` loopback y `Origin` coincidente cuando el navegador lo envía.
-- `Sec-Fetch-Site` que no sea `cross-site`.
+- `Sec-Fetch-Site` que no sea `cross-site` ni `same-site` (todos los puertos
+  de `127.0.0.1` son el mismo sitio); esto se aplica a todo `/api/*`.
 - `Content-Type` JSON para cuerpos JSON o `multipart/form-data` para uploads.
 - Límites de tamaño, headers y timeouts del servidor.
 
-Un cliente externo no debe copiar la cookie ni asumir que el endpoint es un
-servidor público. Los helpers de tests que crean `newRouterWithServices`
-prueban handlers sin middleware para aislar cada caso; el runtime real de
-`main` siempre registra `protectLocalAPI`.
+Los helpers de tests que crean `newRouterWithServices` prueban handlers sin
+middleware para aislar cada caso; el runtime real de `main` siempre registra
+`protectLocalAPI`, cubierto por las pruebas de caja negra de
+`api_security_test.go`.
 
 Las rutas de captura solo aceptan el origen Zajuna configurado en producción,
 rechazan loopback/IP privadas y validan redirects y URL final. Los errores,
@@ -30,7 +76,8 @@ sensibles antes de responder o persistir.
 
 ### `GET /api/health`
 
-Devuelve el estado del core, versión y plataforma.
+Sonda de vida sin sesión: devuelve solo `{"status":"ok"}`. La versión y la
+carpeta de datos están en `GET /api/app/info`, que exige sesión.
 
 ### `GET /api/setup/status`
 
@@ -50,11 +97,40 @@ Nunca devuelve la contraseña.
 La contraseña se guarda en el almacén seguro del sistema operativo. La
 configuración no sensible se guarda localmente.
 
+### `GET /api/app/info`
+
+Devuelve `version`, `dataDir` (carpeta de datos local), `supervised` (si el
+core corre bajo el launcher Electron) y `resetPending` (si hay un
+restablecimiento preparado para el próximo arranque).
+
+### `POST /api/app/reset`
+
+```json
+{ "backupFirst": true, "forgetCredentials": false }
+```
+
+Prepara el restablecimiento completo de los datos locales. No borra nada en
+caliente: escribe el marcador `.reset-pending` y apaga el core; el borrado se
+aplica en el siguiente arranque, antes de abrir SQLite. Con `backupFirst`
+crea antes una copia ZIP (si falla, responde `500` y no prepara nada) y
+devuelve su nombre en `backupName`; esa copia se conserva tras el reset. Con
+`forgetCredentials` borra la contraseña guardada en el almacén del sistema.
+Responde `{ "staged": true, "restarting": <supervised> }`. Ver
+[`evidence/update-policy.md`](evidence/update-policy.md).
+
 ### `POST /api/zajuna/test-connection`
 
 Encola una prueba real de autenticación contra Zajuna y validación de `Mis
 cursos`. No devuelve ni persiste cookies o contraseñas; el resultado se
-consulta como cualquier otro job.
+consulta como cualquier otro job. Con cuerpo vacío (`{}`) usa el usuario y el
+tipo de documento guardados en la configuración local.
+
+Configuración › Cuenta Zajuna ofrece la acción **Probar conexión**. Guardar
+credenciales (`setupComplete`) solo las marca como *Configurada*; el estado
+*Verificada* aparece únicamente cuando el job `test-zajuna-connection` termina
+en `completed` (con el número de fichas de `result.fichas`), y un job `failed`
+muestra el motivo y el siguiente paso. La interfaz recuerda el id del último
+job en este equipo y lo olvida al guardar credenciales nuevas.
 
 La sesión HTTP envía `documentType` (por defecto `CC`) y tolera las dos
 variantes actuales del formulario de Zajuna: `logintoken` solo, o
@@ -235,12 +311,33 @@ en lugar de repetir la tarjeta de fechas de `6.1`.
 Las evidencias con forma de lista o tabla se capturan por lotes de filas
 (`rowSelector`, `rowsPerShot` = 2, `rowBatch`): el slot 1 muestra las filas
 1–2, el slot 2 las filas 3–4 y así hasta el límite de evidencias del ítem, con
-el encabezado de la tabla visible. Aplica al reporte de calificaciones (`5.1`)
-y a las discusiones y anuncios publicados por el instructor (`9.1.5`–`9.1.7`,
-`11.x`, `14.x`, `15.1`), donde además solo se muestran filas del instructor.
-Un lote que empieza después de la última fila no genera evidencia (queda
-"omitido", no como fallo) y la captura retira las evidencias de slots que ya no
-corresponden.
+el encabezado de la tabla visible. Aplica a las discusiones y anuncios
+publicados por el instructor (`9.1.5`–`9.1.7`, `11.x`, `14.x`, `15.1`), donde
+además solo se muestran filas del instructor. Cuando un ítem tiene varias
+listas, sus slots se reparten entre ellas y el resto de la división va a las
+primeras (8 slots en 3 listas: 3 + 3 + 2), así que ningún slot queda sin
+planificar. Un lote que empieza después de la última fila no genera evidencia
+(queda "omitido", no como fallo) y la captura retira las evidencias de slots
+que ya no corresponden.
+
+El calificador (`5.1`) tiene una columna por ítem de calificación y en un curso
+real mide ~28.000 px de ancho. Cada slot muestra las filas 1–2 y una ventana
+de columnas completas de hasta 2560 px (`maxCaptureWidth`, `columnBatch`): el
+slot 1 las primeras columnas, el slot 2 las siguientes, etc. Una ventana
+posterior a la última columna queda "omitida". La metadata de la evidencia
+guarda `columnWindows`, el número de ventanas que necesitaba la tabla.
+
+Los cronogramas (`1.x`) con un iframe de Google Sheets (`docs.google.com/
+spreadsheets`) agrandan el iframe al tamaño de la hoja antes de capturar
+(máximo 2560 × 16.000 px). No se hace clic ni se navega, y si no se puede medir
+la hoja se captura igual que antes.
+
+Un foro al que la cuenta no tiene acceso (Moodle redirige con «No dispone de
+permiso para ver los debates de este foro») queda marcado `restricted` en el
+mapa de rutas y nunca se elige como evidencia. Si un mapa antiguo aún lo
+incluye, la captura falla con un mensaje que pide volver a buscar las rutas.
+El perfil (`2.x`) usa `profile.php?id=<id>` con el id del usuario autenticado,
+leído de `M.cfg.userId` en la página del curso.
 
 ### `GET /api/checklist/reviews?fichaId=<id>`
 
@@ -289,6 +386,13 @@ bloque requerido, el objetivo falla y no se guarda una página genérica como si
 fuera la evidencia correcta. Las capturas repetidas actualizan el mismo slot
 de checklist en lugar de crear duplicados.
 
+Si falla al menos un objetivo, el job termina `failed` con
+`capture_partial_failure`; las evidencias guardadas se conservan. El mensaje
+resume los conteos y los ítems afectados, y cada objetivo fallido deja un
+evento `evidence_failed` en `/api/jobs/{id}/events` con `itemCode`,
+`coveredItemCodes`, `slotNumber` y el motivo. El detalle del trabajo agrupa
+esos eventos por ítem y espacio.
+
 Los objetivos de perfil usan la página completa. En foros y anuncios, la
 captura de configuración usa el contenedor completo sin la tabla de respuestas;
 los objetivos de contenido exigen un post o fila asociado al instructor
@@ -330,7 +434,19 @@ contraseñas. Si Zajuna devuelve la pantalla de login, el job termina con
 ### `GET /api/jobs?limit=20`
 
 Lista los últimos jobs persistidos, ordenados por actividad. `limit` acepta un
-valor entre 1 y 100.
+valor entre 1 y 100. Cada job incluye `dismissed` cuando el usuario lo quitó
+de «Requiere tu atención», y `fichaId`/`itemCodes` (solo el alcance no
+sensible del input) para reintentar el mismo alcance.
+
+### `POST /api/jobs/dismiss`
+
+```json
+{ "ids": ["job-…"] }
+```
+
+Marca entre 1 y 100 jobs como descartados de «Requiere tu atención». El job y
+su historial siguen en Trabajos; se recuerdan como máximo los últimos 500 IDs
+descartados.
 
 ### `POST /api/jobs`
 
@@ -414,9 +530,38 @@ Habilita o pausa un schedule sin eliminar su configuración.
 
 Lee o reemplaza preferencias no sensibles de sesión, captura y avisos. El
 servidor valida la forma del documento y lo guarda en `app_settings`; las
-contraseñas siguen exclusivamente en el almacén seguro del sistema. El bloque
-`storage` contiene `retentionKeep` (1–1000 copias) y `retentionDays` (1–3650
-días), que alimentan la limpieza de backups desde Configuración.
+contraseñas siguen exclusivamente en el almacén seguro del sistema.
+
+```json
+{
+  "session": { "autoRenew": true },
+  "capture": { "fullPage": true, "reuseSession": true, "motion": true },
+  "notifications": { "jobCompleted": true, "needsReview": true },
+  "storage": { "retentionKeep": 5, "retentionDays": 30 }
+}
+```
+
+`capture-checklist` (y `capture-checklist-target`) leen las preferencias al
+empezar cada ejecución, así que un cambio aplica al siguiente trabajo sin
+reiniciar el core. El job emite el evento `capture_preferences` con los
+valores aplicados y los incluye en el `output` del job (`preferences`), también
+en fallos parciales y cancelaciones.
+
+| Campo | Efecto |
+|---|---|
+| `capture.fullPage` | `true` conserva la regla de página completa del perfil del instructor y de los cronogramas. `false` captura solo el bloque detectado. |
+| `capture.reuseSession` | `true` comparte sesiones Chromium autenticadas entre los objetivos de una ejecución. `false` abre y cierra una sesión (un login) por objetivo. |
+| `session.autoRenew` | `true` reintenta una vez el objetivo con un login nuevo cuando la captura cae en la página de login de Zajuna. `false` deja ese objetivo como fallido. |
+| `capture.motion` | Solo afecta a las animaciones de la interfaz. |
+| `notifications.*` | Controla qué avisos locales generan los jobs. |
+| `storage.retentionKeep` / `retentionDays` | 1–1000 copias y 1–3650 días. Solo los usa la acción **Limpiar antiguas** de Copias de seguridad (`POST /api/backups/cleanup`); no hay limpieza automática. |
+
+`POST /api/checklist/capture` acepta `fullPage`, `reuseSession` y `autoRenew`
+opcionales: si la petición los envía, sustituyen a la preferencia guardada
+solo en esa ejecución.
+
+Dos capturas de la misma ficha nunca corren a la vez: la segunda espera, y
+cancelarla mientras espera la termina de inmediato.
 
 ### `GET /api/diagnostics`
 
@@ -475,7 +620,9 @@ las tablas mínimas (`schema_migrations`, `jobs`, `fichas`, `evidences`)
 antes de marcar `.restore-pending`. El swap es atómico. Si `sqlite.Open`
 falla después del swap, el core restaura `*.restore-old`, registra
 `.restore-applied.json` y reintenta abrir la base anterior. Un ZIP corrupto,
-con hash incorrecto o schema fuera de 1…12 se rechaza y no toca la DB activa.
+con hash incorrecto o con schema fuera de `1…CurrentSchemaVersion` (hoy
+1…14) se rechaza y no toca la DB activa. Un backup con schema anterior se
+acepta y se migra hacia adelante al abrirse.
 
 ## Evidencias y reportes
 
@@ -484,6 +631,14 @@ con hash incorrecto o schema fuera de 1…12 se rechaza y no toca la DB activa.
 Lista evidencias locales con formato, origen, fecha, SHA-256 y metadatos de
 ficha/ítem. `fichaId` limita la consulta a una ficha y alimenta la galería de
 miniaturas seleccionables; la agrupación para reportes se conserva aparte.
+
+Sin `fichaId`, `limit` va de 1 a 100 (50 por defecto). Con `fichaId` la
+respuesta incluye todas las evidencias de la ficha (`limit` acepta hasta
+10000, que es también el valor por defecto), así la galería no se trunca.
+
+Las vistas de evidencias no exponen la ruta absoluta del archivo. En su lugar
+devuelven `fileKey`, un identificador opaco: dos filas con el mismo `fileKey`
+comparten archivo. Para leer el contenido se usa `/download`.
 
 ### `GET /api/evidences/{id}/download`
 
@@ -494,12 +649,27 @@ El dashboard incluye los enlaces de descarga de las evidencias asociadas a
 cada ítem del checklist. La galería visual también permite abrir una vista
 previa de cada grupo sin salir de la aplicación.
 
+### `GET /api/evidences/{id}/thumbnail`
+
+Devuelve una miniatura JPEG de 480 px de ancho para las evidencias PNG/JPG,
+con la misma validación de ruta que la descarga. Se genera una sola vez y se
+guarda en `thumbnails/` dentro de la carpeta de datos (fuera de los respaldos;
+el restablecimiento la borra). La clave incluye tamaño y fecha del archivo
+original, así que un reemplazo genera una miniatura nueva. Los formatos sin
+decodificador estándar (WebP) y cualquier fallo al generarla responden con el
+archivo original. La galería de miniaturas usa este endpoint en lugar de la
+descarga completa (~2000×2600 px por captura).
+
 ### `POST /api/evidences/upload`
 
 Recibe un formulario `multipart/form-data` con `file`, `fichaId` y, de forma
 opcional, `itemCode`. Acepta PNG, JPG, PDF y HTML hasta 25 MB. El archivo se
 guarda dentro del almacenamiento local, se calcula su SHA-256 y se registra
-con origen `manual`.
+con origen `manual`. El identificador depende de ficha, ítem, ranura y
+contenido: el mismo archivo subido para dos ítems crea dos filas, y volver a
+subir el mismo contenido en la misma ranura reutiliza la fila (`200`) sin
+dejar archivos huérfanos. Tras cada subida se reconstruyen los grupos de la
+ficha, de modo que la galería y el reporte la ven sin pasos manuales.
 
 ### `POST /api/evidences/clear`
 
@@ -509,15 +679,18 @@ Reinicia evidencias locales. Cuerpo opcional:
 { "fichaId": "<id>" }
 ```
 
-Sin `fichaId` elimina todas. **Actualizar la app no borra evidencias**; este
-endpoint (o Ajustes) es la forma explícita de hacerlo. Ver
-[`evidence/update-policy.md`](evidence/update-policy.md).
+Sin `fichaId` elimina todas. Es el borrado explícito de evidencias desde la
+API o Configuración. Qué ocurre con los datos al instalar o actualizar la app
+está en [`evidence/update-policy.md`](evidence/update-policy.md).
 
 ### `DELETE /api/evidences/{id}`
 
-Elimina con una operación explícita el archivo y su registro local. La API
-solo permite eliminar artefactos que estén dentro de la carpeta local de
-evidencias.
+Elimina el registro local de la evidencia. El archivo solo se borra cuando
+ninguna otra fila lo referencia: una misma captura puede respaldar varios
+ítems y seguir siendo evidencia de los demás. La API rechaza (`403`) archivos
+existentes fuera de la carpeta local de evidencias; si el archivo ya no
+existe, la fila se retira igualmente. Después se reconstruyen los grupos de la
+ficha.
 
 ### `GET /api/evidences/groups?fichaId=<id>`
 
@@ -543,6 +716,67 @@ originales, pero no publica en grupos ni reportes una captura automática que
 termine en la página pública/login de Zajuna, que use un selector legado de
 perfil/foro o que sea un fixture fuera del catálogo del checklist.
 
+### Revisión de evidencias
+
+Cada evidencia queda `approved`, `pending` o `rejected` (tabla
+`evidence_reviews`, schema v14). La verificación automática detecta problemas
+técnicos: `file_missing` y `login_page` (rechazada); `too_wide` (> 4000 px),
+`too_tall` (> 9000 px), `too_small` (< 200×120 px, solo en secciones del
+curso), `mostly_blank` (≥ 99,5 % casi blanco), `empty_section` (sección sin
+actividades ni archivos), `generic_selector`, `duplicate_content` y
+`outdated_rule` (pendiente). Una decisión manual se respeta mientras el
+`sha256` no cambie; al recapturar se vuelve a verificar. `capture-checklist`
+ejecuta la verificación al terminar (sin hacer fallar la captura).
+
+- `duplicate_content` compara el `sha256` con evidencias de otros ítems. No
+  cuenta como duplicado cuando las dos apuntan a la misma página y selector:
+  la URL se compara sin `forceview`, sin fragmento y sin importar el orden de
+  los parámetros (11.4 y 15.1 usan el mismo foro de anuncios).
+- `outdated_rule`: los ítems cuya prueba depende del contenido (ver
+  `checklist.SemanticCheckForItem`) guardan en la metadata la regla con la que
+  se capturaron (`semanticCheck`). Una captura hecha con una regla anterior
+  queda pendiente hasta volver a capturar el ítem. No aplica a subidas
+  manuales.
+
+| Ítems | Regla (`semanticCheck`) | Qué exige la captura |
+|---|---|---|
+| 9.1.5, 9.1.6, 9.1.7 | `forum-replies` | Debates con réplicas cuyo último mensaje es del instructor. |
+| 14.1.1, 14.1.2 | `forum-conclusion` | Debate del instructor cuyo título contiene «conclusión». |
+| 9.1.3, 9.1.4 | `forum-dates` | Página del foro que muestra sus fechas (apertura, cierre, vencimiento). |
+
+Si la página correcta cargó (la lista de debates, un foro con su formulario
+de búsqueda) y no tiene contenido que cumpla la regla, el slot queda
+**ausente** («sin contenido en Zajuna», `capture.ErrContentAbsent`), no
+fallido, y se retira la evidencia que dejó una corrida anterior en ese slot.
+Una página de error o de permisos, una navegación fallida o una actividad
+renombrada siguen siendo fallos y conservan la evidencia anterior. La
+ausencia de tabla de calificación en 10.1.x se informa como ausente, pero
+tampoco retira evidencia, porque se reconoce solo por el mensaje.
+
+Una verificación automática nunca reemplaza una decisión manual sobre el
+mismo archivo (`sha256`), aunque se haya guardado mientras la verificación
+corría. «pending» retira la decisión manual de forma explícita.
+
+- `GET /api/evidences/review?fichaId=<id>`: estado guardado (solo verifica las
+  evidencias sin revisión). Responde `{fichaId, verifiedAt, summary,
+  evidences[], missingItems[]}`; cada evidencia trae `status`, `source`
+  (`auto`/`manual`), `note`, `reasons[{code,message}]`, `width`, `height`,
+  `sha256` y `sharedWith`.
+- `POST /api/evidences/verify` con `{ "fichaId": "…" }`: re-verifica toda la
+  ficha y devuelve el mismo payload.
+- `PUT /api/evidences/{id}/review` con `{ "status": "approved"|"rejected"|"pending", "note": "" }`:
+  guarda la decisión manual (`pending` la borra y vuelve a la verificación
+  automática). Devuelve la evidencia actualizada.
+
+`POST /api/evidences/verify`, `PUT /api/evidences/{id}/review` y la revisión
+automática al terminar `capture-checklist` sincronizan el checklist: un ítem
+«PENDIENTE» cuyas evidencias están todas aprobadas pasa a «SI», y un «SI»
+puesto por esta sincronización vuelve a «PENDIENTE» si una evidencia deja de
+estar aprobada. Un «SI» o «NO» manual nunca se cambia. Cada cambio queda en el
+historial del ítem con `source: "revision-automatica"`. Los ítems sin
+evidencia de `missingItems` explican la ausencia de la última captura
+(«Sin contenido en Zajuna: …») cuando la hubo.
+
 ### `POST /api/reports`
 
 Encola la generación de un reporte mediante `export-report`.
@@ -558,9 +792,15 @@ Encola la generación de un reporte mediante `export-report`.
 `format` puede ser `pdf` o `html`. El PDF se renderiza con el Chromium
 empaquetado; el HTML se genera directamente en el core.
 
+`evidenceLimit` (100 por defecto) también se aplica al reporte agrupado por
+`fichaId`: cuenta entradas del reporte (una por imagen única, aunque cubra
+varios ítems). Si se omiten entradas, el reporte lo indica en el resumen y el
+resultado del job incluye `omittedGroups`.
+
 ### `GET /api/reports?limit=20`
 
-Lista reportes locales terminados.
+Lista reportes locales terminados. La vista no incluye la ruta del archivo;
+se descarga con `/api/reports/{id}/download`.
 
 ### `GET /api/reports/{id}/download`
 
@@ -573,15 +813,28 @@ se actualiza automáticamente.
 
 ## Contratos de workers disponibles
 
-| Tipo | Estado |
-|---|---|
-| `sync-fichas` | Implementado; sesión HTTP de Zajuna y persistencia SQLite. |
-| `test-zajuna-connection` | Implementado; login real y validación de `Mis cursos` sin escritura de fichas. |
-| `discover-course-maps` | Implementado; crawl HTTP autenticado, fases/actividades, rutas clasificadas y persistencia SQLite. |
-| `capture-evidence` | Implementado; descarga HTML local con hash. |
-| `capture-browser` | Implementado; captura PNG local con Chromium empaquetado y sesión Zajuna efímera opcional. |
-| `capture-checklist` | Implementado; resuelve `itemCode`/slots desde el mapa local, captura regiones con Chromium y registra evidencias por tarea. |
-| `export-report` | Implementado; genera HTML/PDF local. |
+Son los workers que `core/cmd/zajuna-core/main.go` registra en el runtime. El
+`type` de `POST /api/jobs` debe ser uno de estos IDs; cualquier otro se
+rechaza con `400`. `POST /api/schedules` no valida el `workerType` al crear el
+schedule: un tipo desconocido falla cuando el scheduler intenta encolarlo.
+
+| Tipo | Lo encola | Qué hace |
+|---|---|---|
+| `sync-fichas` | `POST /api/setup`, `POST /api/fichas/sync`, schedules | Sesión HTTP de Zajuna y persistencia de fichas/cursos en SQLite. |
+| `test-zajuna-connection` | `POST /api/zajuna/test-connection` | Login real y validación de `Mis cursos` sin escribir fichas. |
+| `discover-course-maps` | `POST /api/course-maps/discover` | Crawl HTTP autenticado: fases, actividades y rutas clasificadas en SQLite. |
+| `capture-evidence` | `POST /api/jobs` | Descarga HTML del origen Zajuna permitido y lo guarda con hash. |
+| `capture-browser` | `POST /api/jobs` | Captura PNG con el Chromium empaquetado y sesión Zajuna efímera opcional. |
+| `capture-checklist` | `POST /api/checklist/capture` | Resuelve `itemCode`/slots desde el mapa local y captura en paralelo (pool de sesiones Chromium) registrando evidencias por tarea. |
+| `capture-checklist-target` | `POST /api/jobs` | Captura un único objetivo del checklist como job propio; `capture-checklist` hace el mismo trabajo en proceso para cada objetivo. |
+| `export-report` | `POST /api/reports` | Genera el reporte HTML/PDF local. |
+
+Todos los jobs se crean con `maxAttempts: 3`. Solo se reintentan los fallos
+que el worker marca como reintentables (por ejemplo, errores transitorios de
+red de Zajuna); errores de entrada, credencial ausente o cancelación terminan
+en `failed`/`cancelled`. La concurrencia del runtime es 2 por defecto y se
+ajusta entre 1 y 4 con `--jobs-concurrency` o `ZAJUNA_JOBS_CONCURRENCY`; un
+valor fuera de ese rango vuelve a 2.
 
 El cliente debe mostrar el progreso que devuelve la API y no ejecutar trabajos
 largos dentro de la petición HTTP.

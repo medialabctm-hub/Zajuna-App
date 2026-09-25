@@ -11,7 +11,7 @@ import {
   friendlyJobType,
   jobStatusClass,
 } from '../lib/format'
-import { explainJobFailure } from '../lib/jobFailure'
+import { explainJobFailure, partialCaptureFailures } from '../lib/jobFailure'
 import { FailureGuide } from '../components/FailureGuide'
 import type { JobEvent } from '../types'
 
@@ -81,6 +81,7 @@ export function JobDetail() {
   const canCancel = ['queued', 'running', 'waiting_user', 'retrying'].includes(job.status)
   const failedOrCancelled = job.status === 'failed' || job.status === 'cancelled'
   const events = eventsQuery.data || []
+  const failedItems = job.errorCode === 'capture_partial_failure' ? partialCaptureFailures(events) : []
 
   function handleCancel() {
     if (!jobId || cancelJob.isPending) return
@@ -115,7 +116,7 @@ export function JobDetail() {
           </div>
 
           <div className="job-detail-progress-row">
-            <div className="job-detail-progress-track" aria-label={`Progreso ${progress}%`}>
+            <div className={`job-detail-progress-track${job.status === 'failed' ? ' failed' : ''}`} aria-label={`Progreso ${progress}%`}>
               <i className={job.status === 'running' ? 'running' : ''} style={{ width: `${progress}%` }} />
             </div>
             <strong>{progress}%</strong>
@@ -131,6 +132,21 @@ export function JobDetail() {
           </div>
 
           {failedOrCancelled ? <FailureGuide job={job} showDismiss={job.status === 'failed'} /> : null}
+
+          {failedItems.length ? (
+            <div className="failed-items">
+              <h3>Evidencias con error ({failedItems.length} {failedItems.length === 1 ? 'ítem' : 'ítems'})</h3>
+              <ul>
+                {failedItems.map((item) => (
+                  <li key={item.itemCode}>
+                    <Link to={`/checklist/${encodeURIComponent(item.itemCode)}`}>Ítem {item.itemCode}</Link>
+                    {item.slots.length ? <span className="failed-items-slots"> · {item.slots.length === 1 ? 'espacio' : 'espacios'} {item.slots.join(', ')}</span> : null}
+                    <p>{item.reasons.join(' · ')}</p>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
 
           <div className="job-detail-actions">
             {canCancel ? (

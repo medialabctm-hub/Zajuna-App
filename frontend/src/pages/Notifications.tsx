@@ -23,8 +23,8 @@ export function Notifications() {
         <div className="card-pad">
           <div className="section-toolbar">
             <div>
-              <div className="eyebrow">Centro local</div>
-              <h3 style={{ marginTop: 7 }}>Notificaciones</h3>
+              <div className="eyebrow">Bandeja de avisos</div>
+              <h3 style={{ marginTop: 7 }}>Avisos recientes</h3>
               <p className="helper">Avisos generados por trabajos y diagnósticos en este equipo.</p>
             </div>
             <button className="button ghost small" type="button" onClick={() => markAllRead.mutate(undefined, { onError: (error) => toast(friendlyError(error.message), true) })} disabled={!unread || markAllRead.isPending}>

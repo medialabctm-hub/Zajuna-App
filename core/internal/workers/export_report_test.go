@@ -3,6 +3,7 @@ package workers
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -119,6 +120,72 @@ func TestExportReportWorkerUsesEvidenceGroupsForFicha(t *testing.T) {
 	text := string(contents)
 	if !strings.Contains(text, "Reporte agrupado") || !strings.Contains(text, "Tareas cubiertas") || !strings.Contains(text, "2.1.1, 2.1.2") {
 		t.Fatalf("grouped report does not expose shared task coverage: %s", text)
+	}
+}
+
+func TestExportReportWorkerRespectsEvidenceLimitForGroupedFicha(t *testing.T) {
+	dataDir := t.TempDir()
+	store, err := sqlite.Open(dataDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	ctx := context.Background()
+	if _, err := store.UpsertFichas(ctx, []zajuna.Ficha{{ExternalID: "3135430", Name: "Programa demo", CourseID: "41081"}}); err != nil {
+		t.Fatal(err)
+	}
+	fichas, err := store.ListFichas(ctx, 10)
+	if err != nil || len(fichas) != 1 {
+		t.Fatalf("unexpected fichas: %#v (%v)", fichas, err)
+	}
+	// Four distinct images, one of them shared by two ítems: three report entries.
+	for _, record := range []evidence.Record{
+		{ID: "limit-1", ItemCode: "2.1.1", SHA256: "hash-a"},
+		{ID: "limit-2", ItemCode: "2.1.2", SHA256: "hash-a"},
+		{ID: "limit-3", ItemCode: "6.1", SHA256: "hash-b"},
+		{ID: "limit-4", ItemCode: "1.1.1", SHA256: "hash-c"},
+	} {
+		record.FichaID, record.SlotNumber, record.Name, record.FilePath = fichas[0].ID, 1, record.ID, record.ID+".png"
+		record.Format, record.Source = "png", "capture-checklist"
+		if err := store.CreateEvidence(ctx, record); err != nil {
+			t.Fatal(err)
+		}
+	}
+	worker, err := NewExportReportWorker(dataDir, store, store, capture.Resolve(""))
+	if err != nil {
+		t.Fatal(err)
+	}
+	run := func(limit int) (map[string]any, string) {
+		input, _ := json.Marshal(ExportReportInput{Title: "Reporte limitado", Format: "html", FichaID: fichas[0].ID, EvidenceLimit: limit})
+		result := worker.Execute(ctx, jobs.Job{ID: fmt.Sprintf("job-limit-%d", limit), Input: input}, captureReporter{})
+		if result.ErrorMessage != "" {
+			t.Fatalf("report failed: %#v", result)
+		}
+		output := result.Output.(map[string]any)
+		contents, err := os.ReadFile(output["path"].(string))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return output, string(contents)
+	}
+
+	output, text := run(2)
+	if output["groupCount"] != 2 || output["omittedGroups"] != 1 {
+		t.Fatalf("limit 2 must keep 2 of 3 entries: %#v", output)
+	}
+	if !strings.Contains(text, "Se omitieron 1 evidencias") {
+		t.Fatalf("truncation must be visible in the report: %s", text)
+	}
+	if strings.Count(text, `<section class="evidence-group">`) != 2 {
+		t.Fatalf("expected 2 sections in the limited report")
+	}
+
+	output, text = run(0)
+	if output["groupCount"] != 3 || output["omittedGroups"] != 0 || output["evidenceCount"] != 4 {
+		t.Fatalf("default limit must include every entry: %#v", output)
+	}
+	if strings.Contains(text, "Se omitieron") {
+		t.Fatalf("no truncation note expected without truncation")
 	}
 }
 

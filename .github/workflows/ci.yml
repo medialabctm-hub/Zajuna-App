@@ -58,3 +58,36 @@ jobs:
       - run: npm run test:downloads
       - run: npm run test:smoke:native
       - run: npm run test:desktop
+
+  # Smokes against local fixtures only (httptest servers and the embedded UI);
+  # they never reach Zajuna. TestDashboardBrowserSmoke is left out on purpose:
+  # it compares exact screenshot hashes that depend on host font rendering.
+  browser-smoke:
+    name: Browser smoke (Chromium)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      ZAJUNA_PLAYWRIGHT_DIR: ${{ github.workspace }}/core/bin/playwright
+      ZAJUNA_RUN_BROWSER_SMOKE: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: core/go.mod
+      - name: Cache Chromium runtime
+        uses: actions/cache@v4
+        with:
+          path: core/bin/playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('core/go.sum') }}
+      - name: Install Chromium runtime
+        run: node scripts/install-playwright.cjs
+      - name: Install Chromium system dependencies
+        run: sudo "$ZAJUNA_PLAYWRIGHT_DIR/driver/node" "$ZAJUNA_PLAYWRIGHT_DIR/driver/package/cli.js" install-deps chromium
+      - name: Run browser smokes
+        working-directory: core
+        run: >-
+          go test ./... -count=1 -timeout 15m -v
+          -run '^(TestEvidenciasBrowserSmoke|TestLocalE2ESetupCaptureReportBackup|TestCaptureURLSmoke|TestCaptureURLSelectorSmoke|TestDetectPageChallengeReadsTheDOM|TestCaptureBrowserWorkerPersistsPNGSmoke|TestCaptureBrowserWorkerTransfersEphemeralSessionToChromium|TestExportReportWorkerCreatesPDFSmoke)$'

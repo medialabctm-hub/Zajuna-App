@@ -60,7 +60,78 @@ type CaptureTarget struct {
 	// OptionalSlot: the slot may not exist on this course (no evidence, not
 	// a failure). Used for per-phase course sections.
 	OptionalSlot bool `json:"optionalSlot,omitempty"`
+	// RowMatch keeps only list rows whose text contains one of these terms
+	// (accent/case-insensitive), so each announcement item shows its own
+	// announcements instead of the same generic rows as every other item.
+	RowMatch []string `json:"rowMatch,omitempty"`
+	// RowRequireReply keeps only discussions with at least one reply whose
+	// last message is by the instructor: the proof that the instructor
+	// answered, instead of a discussion the instructor merely opened.
+	RowRequireReply bool `json:"rowRequireReply,omitempty"`
+	// SemanticCheck names the content rule this capture enforced. It is
+	// persisted with the evidence so the automatic review can tell apart
+	// evidence captured with an older, weaker rule (see SemanticCheckForItem).
+	SemanticCheck string `json:"semanticCheck,omitempty"`
+	// CourseLayout is the state the course sections are put in before a
+	// whole-course capture ("menu" or "first-section"), so the evidence does
+	// not depend on what the instructor left open in Zajuna.
+	CourseLayout string `json:"courseLayout,omitempty"`
+	// AbsenceSelector proves the right page loaded when the evidence
+	// selector did not match, so the slot is a real absence (see
+	// capture.ErrContentAbsent) and not a failure.
+	AbsenceSelector string `json:"absenceSelector,omitempty"`
+	// MaxCaptureWidth bounds the shot width: a wider element is split into
+	// windows of whole columns and ColumnBatch (zero-based) picks one. A
+	// window past the last column yields no evidence.
+	MaxCaptureWidth int `json:"maxCaptureWidth,omitempty"`
+	ColumnBatch     int `json:"columnBatch,omitempty"`
 }
+
+// courseLayoutForGroup: 4.1 proves the menu (every section closed) and 3.1
+// the material and evidence links (the first section open with its whole
+// subtree). Other course captures crop one section and open only that one.
+func courseLayoutForGroup(groupName string) string {
+	switch groupName {
+	case "menu_curso":
+		return "menu"
+	case "disponibilidad":
+		return "first-section"
+	}
+	return ""
+}
+
+// Semantic content rules enforced at capture time.
+const (
+	// SemanticForumReplies: discussions answered by the instructor.
+	SemanticForumReplies = "forum-replies"
+	// SemanticForumConclusion: an instructor discussion titled as conclusion.
+	SemanticForumConclusion = "forum-conclusion"
+	// SemanticForumDates: a forum page that shows its opening/closing dates.
+	SemanticForumDates = "forum-dates"
+)
+
+// SemanticCheckForItem returns the content rule an item's evidence must have
+// been captured with, or "" when the route and selector already identify it.
+func SemanticCheckForItem(itemCode string) string {
+	switch itemCode {
+	case "9.1.5", "9.1.6", "9.1.7":
+		return SemanticForumReplies
+	case "14.1.1", "14.1.2":
+		return SemanticForumConclusion
+	case "9.1.3", "9.1.4":
+		return SemanticForumDates
+	}
+	return ""
+}
+
+// forumPageSelector recognises a rendered forum view (its discussion list
+// or search form), not a Moodle error or permission page.
+const forumPageSelector = `#page-mod-forum-view #region-main form[action*="/mod/forum/search.php"], #page-mod-forum-view #region-main [data-region="discussion-list-container"], #page-mod-forum-view #region-main table.discussion-list`
+
+// ForumDatesSelector matches a forum page only when Moodle shows its activity
+// dates ("Apertura:", "Cierre:", "Vencimiento:", "Fecha límite:"). A forum
+// without configured dates is not evidence of 9.1.3/9.1.4.
+const ForumDatesSelector = `#page-mod-forum-view #region-main:has([data-region="activity-dates"], .activity-dates, :text-matches("^\\s*(Apertura|Abri[óo]|Cierre|Cierra|Vencimiento|Vence|Fecha l[ií]mite|Fecha de corte)\\s*:", "i"))`
 
 type CapturePlanSummary struct {
 	ItemCount        int `json:"itemCount"`
@@ -146,7 +217,7 @@ func captureLabelHints(itemCode string, fallback []string) []string {
 	itemHints := map[string][]string{
 		"7.1.2": {"Seguimiento a la Formación"},
 		"7.3.1": {"Comités evaluativos"}, "7.3.3": {"Reuniones EEF"},
-		"8.1": {"Sesiones en Línea"},
+		"8.1":   {"Sesiones en Línea"},
 		"9.1.1": {"Dudas e Inquietudes"}, "9.1.2": {"Dudas e Inquietudes"}, "9.1.3": {"Foro Temático"}, "9.1.4": {"Foro Temático"},
 		"9.1.5": {"Dudas e Inquietudes"}, "9.1.6": {"Foro Temático"}, "9.1.7": {"Foro Temático"},
 		"10.1.1": {"calificación"}, "10.1.2": {"tres días"},
@@ -180,10 +251,16 @@ func BuildCaptureTargetsForActivities(record coursemaps.Record, selectedActivity
 	for _, activity := range coursemaps.Activities(record) {
 		activitiesByID[activity.ID] = activity
 	}
+	// selectionGiven: the instructor saved a selection. If it only held
+	// transversal activities it becomes empty, and activity-bound items must
+	// then produce nothing, never fall back to every mapped activity.
+	selectionGiven := len(selectedActivityIDs) > 0
+	selectedActivityIDs = technicalSelection(selectedActivityIDs, activitiesByID)
+	routes := newRouteIndex(record)
 	targets := make([]CaptureTarget, 0)
 	summary := CapturePlanSummary{ItemCount: len(CaptureSpecs())}
 	for _, spec := range CaptureSpecs() {
-		if selectionBoundItem(spec.ItemCode) && len(selectedActivityIDs) > 0 {
+		if selectionBoundItem(spec.ItemCode) && selectionGiven {
 			// 10.1.x prove grading and feedback, which live in each selected
 			// activity's grading table, not in the course-page card used by
 			// 6.1 (that produced byte-identical evidence for 6.1 and 10.1.x).
@@ -197,7 +274,7 @@ func BuildCaptureTargetsForActivities(record coursemaps.Record, selectedActivity
 			summary.MaxSlotCount += spec.MaxSlots
 			continue
 		}
-		if activityBoundItem(spec.ItemCode) && len(selectedActivityIDs) > 0 {
+		if activityBoundItem(spec.ItemCode) && selectionGiven {
 			selected := selectedActivities(activitiesByID, selectedActivityIDs)
 			if len(selected) > spec.MaxSlots {
 				selected = selected[:spec.MaxSlots]
@@ -218,6 +295,10 @@ func BuildCaptureTargetsForActivities(record coursemaps.Record, selectedActivity
 			if len(selected) > 0 {
 				summary.ResolvedItems++
 				summary.SlotCount += len(selected)
+			} else {
+				// A selection with no technical activity leaves 6.1 without
+				// targets: it is unresolved, not silently uncounted.
+				summary.UnresolvedItems++
 			}
 			summary.MaxSlotCount += spec.MaxSlots
 			continue
@@ -239,12 +320,15 @@ func BuildCaptureTargetsForActivities(record coursemaps.Record, selectedActivity
 		}
 		eligible := make([]eligibleURL, 0, len(urls))
 		for _, candidate := range urls {
-			route := routeForURL(record, candidate)
-			if route != nil && !eligibleRouteForGroup(spec.GroupName, *route, selectedActivityIDs, activitiesByID) {
+			if spec.GroupName == "calificaciones" {
+				candidate = gradebookSetupURL(candidate)
+			}
+			route := routes.lookup(candidate)
+			if route != nil && !eligibleRouteForGroup(spec.GroupName, *route, selectionGiven, selectedActivityIDs, activitiesByID) {
 				continue
 			}
 			activityID := activityIDForURL(record, candidate)
-			if selectionBoundItem(spec.ItemCode) && len(selectedActivityIDs) > 0 {
+			if selectionBoundItem(spec.ItemCode) && selectionGiven {
 				if activityID == "" || !selectedActivityIDs[activityID] {
 					continue
 				}
@@ -268,15 +352,12 @@ func BuildCaptureTargetsForActivities(record coursemaps.Record, selectedActivity
 			continue
 		}
 		rows, batched := rowBatchPlanFor(spec.ItemCode, spec.GroupName)
-		batchesPerURL := 1
-		if batched && len(eligible) > 0 {
-			batchesPerURL = spec.MaxSlots / len(eligible)
-			if batchesPerURL < 1 {
-				batchesPerURL = 1
-			}
-		}
 		addedCount := 0
 		for index, entry := range eligible {
+			batchesPerURL := 1
+			if batched {
+				batchesPerURL = batchesForList(spec.MaxSlots, len(eligible), index)
+			}
 			hint := ""
 			if len(spec.LabelHints) > 0 {
 				hint = spec.LabelHints[index%len(spec.LabelHints)]
@@ -287,10 +368,20 @@ func BuildCaptureTargetsForActivities(record coursemaps.Record, selectedActivity
 				activityTitle = activity.Title
 				technical = activity.Technical
 			}
-			plan := captureGroupPlan(spec.GroupName)
 			ownerOnly := ownerOnlyForItem(spec.ItemCode)
 			selector := captureSelectorForItem(spec.ItemCode, spec.GroupName, spec.CSSSelector)
 			fallbacks := captureSelectorChainForItem(spec.ItemCode, spec.GroupName, selector)
+			elementOnly := false
+			if (spec.GroupName == "cronograma_general" || spec.GroupName == "cronograma_vigente") && strings.Contains(entry.url, "/mod/") {
+				// A cronograma published as a page/resource has no course
+				// sections: its main region is the evidence (not a fallback).
+				selector = `#region-main:has(iframe[src*="docs.google.com/spreadsheets"]), #region-main`
+				// No #page-content fallback: it is the whole layout wrapper.
+				fallbacks = []string{selector}
+				// Capture the content region only (no Zajuna header, side
+				// menu or footer): the enlarged sheet is inside it.
+				elementOnly = true
+			}
 			if batched {
 				// The container that holds the rows goes first; the previous
 				// chain stays as fallback (then captured without batching).
@@ -312,13 +403,34 @@ func BuildCaptureTargetsForActivities(record coursemaps.Record, selectedActivity
 					CSSSelector: selector, CSSSelectorFallbacks: fallbacks,
 					HideSelectors: forumConfigurationHideSelectors(spec.ItemCode, spec.GroupName),
 					ViewportWidth: viewportWidthForGroup(spec.GroupName), ViewportHeight: viewportHeightForGroup(spec.GroupName),
-					FullPage:  fullPageForGroup(spec.GroupName) && !batched,
+					FullPage:  fullPageForGroup(spec.GroupName) && !batched && !elementOnly,
 					LabelHint: hint, RouteKind: routeKindForURL(record, spec.ItemCode, entry.url),
-					RequireSelector: plan.ownerOnly || spec.GroupName == "perfil_instructor" || hint != "" || ownerFilteredGroup(spec.GroupName) || spec.GroupName == "cronograma_general" || spec.GroupName == "cronograma_vigente",
+					// Checklist evidence must come from its semantic container:
+					// a generic full-page shot of an unrelated layout is never a
+					// valid substitute when the selector chain does not match.
+					RequireSelector: true,
 					OwnerOnly:       ownerOnly,
 				}
 				if batched {
 					target.RowSelector, target.RowsPerShot, target.RowBatch = rows.rowSelector, RowsPerShot, batch
+					target.RowMatch = rowMatchForItem(spec.ItemCode)
+					target.RowRequireReply = SemanticCheckForItem(spec.ItemCode) == SemanticForumReplies
+				}
+				target.SemanticCheck = SemanticCheckForItem(spec.ItemCode)
+				target.CourseLayout = courseLayoutForGroup(spec.GroupName)
+				if target.SemanticCheck == SemanticForumDates {
+					target.AbsenceSelector = forumPageSelector
+				}
+				if spec.GroupName == "calificaciones" && !strings.Contains(target.URL, "/grade/edit/tree/") {
+					// The grader report has one column per grade item (~28.000
+					// px on a real course): each slot shows the first rows and
+					// the next window of columns, never wider than the limit.
+					target.RowBatch, target.ColumnBatch, target.MaxCaptureWidth = 0, batch, MaxCaptureWidth
+				} else if spec.GroupName == "calificaciones" {
+					// The gradebook setup lists every grade item vertically
+					// (146 rows on ficha 3135429): the slots split it into
+					// readable row batches that together cover the list.
+					target.RowsPerShot = GradebookRowsPerShot
 				}
 				targets = append(targets, target)
 				addedCount++
@@ -386,6 +498,13 @@ func captureUnitKey(target CaptureTarget) string {
 		strconv.Itoa(target.RowsPerShot),
 		strconv.Itoa(target.RowBatch),
 		strconv.FormatBool(target.OptionalSlot),
+		strings.Join(target.RowMatch, "\x00"),
+		strconv.FormatBool(target.RowRequireReply),
+		strings.TrimSpace(target.SemanticCheck),
+		strings.TrimSpace(target.CourseLayout),
+		strings.TrimSpace(target.AbsenceSelector),
+		strconv.Itoa(target.MaxCaptureWidth),
+		strconv.Itoa(target.ColumnBatch),
 	}, "\x1f")
 }
 
@@ -570,13 +689,25 @@ func routeKindForURL(record coursemaps.Record, itemCode, targetURL string) strin
 	return "route"
 }
 
-func routeForURL(record coursemaps.Record, targetURL string) *coursemaps.Route {
-	for index := range record.Routes {
-		if record.Routes[index].URL == targetURL || canonicalRouteURL(record.Routes[index].URL) == canonicalRouteURL(targetURL) {
-			return &record.Routes[index]
+// routeIndex resolves a mapped URL to its route without rescanning (and
+// re-parsing) every route of the course for each candidate. An exact URL match
+// is also a canonical match, so keeping the first route per canonical URL
+// returns the same route the previous linear scan did.
+type routeIndex map[string]*coursemaps.Route
+
+func newRouteIndex(record coursemaps.Record) routeIndex {
+	index := make(routeIndex, len(record.Routes))
+	for position := range record.Routes {
+		key := canonicalRouteURL(record.Routes[position].URL)
+		if _, exists := index[key]; !exists {
+			index[key] = &record.Routes[position]
 		}
 	}
-	return nil
+	return index
+}
+
+func (index routeIndex) lookup(targetURL string) *coursemaps.Route {
+	return index[canonicalRouteURL(targetURL)]
 }
 
 func canonicalRouteURL(raw string) string {
@@ -596,7 +727,10 @@ func canonicalRouteURL(raw string) string {
 // are not explicitly transversal. If a route has an activity code, it must
 // match one of the instructor-selected activities; generic named forums and
 // announcements remain eligible because their author is checked in Chromium.
-func eligibleRouteForGroup(groupName string, route coursemaps.Route, selectedActivityIDs map[string]bool, activitiesByID map[string]coursemaps.Activity) bool {
+func eligibleRouteForGroup(groupName string, route coursemaps.Route, selectionGiven bool, selectedActivityIDs map[string]bool, activitiesByID map[string]coursemaps.Activity) bool {
+	if route.Restricted {
+		return false
+	}
 	if !ownerFilteredGroup(groupName) {
 		return true
 	}
@@ -619,7 +753,10 @@ func eligibleRouteForGroup(groupName string, route coursemaps.Route, selectedAct
 		return false
 	}
 	if len(selectedActivityIDs) == 0 {
-		return true
+		// No selection: every forum qualifies. A saved selection that only
+		// held transversal activities is empty here too, but then a forum
+		// bound to an activity must not qualify (the instructor chose none).
+		return !selectionGiven || (strings.TrimSpace(route.ActivityID) == "" && !routeHasActivityCode(title))
 	}
 	if activityID := strings.TrimSpace(route.ActivityID); activityID != "" {
 		return selectedActivityIDs[activityID]
@@ -669,7 +806,10 @@ func RequiresInstructorIdentity(targets []CaptureTarget) bool {
 
 func genericForumNavigationTitle(title string) bool {
 	value := strings.ToLower(strings.TrimSpace(title))
-	for _, term := range []string{"debate", "comenzado por", "último mensaje", "ultimo mensaje", "réplicas", "replicas", "fijar esta discusión", "fijar esta discusion", "mostrar comentarios", "excepciones"} {
+	// "Anuncios de la página" is the Zajuna site-wide news forum, reached
+	// from the navigation: it is not part of the course and redirects to the
+	// login page, so every batch failed and forced new logins (MDL-219).
+	for _, term := range []string{"debate", "comenzado por", "último mensaje", "ultimo mensaje", "réplicas", "replicas", "fijar esta discusión", "fijar esta discusion", "mostrar comentarios", "excepciones", "anuncios de la página", "anuncios de la pagina", "anuncios del sitio", "noticias del sitio"} {
 		if value == term {
 			return true
 		}
@@ -728,7 +868,7 @@ func captureGroupPlan(groupName string) groupPlan {
 		// either, so the route alone identifies the target instead of a hint.
 		return groupPlan{[]string{"course"}, "#region-main .course-content", nil, false}
 	case "calificaciones":
-		return groupPlan{[]string{"grading"}, "#region-main .gradereport-grader-table", []string{"calificaciones"}, false}
+		return groupPlan{[]string{"grading"}, gradebookSetupTable, []string{"calificaciones"}, false}
 	case "configuracion":
 		return groupPlan{[]string{"page", "course", "phase"}, "#region-main .course-content .section", nil, false}
 	case "seguimiento_evaluacion", "seguimiento_documentos", "documentos_retencion":
@@ -771,7 +911,7 @@ func captureSelectorChain(groupName, primary string) []string {
 		"disponibilidad":         {"#region-main .course-content"},
 		"perfil_instructor":      {"#page-user-profile", "#region-main"},
 		"menu_curso":             {"#region-main .course-content", ".course-content"},
-		"calificaciones":         {"#region-main .gradereport-grader-table", "#region-main table", "#region-main"},
+		"calificaciones":         {gradebookSetupTable, "#region-main table", "#region-main"},
 		"foros":                  {"#region-main .forum_list .forum", "#region-main .forumpost", "#region-main [data-region='post']"},
 		"anuncios_fase":          {"#region-main .forum_list .forum", "#region-main .forumpost", "#region-main [data-region='post']"},
 		"anuncios_semanales":     {"#region-main .forum_list .forum", "#region-main .forumpost", "#region-main [data-region='post']"},
@@ -792,40 +932,102 @@ func captureSelectorChain(groupName, primary string) []string {
 		)
 		return selectors
 	}
-	for _, selector := range []string{"#region-main .course-content", "#region-main", "#page-user-profile", ".course-content", "#page-content"} {
+	// `#page-content` wraps the whole Moodle layout (navigation, blocks and
+	// footer): matching it is a full-page shot in disguise, so it is never a
+	// fallback. The profile container only belongs to the profile chain.
+	for _, selector := range []string{"#region-main .course-content", "#region-main", ".course-content"} {
 		add(selector)
 	}
 	return selectors
 }
 
 func captureSelectorForItem(itemCode, groupName, fallback string) string {
-	if groupName == "foros" && (itemCode == "9.1.1" || itemCode == "9.1.2" || itemCode == "9.1.3" || itemCode == "9.1.4") {
+	if groupName == "foros" && (itemCode == "9.1.3" || itemCode == "9.1.4") {
+		return ForumDatesSelector
+	}
+	if groupName == "foros" && (itemCode == "9.1.1" || itemCode == "9.1.2") {
 		return "#page-mod-forum-view #region-main"
 	}
 	if title := courseSectionTitleForItem(itemCode); title != "" {
+		if title == seguimientoSectionTitle || title == sesionesSectionTitle {
+			return topLevelCourseSectionByTitle(title)
+		}
 		return courseSectionByTitle(title)
 	}
 	return fallback
 }
 
 func captureSelectorChainForItem(itemCode, groupName, primary string) []string {
-	chain := captureSelectorChain(groupName, primary)
-	if title := courseSectionTitleForItem(itemCode); title != "" && title != seguimientoSectionTitle && title != sesionesSectionTitle {
-		// A missing subsection falls back to its parent section, never to
-		// the whole course page or its first (banner) section.
+	if primary == ForumDatesSelector {
+		// No fallback: a forum page without dates must not become evidence.
+		return []string{ForumDatesSelector}
+	}
+	title := courseSectionTitleForItem(itemCode)
+	if title == "" {
+		return captureSelectorChain(groupName, primary)
+	}
+	// Section-bound items are identified only by their named section. A
+	// missing subsection falls back to its parent section, never to the
+	// whole course page or its first (banner) section.
+	chain := []string{primary}
+	if title != seguimientoSectionTitle && title != sesionesSectionTitle {
 		parent := seguimientoSectionTitle
 		if strings.HasPrefix(itemCode, "8.") {
 			parent = sesionesSectionTitle
+		} else if strings.HasPrefix(itemCode, "7.4.") && title != comitesSectionTitle {
+			parent = comitesSectionTitle
 		}
-		chain = append([]string{primary, courseSectionByTitle(parent)}, chain...)
+		chain = append(chain, courseSectionByTitle(parent))
 	}
 	return chain
+}
+
+// splitSlots spreads an item's evidence limit over its sources so the
+// remainder of an uneven split is not lost: 5 slots over 2 sources become
+// 3+2, not 2+2. Every source keeps at least one slot.
+func splitSlots(maxSlots, sources int) []int {
+	if sources <= 0 {
+		return nil
+	}
+	result := make([]int, sources)
+	base, remainder := maxSlots/sources, maxSlots%sources
+	for index := range result {
+		result[index] = base
+		if index < remainder {
+			result[index]++
+		}
+		if result[index] < 1 {
+			result[index] = 1
+		}
+	}
+	return result
 }
 
 const (
 	seguimientoSectionTitle = "Seguimiento y Evaluaci"
 	sesionesSectionTitle    = "Sesiones en l"
+	comitesSectionTitle     = "Comités evaluativos"
 )
+
+// rowMatchForItem returns the announcement topics each item is about.
+// 11.4 (format) and 15.1 (netiqueta) apply to every instructor post.
+func rowMatchForItem(itemCode string) []string {
+	switch itemCode {
+	case "11.1.1", "11.1.2", "11.1.3", "11.1.4":
+		return []string{"apertura de fase", "inicio de fase", "apertura fase"}
+	case "11.2.1":
+		return []string{"inicio de actividad"}
+	case "11.2.2":
+		return []string{"cierre de actividad"}
+	case "11.2.3":
+		return []string{"invitacion a sesion", "sesion en linea"}
+	case "11.3":
+		return []string{"aprobados"}
+	case "14.1.1", "14.1.2":
+		return []string{"conclusion"}
+	}
+	return nil
+}
 
 // courseSectionTitleForItem maps checklist items to the Moodle section or
 // subsection whose own title identifies them. Verified against a real SENA
@@ -840,14 +1042,18 @@ func courseSectionTitleForItem(itemCode string) string {
 		return seguimientoSectionTitle
 	case "7.2", "13.2.1", "13.2.2":
 		return "Reporte del Curso"
-	case "7.3.1", "7.3.3":
-		return "Seguimiento a la Formaci"
+	case "7.3.1", "7.4.1", "13.1.2":
+		return comitesSectionTitle
 	case "7.3.2", "13.1.3":
 		return "Documentos de retenci"
-	case "7.4.1", "7.4.2", "7.4.3", "7.4.4", "13.1.2":
-		return "Comités evaluativos"
-	case "13.1.1":
+	case "7.3.3", "13.1.1":
 		return "Reuniones EEF"
+	case "7.4.2":
+		return "Planes de Mejoramiento"
+	case "7.4.3":
+		return "Registro de Novedades"
+	case "7.4.4":
+		return "Llamados de atenci"
 	case "8.1", "8.2", "8.3":
 		return sesionesSectionTitle
 	}
@@ -858,12 +1064,33 @@ func courseSectionTitleForItem(itemCode string) string {
 // title. `.section:has-text()` also matched every ancestor section (e.g.
 // "Información general" containing a nested "Seguimiento y evaluación").
 func courseSectionByTitle(title string) string {
-	return fmt.Sprintf(`#region-main .course-content li.section:has(> .course-section-header .sectionname:has-text(%q))`, title)
+	// :text-matches only matches an element's own text, so the variant with
+	// the title inside a link (<h3 class="sectionname"><a>…</a></h3>, other
+	// Moodle themes) is listed too.
+	pattern := sectionTitlePattern(title)
+	return fmt.Sprintf(`#region-main .course-content li.section:has(> .course-section-header .sectionname:text-matches(%q, "i")), #region-main .course-content li.section:has(> .course-section-header .sectionname a:text-matches(%q, "i"))`, pattern, pattern)
+}
+
+// sectionTitlePattern anchors the title at the start of the section name:
+// a substring also matched "Planeación, Seguimiento y Evaluación" when the
+// item was about the "Seguimiento y Evaluación" section.
+func sectionTitlePattern(title string) string {
+	return `^\s*` + regexp.QuoteMeta(title)
+}
+
+// topLevelCourseSectionByTitle only matches a main course section, never a
+// subsection with the same name (a SENA course also has a hidden
+// "Seguimiento y evaluación" inside "Información general").
+func topLevelCourseSectionByTitle(title string) string {
+	pattern := sectionTitlePattern(title)
+	return fmt.Sprintf(`#region-main .course-content li.section:not(li.section li.section):has(> .course-section-header .sectionname:text-matches(%q, "i")), #region-main .course-content li.section:not(li.section li.section):has(> .course-section-header .sectionname a:text-matches(%q, "i"))`, pattern, pattern)
 }
 
 // grabacionesSectionSelector picks the N-th per-phase recordings section.
 func grabacionesSectionSelector(index int) string {
-	return courseSectionByTitle("Grabaciones sesiones en l") + fmt.Sprintf(" >> nth=%d", index)
+	// "Fase 1 Planear: Grabaciones sesiones en línea": the phase comes first,
+	// so this one is matched anywhere in the name.
+	return `#region-main .course-content li.section:has(> .course-section-header .sectionname:has-text("Grabaciones sesiones en l"))` + fmt.Sprintf(" >> nth=%d", index)
 }
 
 func isCourseViewURL(raw string) bool {
@@ -882,12 +1109,18 @@ func viewportWidthForGroup(groupName string) int {
 	if groupName == "cronograma_general" || groupName == "cronograma_vigente" {
 		return 2560
 	}
+	if groupName == "calificaciones" {
+		return 1440
+	}
 	return 0
 }
 
 func viewportHeightForGroup(groupName string) int {
 	if groupName == "cronograma_general" || groupName == "cronograma_vigente" {
 		return 1200
+	}
+	if groupName == "calificaciones" {
+		return 900
 	}
 	return 0
 }
@@ -913,6 +1146,29 @@ func captureSpecFor(itemCode string) CaptureSpec {
 // 1–2, slot 2 rows 3–4, and so on, up to the item's evidence limit.
 const RowsPerShot = 2
 
+// MaxCaptureWidth matches the widest viewport used elsewhere (cronogramas):
+// wider shots become unreadable once scaled into the report.
+const MaxCaptureWidth = 2560
+
+// GradebookRowsPerShot is the rows of the gradebook setup list per 5.1 slot:
+// five slots cover 150 grade items, each shot stays well under the review's
+// height limit.
+const GradebookRowsPerShot = 30
+
+// batchesForList splits an item's evidence limit among its lists. Integer
+// division alone left slots unplanned (5 slots over 2 lists planned 4): the
+// remainder goes to the first lists, so every slot up to the limit exists.
+func batchesForList(maxSlots, lists, index int) int {
+	if lists <= 0 || maxSlots <= lists {
+		return 1
+	}
+	batches := maxSlots / lists
+	if index < maxSlots%lists {
+		batches++
+	}
+	return batches
+}
+
 type rowBatchPlan struct {
 	container   string
 	rowSelector string
@@ -922,7 +1178,7 @@ type rowBatchPlan struct {
 // batches instead of one whole element (or a single row) per slot.
 func rowBatchPlanFor(itemCode, groupName string) (rowBatchPlan, bool) {
 	if groupName == "calificaciones" {
-		return rowBatchPlan{container: "#region-main .gradereport-grader-table", rowSelector: "tbody tr.userrow, tbody tr[data-uid]"}, true
+		return rowBatchPlan{container: gradebookSetupTable, rowSelector: "tbody tr:not(.spacer)"}, true
 	}
 	if ownerOnlyForItem(itemCode) {
 		// Instructor-authored discussions/announcements; the capture worker
@@ -932,7 +1188,36 @@ func rowBatchPlanFor(itemCode, groupName string) (rowBatchPlan, bool) {
 	return rowBatchPlan{}, false
 }
 
+// distributeSlotBatches splits MaxSlots among n lists, giving leftover
+// slots to the first lists so 8 slots and 3 lists become 3,3,2 — not 2,2,2.
+func distributeSlotBatches(maxSlots, n int) []int {
+	if n <= 0 {
+		return nil
+	}
+	if n > maxSlots {
+		n = maxSlots
+	}
+	base := maxSlots / n
+	if base < 1 {
+		base = 1
+	}
+	counts := make([]int, n)
+	used := 0
+	for i := 0; i < n; i++ {
+		counts[i] = base
+		used += base
+	}
+	for i := 0; used < maxSlots && i < n; i++ {
+		counts[i]++
+		used++
+	}
+	return counts
+}
+
 const gradingTableSelector = "#region-main table.generaltable"
+
+// GradedRowTerm is Moodle's status text of a graded submission.
+const GradedRowTerm = "calificado"
 
 // appendGradingBatchTargets captures each selected activity's grading table
 // (grade, feedback and modification date) in row batches, splitting the
@@ -957,13 +1242,10 @@ func appendGradingBatchTargets(targets *[]CaptureTarget, record coursemaps.Recor
 	if len(withGrading) == 0 {
 		return 0
 	}
-	batches := spec.MaxSlots / len(withGrading)
-	if batches < 1 {
-		batches = 1
-	}
+	batchCounts := distributeSlotBatches(spec.MaxSlots, len(withGrading))
 	added := 0
-	for _, entry := range withGrading {
-		for batch := 0; batch < batches; batch++ {
+	for index, entry := range withGrading {
+		for batch := 0; batch < batchCounts[index]; batch++ {
 			added++
 			*targets = append(*targets, CaptureTarget{
 				ItemCode: spec.ItemCode, CoveredItemCodes: []string{spec.ItemCode}, GroupName: spec.GroupName,
@@ -973,8 +1255,65 @@ func appendGradingBatchTargets(targets *[]CaptureTarget, record coursemaps.Recor
 				CSSSelectorFallbacks: []string{gradingTableSelector, "#region-main .gradingtable table", "#region-main table"},
 				RouteKind:            "grading", RequireSelector: true,
 				RowSelector: "tbody tr:not(.emptyrow)", RowsPerShot: RowsPerShot, RowBatch: batch,
+				// 10.1.x prove feedback and grading: only graded submissions
+				// ("Calificado" in the status column), never the first rows
+				// of students without a submission.
+				RowMatch: []string{GradedRowTerm},
 			})
 		}
 	}
 	return added
+}
+
+// technicalSelection drops transversal activities from a saved selection:
+// they belong to other instructors and only produce wrong evidence (older
+// versions allowed selecting them). IDs missing from the map are dropped too.
+func technicalSelection(selected map[string]bool, activitiesByID map[string]coursemaps.Activity) map[string]bool {
+	if len(selected) == 0 {
+		return selected
+	}
+	result := make(map[string]bool, len(selected))
+	for id, ok := range selected {
+		if activity, exists := activitiesByID[id]; ok && exists && activity.Technical {
+			result[id] = true
+		}
+	}
+	return result
+}
+
+// ActivityEvidenceSlots is how many selected activities feed each
+// activity-bound item (6.1, 10.1.1, 10.1.2): the first ones in phase order.
+func ActivityEvidenceSlots() int {
+	for _, spec := range CaptureSpecs() {
+		if spec.ItemCode == "6.1" {
+			return spec.MaxSlots
+		}
+	}
+	return 5
+}
+
+// TechnicalSelectionForRecord keeps only the technical activities of a saved
+// selection, using the course map. Callers use it before deciding whether a
+// selection exists (a transversal-only selection counts as none).
+func TechnicalSelectionForRecord(record coursemaps.Record, selected map[string]bool) map[string]bool {
+	activitiesByID := make(map[string]coursemaps.Activity)
+	for _, activity := range coursemaps.Activities(record) {
+		activitiesByID[activity.ID] = activity
+	}
+	return technicalSelection(selected, activitiesByID)
+}
+
+// gradebookSetupTable is the gradebook setup tree (categories and the
+// activities associated with each), used as evidence for 5.1.
+const gradebookSetupTable = "#region-main table#grade_edit_tree_table, #region-main table.setup-grades"
+
+// gradebookSetupURL rewrites a grader-report URL stored by older course maps
+// to the gradebook setup page of the same course.
+func gradebookSetupURL(raw string) string {
+	parsed, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil || !strings.Contains(parsed.Path, "/grade/report/grader/") {
+		return raw
+	}
+	parsed.Path = strings.Replace(parsed.Path, "/grade/report/grader/", "/grade/edit/tree/", 1)
+	return parsed.String()
 }

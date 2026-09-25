@@ -19,6 +19,9 @@ import type {
   SetupStatus,
   SetupSaveResponse,
   TargetsResponse,
+  EvidenceReview,
+  EvidenceReviewEntry,
+  EvidenceReviewStatus,
 } from '../types'
 
 export class ApiError extends Error {
@@ -58,10 +61,47 @@ function normalizeKey(key: string) {
   return key.charAt(0).toLowerCase() + key.slice(1)
 }
 
+// El core entrega el secreto de sesión en el fragmento (#zc=...) al abrir la
+// app desde el lanzador. Se guarda por origen (el puerto cambia en cada
+// arranque) y viaja en una cabecera que otro proceso local no puede obtener.
+const CAPABILITY_HEADER = 'X-Zajuna-Capability'
+const CAPABILITY_STORAGE_KEY = 'zajuna.localCapability'
+let capability: string | null = null
+
+export function captureCapabilityFromLocation(target: { location: Location; history: History; localStorage?: Storage } | undefined = typeof window === 'undefined' ? undefined : window) {
+  if (!target) return
+  const match = /^#zc=([A-Za-z0-9_-]+)$/.exec(target.location.hash)
+  if (!match) return
+  capability = match[1]
+  try {
+    target.localStorage?.setItem(CAPABILITY_STORAGE_KEY, capability)
+  } catch {
+    // Sin almacenamiento la sesión dura lo que la pestaña.
+  }
+  target.history.replaceState(target.history.state, '', target.location.pathname + target.location.search)
+}
+
+function currentCapability(): string | null {
+  if (capability) return capability
+  try {
+    capability = typeof window === 'undefined' ? null : window.localStorage.getItem(CAPABILITY_STORAGE_KEY)
+  } catch {
+    capability = null
+  }
+  return capability
+}
+
+captureCapabilityFromLocation()
+
+export const LOCAL_SESSION_REQUIRED = 401
+
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   let response: Response
+  const headers = new Headers(options.headers)
+  const secret = currentCapability()
+  if (secret) headers.set(CAPABILITY_HEADER, secret)
   try {
-    response = await fetch(path, options)
+    response = await fetch(path, { ...options, headers })
   } catch (error) {
     const message = error instanceof Error ? error.message : 'No se pudo contactar la aplicación local.'
     throw new ApiError(message, 0, path)
@@ -83,6 +123,8 @@ const json = (body: unknown): RequestInit => ({
 })
 
 export const evidenceDownloadUrl = (id: string) => `/api/evidences/${encodeURIComponent(id)}/download`
+// Small cached JPEG for galleries; the original capture is ~2000×2600 px.
+export const evidenceThumbnailUrl = (id: string) => `/api/evidences/${encodeURIComponent(id)}/thumbnail`
 export const reportDownloadUrl = (id: string) => `/api/reports/${encodeURIComponent(id)}/download`
 export const backupDownloadUrl = (name: string) => `/api/backups/${encodeURIComponent(name)}/download`
 
@@ -113,6 +155,9 @@ export const api = {
 
   saveSetup: (input: { zajunaUsername: string; zajunaDocumentType: string; zajunaPassword: string }) =>
     request<SetupSaveResponse>('/api/setup', json(input)),
+
+  /** Sin cuerpo, el core usa la cuenta configurada (usuario y tipo de documento). */
+  testZajunaConnection: () => request<Job>('/api/zajuna/test-connection', json({})),
 
   listFichas: (limit = 100) => request<Ficha[]>(`/api/fichas?limit=${limit}`),
 
@@ -178,8 +223,9 @@ export const api = {
   getEvidenceGroups: (fichaId: string) =>
     request<EvidenceGroup[]>(`/api/evidences/groups?fichaId=${encodeURIComponent(fichaId)}`),
 
+  // With fichaId the core returns every evidence of the ficha; the gallery must not be truncated.
   listEvidences: (fichaId?: string) =>
-    request<Evidence[]>(`/api/evidences?limit=100${fichaId ? `&fichaId=${encodeURIComponent(fichaId)}` : ''}`),
+    request<Evidence[]>(fichaId ? `/api/evidences?fichaId=${encodeURIComponent(fichaId)}` : '/api/evidences?limit=100'),
 
   rebuildEvidenceGroups: (fichaId: string) =>
     request<EvidenceGroup[]>('/api/evidences/groups/rebuild', json({ fichaId })),
@@ -195,4 +241,15 @@ export const api = {
     request<Job>('/api/reports', json(input)),
 
   createBackup: () => request<Backup>('/api/backups', { method: 'POST' }),
+
+  getEvidenceReview: (fichaId: string) =>
+    request<EvidenceReview>(`/api/evidences/review?fichaId=${encodeURIComponent(fichaId)}`),
+
+  verifyEvidences: (fichaId: string) => request<EvidenceReview>('/api/evidences/verify', json({ fichaId })),
+
+  setEvidenceReview: (id: string, input: { status: EvidenceReviewStatus; note?: string }) =>
+    request<EvidenceReviewEntry>(`/api/evidences/${encodeURIComponent(id)}/review`, {
+      ...json({ status: input.status, note: input.note || '' }),
+      method: 'PUT',
+    }),
 }

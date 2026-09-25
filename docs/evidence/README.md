@@ -32,3 +32,7 @@ entre una corrida autenticada y el repositorio.
 
 El análisis de la corrida del 2026-08-26 está en
 [`../mdl-33-2026-08-26.md`](../mdl-33-2026-08-26.md).
+
+La auditoría manual de las 68 capturas de la ficha 3135429 (versión 0.1.5) y
+las correcciones del revisor automático están en
+[`auditoria-evidencias-2026-09-24.md`](auditoria-evidencias-2026-09-24.md).

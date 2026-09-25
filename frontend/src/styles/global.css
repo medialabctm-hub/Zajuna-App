@@ -314,7 +314,7 @@
       .route-action-status.ok { color:var(--brand-action); }
       .route-action-status.error { color:var(--no); }
       .onboarding-card { max-width:900px; margin:24px auto; }
-      .onboarding-steps { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin:22px 0; }
+      .onboarding-steps { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px; margin:22px 0; }
       .onboarding-step { display:grid; grid-template-columns:auto 1fr; column-gap:9px; align-items:center; padding:13px; border:1px solid var(--line); border-radius:10px; background:#fbfdfd; }
       .onboarding-step b { grid-row:span 2; display:grid; place-items:center; width:28px; height:28px; border-radius:50%; color:var(--navy); background:#e8eff2; font-size:12px; }
       .onboarding-step.active { border-color:#b9d7ac; background:var(--brand-soft); }
@@ -675,10 +675,51 @@ a:focus-visible {
   background: #eef3f5;
 }
 .settings-tab {
-  min-height: 40px;
+  min-height: 44px;
   padding: 9px 13px;
   border: 1px solid transparent;
   border-radius: 7px;
+}
+.settings-row > .status-chip {
+  flex: none;
+  margin-top: 0;
+  white-space: nowrap;
+}
+.settings-inline-link {
+  display: inline-block;
+  margin-top: 6px;
+  color: var(--navy);
+  font-size: 12px;
+  font-weight: 700;
+}
+.failed-items {
+  margin-top: 16px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fafcfc;
+}
+.failed-items ul {
+  display: grid;
+  gap: 10px;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.failed-items a {
+  color: var(--navy);
+  font-weight: 750;
+}
+.failed-items-slots {
+  color: var(--muted);
+  font-size: 12px;
+}
+.failed-items p {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
 }
 .settings-tab:hover {
   color: var(--navy);
@@ -801,3 +842,187 @@ a:focus-visible {
 .failure-guide details code { display:block; margin-top:4px; white-space:pre-wrap; word-break:break-word; font:400 10.5px/1.45 "IBM Plex Mono",monospace; }
 .failure-guide.compact { margin-top:6px; padding:8px 10px; font-size:11px; }
 .failure-guide.compact strong { font-size:11.5px; }
+
+/* Revisión de evidencias */
+.review-layout { display:flex; flex-direction:column; gap:18px; }
+.review-intro-row { display:flex; align-items:center; justify-content:space-between; gap:18px; }
+.review-intro-row p { color:var(--ink); font-size:13.5px; line-height:1.55; max-width:760px; }
+.review-intro-row .review-verified { margin-top:6px; color:var(--muted); font-size:12px; }
+.review-summary { display:grid; gap:12px; }
+.review-metric { min-height:0; border-left-width:4px; }
+.review-metric.approved { border-left-color:var(--yes); }
+.review-metric.pending { border-left-color:var(--pending); }
+.review-metric.rejected { border-left-color:var(--no); }
+.review-metric.missing { border-left-color:var(--confidence); }
+.review-progress { padding:14px 18px; }
+.review-progress-head { display:flex; justify-content:space-between; gap:12px; font-size:13px; color:var(--navy); }
+.review-progress-head span { color:var(--muted); font-size:12px; }
+.review-toolbar { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:12px; }
+.review-tabs { display:flex; flex-wrap:wrap; gap:8px; }
+.review-tabs .tab { min-width:112px; min-height:48px; }
+.review-search { flex:1 1 260px; max-width:360px; }
+.review-search input { width:100%; min-height:40px; padding:9px 12px; border:1px solid var(--line); border-radius:8px; background:#fff; color:var(--ink); font-size:13px; }
+.review-groups,.review-entries,.review-reasons,.review-missing-list,.review-approved-grid { margin:0; padding:0; list-style:none; }
+.review-groups { display:grid; gap:14px; }
+.review-group { padding:16px 18px; }
+.review-group-head { display:flex; align-items:flex-start; justify-content:space-between; gap:14px; padding-bottom:12px; border-bottom:1px solid var(--line); }
+.review-group-desc { margin-top:5px; color:var(--navy); font-size:13px; font-weight:650; line-height:1.45; }
+.review-entries { display:grid; gap:12px; margin-top:12px; }
+.review-entry { display:grid; grid-template-columns:180px minmax(0,1fr); gap:14px; align-items:start; padding:12px; border:1px solid var(--line); border-radius:10px; background:#fff; }
+.review-entry.pending { border-color:#f1d7ad; background:#fffcf6; }
+.review-entry.rejected { border-color:#f0c2bb; background:#fffafa; }
+.review-entry-body { display:grid; gap:8px; min-width:0; }
+.review-entry-head { display:flex; flex-wrap:wrap; align-items:center; gap:8px; color:var(--navy); font-size:13px; }
+.review-reasons { display:grid; gap:5px; }
+.review-reasons li { position:relative; padding-left:16px; color:var(--ink); font-size:12.5px; line-height:1.45; }
+.review-reasons li::before { content:"!"; position:absolute; left:0; top:0; color:var(--pending); font-weight:800; }
+.review-entry.rejected .review-reasons li::before { color:var(--no); }
+.review-actions { display:flex; flex-wrap:wrap; gap:7px; margin-top:2px; }
+.review-actions .review-reject { color:var(--no); border-color:#f0c2bb; }
+.review-thumb { display:grid; place-items:center; width:100%; height:120px; padding:0; overflow:hidden; border:1px solid var(--line); border-radius:8px; background:#eef3f5; cursor:zoom-in; }
+.review-thumb img { display:block; width:100%; height:100%; object-fit:cover; object-position:top; }
+.review-thumb.compact { height:110px; }
+.review-thumb-missing { padding:8px; color:var(--muted); font-size:11px; text-align:center; }
+.review-thumb:focus-visible { outline:3px solid var(--navy); outline-offset:2px; }
+.review-section-title { font-size:17px; }
+.review-missing .helper { margin-top:6px; }
+.review-missing-list { display:grid; margin-top:12px; }
+.review-missing-list li { display:flex; align-items:flex-start; justify-content:space-between; gap:14px; padding:12px 0; border-top:1px solid var(--line); }
+.review-approved-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(190px,1fr)); gap:12px; }
+.review-approved-card { display:grid; gap:8px; padding:10px; border:1px solid var(--line); border-radius:10px; background:#fff; }
+.review-approved-copy { display:grid; gap:2px; font-size:12.5px; color:var(--navy); }
+.review-done { border:1.5px solid var(--brand); box-shadow:0 0 0 4px rgba(57,169,0,.08); }
+.review-done h2 { margin-top:7px; }
+.review-done .helper { margin:8px 0 16px; }
+.review-empty { display:grid; justify-items:center; gap:10px; padding:28px 16px; }
+.review-lightbox-desc { display:block; margin-top:4px; font-family:Inter,ui-sans-serif,sans-serif; font-size:12px; font-weight:500; }
+.review-lightbox-body img { max-height:70vh; }
+@media (max-width:720px) {
+  .review-intro-row,.review-group-head,.review-missing-list li { flex-direction:column; align-items:stretch; }
+  .review-entry { grid-template-columns:1fr; }
+  .review-search { max-width:none; }
+  .review-tabs .tab { flex:1 1 40%; min-width:0; }
+}
+
+/* Selección de actividades: transversales bloqueadas */
+.badge.ok { color:var(--yes); background:var(--yes-soft); }
+.activity-blocked { margin-top:12px; padding:10px 12px; border:1px dashed var(--line); border-radius:10px; background:#fbfcfc; font-size:11.5px; }
+.activity-blocked summary { cursor:pointer; color:var(--muted); font-weight:700; }
+.activity-blocked p { margin-top:8px; }
+.activity-blocked ul { display:grid; gap:6px; margin:10px 0 0; padding:0; list-style:none; max-height:220px; overflow:auto; }
+.activity-blocked li { display:grid; gap:2px; padding:8px 10px; border-radius:8px; background:var(--confidence-soft); opacity:.8; }
+
+/* Flujo guiado: 5 pasos */
+.workflow-steps { margin:0 0 18px; padding:12px 14px; border:1px solid var(--line); border-radius:12px; background:var(--surface); box-shadow:var(--shadow); }
+.workflow-steps ol { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:8px; margin:0; padding:0; list-style:none; }
+.workflow-step a { display:grid; grid-template-columns:28px minmax(0,1fr); gap:9px; align-items:center; height:100%; padding:9px 10px; border:1px solid var(--line); border-radius:10px; color:var(--ink); text-decoration:none; background:#fbfdfd; }
+.workflow-step a:hover { border-color:#a9c4d2; }
+.workflow-step a:focus-visible { outline:2px solid rgba(0,50,77,.35); outline-offset:2px; }
+.workflow-step b { display:grid; place-items:center; width:28px; height:28px; border-radius:50%; font-size:12px; color:var(--navy); background:#e8eff2; }
+.workflow-step strong { display:block; font-size:12px; line-height:1.25; }
+.workflow-step small { display:block; margin-top:2px; color:var(--muted); font-size:10.5px; }
+.workflow-step.done b { color:#fff; background:var(--yes); }
+.workflow-step.done small { color:var(--yes); }
+.workflow-step.current a { border-color:var(--brand); background:var(--brand-soft); box-shadow:inset 3px 0 0 var(--brand); }
+.workflow-step.current b { color:#fff; background:var(--brand-action); }
+.workflow-step.current small { color:var(--brand-action); font-weight:800; }
+.workflow-step.running a { border-color:#b8d2df; background:var(--blue-soft); }
+.workflow-step.running small { color:var(--navy); font-weight:700; }
+.workflow-step.pending a { opacity:.72; }
+.workflow-next { margin-top:10px; font-size:12px; color:#4e6876; }
+.workflow-next b { color:var(--brand-action); }
+.step-badge { display:inline-flex; align-items:center; flex:none; white-space:nowrap; margin-right:7px; padding:2px 7px; border-radius:999px; font-size:10px; font-weight:800; letter-spacing:.02em; color:var(--navy); background:#e8eff2; vertical-align:middle; }
+.step-badge.current { color:#fff; background:var(--brand-action); }
+.step-badge.done { color:var(--yes); background:var(--yes-soft); }
+.button.primary .step-badge.current { color:var(--brand-action); background:#fff; }
+.is-next-step { box-shadow:0 0 0 3px rgba(57,169,0,.25); animation:next-step-pulse 2.2s ease-in-out infinite; }
+@keyframes next-step-pulse { 0%,100% { box-shadow:0 0 0 3px rgba(57,169,0,.25); } 50% { box-shadow:0 0 0 6px rgba(57,169,0,.08); } }
+:root[data-motion-off] .is-next-step { animation:none; }
+@media (prefers-reduced-motion: reduce) { .is-next-step { animation:none; } }
+.workflow-action { display:inline-grid; gap:5px; }
+.workflow-action-hint { color:var(--pending); font-size:11px; line-height:1.4; }
+@media (max-width:900px) { .workflow-steps ol { grid-template-columns:1fr 1fr; } }
+@media (max-width:560px) { .workflow-steps ol { grid-template-columns:1fr; } }
+
+/* Revisión → checklist */
+.review-mark-done { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:10px; margin-top:12px; padding:10px 12px; border-radius:9px; background:var(--brand-soft); }
+.workflow-steps.loading { min-height:62px; }
+/* Un trabajo que terminó con fallos no se ve "completo en verde" */
+.progress.failed i, .job-detail-progress-track.failed i { background:var(--pending) !important; }
+
+/* Columnas laterales que acompañan el desplazamiento de la página */
+@media (min-width:721px) {
+  .sidebar { position:sticky; top:0; align-self:flex-start; height:100vh; overflow-y:auto; overscroll-behavior:contain; scrollbar-width:thin; scrollbar-color:rgba(255,255,255,.18) transparent; }
+}
+@media (min-width:981px) {
+  .overview-side,
+  .main-grid > .side-stack,
+  .processes-layout > .status-guide-card {
+    position:sticky;
+    top:20px;
+    align-self:start;
+    max-height:calc(100vh - 40px);
+    overflow-y:auto;
+    overscroll-behavior:contain;
+    scrollbar-width:thin;
+    scrollbar-color:#c9d6dc transparent;
+    padding-right:2px;
+  }
+  .checklist-category-nav { top:20px; display:flex; flex-direction:column; max-height:calc(100vh - 40px); }
+  .checklist-category-nav .checklist-category-list { flex:1; min-height:0; max-height:none; }
+}
+
+/* Enlaces: sin el subrayado azul por defecto del navegador */
+a { color:inherit; text-decoration:none; }
+.route-action-status a,
+a.helper,
+.link-button {
+  color:var(--brand-action);
+  font-weight:700;
+  text-decoration:none;
+  border-radius:4px;
+  transition:color .15s ease;
+}
+.route-action-status a:hover,
+a.helper:hover,
+.link-button:hover { color:var(--navy); }
+a.helper { display:inline-block; margin-top:4px; font-size:12px; }
+
+/* Encabezado del checklist: acciones en una sola fila */
+.checklist-actions { align-items:center; flex:0 1 auto; min-width:0; }
+.checklist-actions .workflow-action { min-width:0; max-width:100%; }
+.checklist-actions .route-discovery-action { display:contents; }
+.checklist-actions .route-action-status { order:5; flex-basis:100%; text-align:right; }
+@media (max-width:980px) { .checklist-actions .route-action-status { text-align:left; } }
+.overview-main > .two-col { grid-template-columns:minmax(0,1fr); }
+
+/* Fichas: los tres botones de acción comparten la misma línea base */
+.ficha-actions { align-items:flex-start; }
+.ficha-actions > .button { margin-top:15px; }
+.ficha-actions .route-discovery-action { min-width:0; }
+@media (max-width:640px) { .ficha-actions > .button { margin-top:0; } }
+
+/* Tarjetas de evidencia: el botón no se parte en dos líneas */
+.evidence-group-foot .button { flex:none; white-space:nowrap; }
+
+/* Diagnóstico: el estado de cada comprobación alineado a la derecha */
+.diagnostic-item > div:not(.diagnostic-icon) { flex:1; min-width:0; }
+.diagnostic-item > .status-chip { flex:none; margin-left:auto; }
+
+/* Notificaciones: acciones en una fila */
+.notification-copy { flex:1; min-width:0; }
+.notification-actions { flex-direction:row; align-items:center; flex:none; }
+
+/* Pestañas de configuración: área táctil mínima accesible (44 px) */
+.settings-tab { min-height:44px; }
+
+/* Cabecera: la línea inferior no resta alto al contenido, así los botones
+   centrados caen en píxeles enteros (bordes nítidos y capturas estables). */
+.content-header { border-bottom:0; box-shadow:inset 0 -1px 0 var(--line); }
+
+/* Altura de línea entera: 13.5px × 1.55 dejaba todo el Resumen desplazado
+   0.92 px y los bordes de las tarjetas caían entre píxeles. */
+.overview-title-row p { line-height:21px; }
+/* Título de página: 30px × 1.15 = 34.5px desplazaba medio píxel el contenido. */
+.page-head-title { line-height:34px; }
+@media (max-width:640px) { .page-head-title { line-height:29px; } }

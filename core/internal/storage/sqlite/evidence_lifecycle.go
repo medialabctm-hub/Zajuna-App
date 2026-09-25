@@ -275,26 +275,41 @@ func (s *Store) PruneCaptureChecklistEvidence(ctx context.Context, fichaID strin
 	}
 	rows.Close()
 
-	deleted := 0
-	for _, item := range stale {
-		if _, err := s.db.ExecContext(ctx, `DELETE FROM evidences WHERE id = ?`, item.id); err != nil {
-			return deleted, fmt.Errorf("delete stale checklist evidence: %w", err)
-		}
-		deleted++
+	if len(stale) == 0 {
+		return 0, nil
 	}
+	// All rows go in one transaction so a cancellation or error never leaves
+	// half of a slot plan pruned; files are removed only after the commit.
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return 0, fmt.Errorf("begin checklist evidence prune: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+	for _, item := range stale {
+		if _, err := tx.ExecContext(ctx, `DELETE FROM evidences WHERE id = ?`, item.id); err != nil {
+			return 0, fmt.Errorf("delete stale checklist evidence: %w", err)
+		}
+	}
+	unreferenced := make([]string, 0, len(stale))
 	for _, item := range stale {
 		if item.path == "" {
 			continue
 		}
 		var references int
-		if err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM evidences WHERE file_path = ?`, item.path).Scan(&references); err != nil {
-			return deleted, fmt.Errorf("count evidence file references: %w", err)
+		if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM evidences WHERE file_path = ?`, item.path).Scan(&references); err != nil {
+			return 0, fmt.Errorf("count evidence file references: %w", err)
 		}
 		if references == 0 {
-			_ = os.Remove(item.path)
+			unreferenced = append(unreferenced, item.path)
 		}
 	}
-	return deleted, nil
+	if err := tx.Commit(); err != nil {
+		return 0, fmt.Errorf("commit checklist evidence prune: %w", err)
+	}
+	for _, path := range unreferenced {
+		_ = os.Remove(path)
+	}
+	return len(stale), nil
 }
 
 // ReconcileEvidenceFilesAfterRestore removes leftover files that were not part

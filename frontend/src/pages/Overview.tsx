@@ -3,7 +3,6 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import {
   useActivities,
-  useCapture,
   useDashboard,
   useEvidenceGroups,
   useFichas,
@@ -15,9 +14,9 @@ import {
   useReports,
   useSetActiveFicha,
   useSetupStatus,
-  useSyncFichas,
   useTargets,
   useDismissJobs,
+  useEvidenceReview,
   isNotFound,
 } from '../hooks/api'
 import { explainJobFailure, unresolvedFailedJobs } from '../lib/jobFailure'
@@ -38,6 +37,9 @@ import { friendlyError } from '../lib/friendlyError'
 import { reportDownloadUrl } from '../api/client'
 import type { DashboardCategory, EvidenceGroup, Job, Report, Schedule } from '../types'
 import { RouteDiscoveryAction } from '../components/RouteDiscoveryAction'
+import { CaptureAction, SyncFichasAction } from '../components/WorkflowActions'
+import { StepBadge } from '../components/WorkflowSteps'
+import { useWorkflow } from '../hooks/workflow'
 
 type BarStyle = CSSProperties & { '--bar-height'?: string }
 
@@ -66,7 +68,7 @@ function JobEntry({ job }: { job: Job }) {
           ? explainJobFailure(job).title
           : `${friendlyJobMessage(job.message || job.stage)} · ${progress}%`}
       </small>
-      <div className={`progress${isRunning ? ' running' : ''}`}>
+      <div className={`progress${isRunning ? ' running' : ''}${job.status === 'failed' ? ' failed' : ''}`}>
         <i style={{ width: `${progress}%` }} />
       </div>
     </article>
@@ -148,12 +150,12 @@ export function Overview() {
   const setupQuery = useSetupStatus()
   const schedulesQuery = useSchedules()
 
-  const syncFichas = useSyncFichas()
   const setActiveFicha = useSetActiveFicha()
-  const capture = useCapture()
   const createSchedule = useCreateSchedule()
   const setScheduleEnabled = useSetScheduleEnabled()
   const dismissJobs = useDismissJobs()
+  const workflow = useWorkflow()
+  const reviewSummary = useEvidenceReview(dashboardQuery.data?.activeFichaId).data?.summary
 
   const dashboard = dashboardQuery.data
   const fichas = fichasQuery.data || []
@@ -199,16 +201,11 @@ export function Overview() {
             <div className="onboarding-steps" aria-label="Flujo recomendado">
               <span className="onboarding-step active"><b>1</b><strong>Sincronizar fichas</strong><small>Traer tus cursos de Zajuna</small></span>
               <span className="onboarding-step"><b>2</b><strong>Buscar rutas</strong><small>Encontrar las secciones del curso</small></span>
-              <span className="onboarding-step"><b>3</b><strong>Preparar evidencias</strong><small>Capturar y revisar resultados</small></span>
+              <span className="onboarding-step"><b>3</b><strong>Seleccionar actividades</strong><small>Marcar tus actividades técnicas</small></span>
+              <span className="onboarding-step"><b>4</b><strong>Preparar evidencias</strong><small>Capturar en Zajuna</small></span>
+              <span className="onboarding-step"><b>5</b><strong>Revisar evidencias</strong><small>Aprobar y corregir</small></span>
             </div>
-            <button
-              className="button primary"
-              type="button"
-              onClick={() => syncFichas.mutate({ username: setupQuery.data?.zajunaUsername || '', documentType: setupQuery.data?.zajunaDocumentType || 'CC' }, { onSuccess: () => toast('Estamos sincronizando tus fichas.'), onError: (error) => toast(friendlyError(error.message), true) })}
-              disabled={syncFichas.isPending}
-            >
-              {syncFichas.isPending ? 'Sincronizando…' : 'Sincronizar fichas'}
-            </button>
+            <SyncFichasAction />
             {jobs.some((job) => job.type === 'sync-fichas' && ['queued', 'running', 'retrying'].includes(job.status)) ? <p className="helper" style={{ marginTop: 10 }}>La sincronización está en curso. Puedes abrir Trabajos para ver el avance.</p> : null}
           </div>
         </section>
@@ -272,41 +269,12 @@ export function Overview() {
     value: clamp(Math.round(((Number(category.yes) || 0) / Math.max(Number(category.total) || 1, 1)) * 100), 0, 100),
   }))
 
-  function handleSync() {
-    syncFichas.mutate(
-      { username: setupQuery.data?.zajunaUsername || '', documentType: setupQuery.data?.zajunaDocumentType || 'CC' },
-      {
-        onSuccess: () => toast('Estamos actualizando tus fichas.'),
-        onError: (error) => toast(friendlyError(error.message), true),
-      },
-    )
-  }
-
   function handleFichaChange(event: ChangeEvent<HTMLSelectElement>) {
     const value = event.target.value
     if (!value) return
     setActiveFicha.mutate(value, {
       onError: (error) => toast(friendlyError(error.message), true),
     })
-  }
-
-  function handleCapture() {
-    if (!dashboard) return
-    if (routeCount === 0) {
-      toast('Primero busca las rutas de esta ficha.', true)
-      return
-    }
-    capture.mutate(
-      {
-        fichaId: dashboard.activeFichaId,
-        username: setupQuery.data?.zajunaUsername || '',
-        documentType: setupQuery.data?.zajunaDocumentType || 'CC',
-      },
-      {
-        onSuccess: () => toast('Estamos preparando tus evidencias.'),
-        onError: (error) => toast(friendlyError(error.message), true),
-      },
-    )
   }
 
   function handleRefresh() {
@@ -367,9 +335,7 @@ export function Overview() {
               ))}
             </select>
           </div>
-          <button className="button primary" onClick={handleSync} disabled={syncFichas.isPending}>
-            Sincronizar fichas
-          </button>
+          <SyncFichasAction />
         </div>
       </div>
 
@@ -384,8 +350,14 @@ export function Overview() {
             <i style={{ width: `${progress}%` }} />
           </div>
           <div className="metric-note">
-            {total ? `${done} de ${total} ítems cumplidos` : 'Aún no hay ítems en esta ficha'}
+            {total ? `${done} de ${total} ítems marcados como cumplidos` : 'Aún no hay ítems en esta ficha'}
           </div>
+          {reviewSummary && total > 0 ? (
+            <div className="metric-note">
+              Evidencia aprobada: {reviewSummary.itemsApproved || 0} de {total} ítems ·{' '}
+              <Link to="/revision">márcalos como cumplidos en Revisión</Link>
+            </div>
+          ) : null}
         </article>
 
         <article className="metric-card">
@@ -479,15 +451,9 @@ export function Overview() {
               </button>
             </div>
             <div className="segmented-progress" role="img" aria-label={`Cumplimiento: ${done} cumplidas, ${failed} no cumplidas y ${pending} pendientes de ${total}`}>
-              <span className="done grow-in" style={{ width: `${(done / progressTotal) * 100}%` }}>
-                {done ? `${done} cumplidas` : ''}
-              </span>
-              <span className="failed grow-in" style={{ width: `${(failed / progressTotal) * 100}%` }}>
-                {failed || ''}
-              </span>
-              <span className="pending grow-in" style={{ width: `${(pending / progressTotal) * 100}%` }}>
-                {pending ? `${pending} pendientes` : ''}
-              </span>
+              {done ? <span className="done grow-in" style={{ width: `${(done / progressTotal) * 100}%` }}>{`${done} cumplidas`}</span> : null}
+              {failed ? <span className="failed grow-in" style={{ width: `${(failed / progressTotal) * 100}%` }}>{failed}</span> : null}
+              {pending ? <span className="pending grow-in" style={{ width: `${(pending / progressTotal) * 100}%` }}>{`${pending} pendientes`}</span> : null}
             </div>
             <div className="legend-row">
               <span>
@@ -616,6 +582,49 @@ export function Overview() {
               </div>
             </section>
           )}
+        <div className="grid two-col">
+          <section className="card evidence-gallery">
+            <div className="card-pad">
+              <div className="side-title">
+                <h3>Evidencias</h3>
+                <span className="badge">{evidenceGroupsQuery.data?.length ?? 0} grupos</span>
+              </div>
+              {evidenceGroupsQuery.isError ? (
+                <div className="empty" role="alert">No pudimos cargar los grupos de evidencias. La información principal sigue disponible.</div>
+              ) : evidenceGroupsQuery.data && evidenceGroupsQuery.data.length ? (
+                <div className="evidence-gallery-grid">
+                  {evidenceGroupsQuery.data.slice(0, 6).map((group, index) => (
+                    <EvidenceGroupCard key={group.id ?? index} group={group} />
+                  ))}
+                </div>
+              ) : (
+                <div className="empty">Todavía no hay evidencias agrupadas.</div>
+              )}
+            </div>
+          </section>
+
+          <section className="card reports-card">
+            <div className="card-pad">
+              <div className="side-title">
+                <h3>Reportes recientes</h3>
+                <button className="button ghost small" onClick={() => navigate('/reportes')}>
+                  Ver todos
+                </button>
+              </div>
+              {reportsQuery.isError ? (
+                <div className="empty" role="alert">No pudimos cargar los reportes recientes.</div>
+              ) : reportsQuery.data && reportsQuery.data.length ? (
+                <div className="report-list">
+                  {reportsQuery.data.slice(0, 5).map((report) => (
+                    <ReportRow key={report.id} report={report} />
+                  ))}
+                </div>
+              ) : (
+                <div className="empty">Todavía no hay reportes generados.</div>
+              )}
+            </div>
+          </section>
+        </div>
         </div>
 
         <aside className="overview-side">
@@ -645,21 +654,21 @@ export function Overview() {
                 </>
               ) : (
                 <>
-                  <strong>Todo listo para continuar</strong>
-                  <small>Revisa las actividades y prepara las evidencias cuando quieras.</small>
+                  <strong>{workflow.current ? `Siguiente: paso ${workflow.current.number}, ${workflow.current.label.toLowerCase()}` : 'Todo revisado'}</strong>
+                  <small>{workflow.current ? workflow.current.hint : 'Ya puedes generar el reporte PDF.'}</small>
                 </>
               )}
             </div>
             <RouteDiscoveryAction compact variant="primary" label="Buscar rutas" />
-            <button
-              className="button"
-              style={{ width: '100%', marginTop: 16 }}
-              onClick={handleCapture}
-              disabled={capture.isPending || routeCount === 0}
-            >
-              Preparar evidencias
-            </button>
-            {routeCount === 0 ? <p className="helper" style={{ marginTop: 8 }}>Busca las rutas del curso antes de preparar evidencias.</p> : null}
+            <div style={{ marginTop: 16 }}>
+              <CaptureAction fullWidth />
+            </div>
+            {evidenceCount > 0 ? (
+              <Link className={`button ${workflow.isCurrent('review') ? 'primary is-next-step' : 'ghost'}`} style={{ width: '100%', marginTop: 10 }} to="/revision">
+                <StepBadge step="review" />
+                Revisar evidencias
+              </Link>
+            ) : null}
           </section>
 
           <section className="card schedule-card">
@@ -722,50 +731,6 @@ export function Overview() {
             </div>
           </section>
         </aside>
-      </div>
-
-      <div className="grid two-col">
-        <section className="card evidence-gallery">
-          <div className="card-pad">
-            <div className="side-title">
-              <h3>Evidencias</h3>
-              <span className="badge">{evidenceGroupsQuery.data?.length ?? 0} grupos</span>
-            </div>
-            {evidenceGroupsQuery.isError ? (
-              <div className="empty" role="alert">No pudimos cargar los grupos de evidencias. La información principal sigue disponible.</div>
-            ) : evidenceGroupsQuery.data && evidenceGroupsQuery.data.length ? (
-              <div className="evidence-gallery-grid">
-                {evidenceGroupsQuery.data.slice(0, 6).map((group, index) => (
-                  <EvidenceGroupCard key={group.id ?? index} group={group} />
-                ))}
-              </div>
-            ) : (
-              <div className="empty">Todavía no hay evidencias agrupadas.</div>
-            )}
-          </div>
-        </section>
-
-        <section className="card reports-card">
-          <div className="card-pad">
-            <div className="side-title">
-              <h3>Reportes recientes</h3>
-              <button className="button ghost small" onClick={() => navigate('/reportes')}>
-                Ver todos
-              </button>
-            </div>
-            {reportsQuery.isError ? (
-              <div className="empty" role="alert">No pudimos cargar los reportes recientes.</div>
-            ) : reportsQuery.data && reportsQuery.data.length ? (
-              <div className="report-list">
-                {reportsQuery.data.slice(0, 5).map((report) => (
-                  <ReportRow key={report.id} report={report} />
-                ))}
-              </div>
-            ) : (
-              <div className="empty">Todavía no hay reportes generados.</div>
-            )}
-          </div>
-        </section>
       </div>
     </div>
   )

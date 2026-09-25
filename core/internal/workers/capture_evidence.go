@@ -68,7 +68,9 @@ func (w *CaptureEvidenceWorker) Execute(ctx context.Context, job jobs.Job, repor
 	if err != nil {
 		return jobs.Result{ErrorCode: "invalid_input", ErrorMessage: err.Error()}
 	}
-	input.URL = security.RedactURL(parsed.String())
+	// The request keeps its query (tokens included); only what is stored or
+	// reported goes through RedactURL.
+	input.URL = parsed.String()
 	if input.SlotNumber <= 0 {
 		input.SlotNumber = 1
 	}

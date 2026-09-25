@@ -129,7 +129,7 @@ func (w *CaptureBrowserWorker) Execute(ctx context.Context, job jobs.Job, report
 			if errors.Is(err, zajuna.ErrChallengeRequired) {
 				return jobs.Result{ErrorCode: "zajuna_challenge_required", ErrorMessage: "Zajuna pidió CAPTCHA o MFA; la captura no se automatiza"}
 			}
-			return jobs.Result{Retryable: retryableZajunaError(err), ErrorCode: "zajuna_login_failed", ErrorMessage: fmt.Sprintf("no se pudo iniciar sesión para la captura: %v", err)}
+			return jobs.Result{Retryable: retryableZajunaError(err), ErrorCode: "zajuna_login_failed", ErrorMessage: security.RedactText(fmt.Sprintf("no se pudo iniciar sesión para la captura: %v", err))}
 		}
 		base, baseErr := url.Parse(session.BaseURL)
 		if baseErr != nil || base.Host == "" || base.Scheme != parsedTarget.Scheme || base.Host != parsedTarget.Host {
@@ -146,7 +146,7 @@ func (w *CaptureBrowserWorker) Execute(ctx context.Context, job jobs.Job, report
 			return jobs.Result{ErrorCode: "zajuna_session_expired", ErrorMessage: "Zajuna no devolvió cookies de sesión para la captura"}
 		}
 	}
-	if err := reporter.Event(ctx, "capture_started", "Captura iniciada", map[string]string{"url": input.URL}); err != nil {
+	if err := reporter.Event(ctx, "capture_started", "Captura iniciada", map[string]string{"url": security.RedactURL(input.URL)}); err != nil {
 		return jobs.Result{ErrorCode: "event_failed", ErrorMessage: err.Error()}
 	}
 	captureResult, err := w.runtime.CaptureURLWithMetadataAndCookiesAndOptions(ctx, input.URL, outputPath, browserCookies, capture.CaptureOptions{Selector: input.CSSSelector, Selectors: input.CSSSelectors, LabelHint: input.LabelHint})
@@ -157,7 +157,7 @@ func (w *CaptureBrowserWorker) Execute(ctx context.Context, job jobs.Job, report
 		if errors.Is(err, capture.ErrChallengePage) {
 			return jobs.Result{ErrorCode: "zajuna_challenge_required", ErrorMessage: "Zajuna pidió CAPTCHA o MFA; la captura no se automatiza"}
 		}
-		return jobs.Result{ErrorCode: "capture_failed", ErrorMessage: err.Error(), Retryable: true}
+		return jobs.Result{ErrorCode: "capture_failed", ErrorMessage: security.RedactText(err.Error()), Retryable: true}
 	}
 	if input.Authenticated && isZajunaLoginURL(captureResult.FinalURL) {
 		return jobs.Result{ErrorCode: "zajuna_session_expired", ErrorMessage: "Zajuna redirigió la captura a la pantalla de login"}
@@ -171,7 +171,7 @@ func (w *CaptureBrowserWorker) Execute(ctx context.Context, job jobs.Job, report
 	}
 	evidenceID := ""
 	if w.store != nil {
-		metadata, _ := json.Marshal(map[string]any{"url": security.RedactURL(input.URL), "finalUrl": security.RedactURL(captureResult.FinalURL), "title": captureResult.Title, "selector": captureResult.Selector, "selectorFallbacks": input.CSSSelectors, "selectorMatched": captureResult.SelectorMatched, "labelHint": input.LabelHint, "authenticated": input.Authenticated, "jobId": job.ID})
+		metadata, _ := json.Marshal(map[string]any{"url": security.RedactURL(input.URL), "finalUrl": security.RedactURL(captureResult.FinalURL), "title": security.RedactText(captureResult.Title), "selector": captureResult.Selector, "selectorFallbacks": input.CSSSelectors, "selectorMatched": captureResult.SelectorMatched, "labelHint": input.LabelHint, "authenticated": input.Authenticated, "jobId": job.ID})
 		name := input.Name
 		if name == "" {
 			name = filepath.Base(outputPath)

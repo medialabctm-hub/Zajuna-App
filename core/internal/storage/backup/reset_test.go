@@ -101,3 +101,17 @@ func TestEnforceVersionFreshInstallAndDevBuilds(t *testing.T) {
 		t.Fatal("development builds must never wipe")
 	}
 }
+
+func TestEnforceVersionWipesUnmarkedBackupsOnly(t *testing.T) {
+	dataDir := t.TempDir()
+	// A release without the version marker left only backups behind.
+	if err := os.MkdirAll(filepath.Join(dataDir, "backups"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if wiped, err := EnforceVersion(dataDir, "0.1.5"); err != nil || !wiped {
+		t.Fatalf("EnforceVersion = %v, %v", wiped, err)
+	}
+	if exists(dataDir, "backups") {
+		t.Fatal("backups from an unmarked release must be removed")
+	}
+}

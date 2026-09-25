@@ -34,5 +34,6 @@ El archivo publicado por CI se llama `Zajuna.App-<versión>.AppImage` (sin espac
 
 ## Datos de usuario
 
-Actualizar el AppImage **no borra** `~/.local/share/zajuna-app`. Ver
+Desde la 0.1.3, abrir un AppImage de otra versión vacía
+`~/.local/share/zajuna-app` en el primer arranque. Ver
 [`../evidence/update-policy.md`](../evidence/update-policy.md).

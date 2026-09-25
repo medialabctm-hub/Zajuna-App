@@ -38,6 +38,13 @@ describe('findNavItem', () => {
     expect(findNavItem('/checklist/ITEM-1')?.path).toBe('/checklist')
     expect(findNavItem('/trabajos/job-99')?.path).toBe('/trabajos')
     expect(findNavItem('/configuracion')?.label).toBe('Configuración')
+    expect(findNavItem('/revision')?.label).toBe('Revisión')
+  })
+
+  it('ubica Revisión justo después de Evidencias en Operación', () => {
+    const paths = OPERATION_ITEMS.map((item) => item.path)
+    expect(paths.indexOf('/revision')).toBe(paths.indexOf('/evidencias') + 1)
+    expect(findNavItem('/revision')).toMatchObject({ eyebrow: 'Paso 5 · Revisión', showGenericHeader: true })
   })
 
   it('no inventa entradas para rutas desconocidas', () => {

@@ -44,7 +44,7 @@ func (f *fakeSubmitter) Submit(_ context.Context, _ string, input any) (jobs.Job
 
 func TestRunDueSubmitsAndAdvancesSchedule(t *testing.T) {
 	now := time.Date(2026, 8, 6, 12, 0, 0, 0, time.UTC)
-	store := &memoryStore{ schedules: []Schedule{{ID: "schedule-1", WorkerType: "sync-fichas", Input: json.RawMessage(`{"username":"u"}`), Interval: time.Hour, Enabled: true, NextRunAt: now.Add(-time.Minute)}} }
+	store := &memoryStore{schedules: []Schedule{{ID: "schedule-1", WorkerType: "sync-fichas", Input: json.RawMessage(`{"username":"u"}`), Interval: time.Hour, Enabled: true, NextRunAt: now.Add(-time.Minute)}}}
 	submitter := &fakeSubmitter{}
 	runner, err := New(store, submitter, time.Minute)
 	if err != nil {

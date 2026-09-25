@@ -25,11 +25,11 @@ func TestSchemaMigratesToV13(t *testing.T) {
 	if err := store.DB().QueryRowContext(context.Background(), `SELECT MAX(version) FROM schema_migrations`).Scan(&version); err != nil {
 		t.Fatal(err)
 	}
-	if version != 13 || currentSchemaVersion != 13 {
+	if version != currentSchemaVersion || currentSchemaVersion < 13 {
 		t.Fatalf("expected schema v13, got %d (currentSchemaVersion=%d)", version, currentSchemaVersion)
 	}
-	if CurrentSchemaVersion() != 13 {
-		t.Fatalf("CurrentSchemaVersion() = %d, want 13", CurrentSchemaVersion())
+	if CurrentSchemaVersion() != currentSchemaVersion {
+		t.Fatalf("CurrentSchemaVersion() = %d, want %d", CurrentSchemaVersion(), currentSchemaVersion)
 	}
 
 	var sqlText string
@@ -100,7 +100,7 @@ func TestApplyV13DedupesDuplicateSlotsAndKeepsNewest(t *testing.T) {
 	if err := store.DB().QueryRowContext(ctx, `SELECT MAX(version) FROM schema_migrations`).Scan(&version); err != nil {
 		t.Fatal(err)
 	}
-	if version != 13 {
+	if version != currentSchemaVersion {
 		t.Fatalf("expected migrated schema v13, got %d", version)
 	}
 

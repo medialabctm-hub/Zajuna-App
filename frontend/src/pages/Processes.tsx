@@ -41,7 +41,7 @@ function JobRow({ job }: { job: Job }) {
           ? `${explainJobFailure(job).title}. Abre el detalle para ver qué hacer.`
           : `${friendlyJobMessage(job.message || job.stage)} · ${progress}%`}
       </small>
-      <div className={`progress${isRunning ? ' running' : ''}`}>
+      <div className={`progress${isRunning ? ' running' : ''}${job.status === 'failed' ? ' failed' : ''}`}>
         <i style={{ width: `${progress}%` }} />
       </div>
       <div className="job-row-actions">

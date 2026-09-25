@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log"
 	"net/http"
+	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -35,7 +36,7 @@ type credentialDeleter interface {
 func registerAppRoutes(mux *http.ServeMux, dataDir string, credentials secrets.Store, manager *backup.Manager) {
 	mux.HandleFunc("GET /api/app/info", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]any{
-			"version": appVersion, "dataDir": dataDir, "supervised": supervised(),
+			"version": appVersion, "dataDir": displayDataDir(dataDir), "supervised": supervised(),
 			"resetPending": backup.ResetPending(dataDir),
 		})
 	})
@@ -79,4 +80,29 @@ func registerAppRoutes(mux *http.ServeMux, dataDir string, credentials secrets.S
 			requestShutdown()
 		}()
 	})
+}
+
+// displayDataDir shortens the data directory to an environment-relative form
+// (%LOCALAPPDATA%\ZajunaApp, ~/.local/share/zajuna-app) so the API never
+// reveals the OS user name. Unknown locations fall back to the folder name.
+func displayDataDir(dataDir string) string {
+	clean := filepath.Clean(dataDir)
+	bases := []struct{ root, label string }{{os.Getenv("LOCALAPPDATA"), "%LOCALAPPDATA%"}}
+	if home, err := os.UserHomeDir(); err == nil {
+		bases = append(bases, struct{ root, label string }{home, "~"})
+	}
+	for _, base := range bases {
+		if strings.TrimSpace(base.root) == "" {
+			continue
+		}
+		relative, err := filepath.Rel(filepath.Clean(base.root), clean)
+		if err != nil || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) || filepath.IsAbs(relative) {
+			continue
+		}
+		if relative == "." {
+			return base.label
+		}
+		return base.label + string(filepath.Separator) + relative
+	}
+	return filepath.Base(clean)
 }

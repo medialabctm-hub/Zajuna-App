@@ -1,9 +1,10 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { backupDownloadUrl } from '../api/client'
 import { PageError, PageSkeleton } from '../components/AsyncState'
-import { useAppInfo, useResetApp, useBackups, useCleanupBackups, useCreateBackup, useDashboard, useDeleteBackup, useFichas, useRestoreBackup, useClearEvidences, useSaveSettings, useSaveSetup, useSettings, useSetupStatus } from '../hooks/api'
+import { useAppInfo, useResetApp, useBackups, useCleanupBackups, useCreateBackup, useDashboard, useDeleteBackup, useFichas, useRestoreBackup, useClearEvidences, useSaveSettings, useSaveSetup, useSettings, useSetupStatus, useZajunaConnectionTest } from '../hooks/api'
 import { useToast } from '../hooks/useToast'
+import { connectionStatus } from '../lib/connectionStatus'
 import { friendlyError } from '../lib/friendlyError'
 import type { AppSettings } from '../types'
 
@@ -54,6 +55,7 @@ export function Settings() {
   const restoreBackup = useRestoreBackup()
   const appInfoQuery = useAppInfo()
   const resetApp = useResetApp()
+  const connectionTest = useZajunaConnectionTest(setup?.zajunaUsername)
   const toast = useToast()
   const [resetBackupFirst, setResetBackupFirst] = useState(true)
   const [resetForgetCredentials, setResetForgetCredentials] = useState(false)
@@ -114,10 +116,21 @@ export function Settings() {
     event.preventDefault()
     try {
       await saveSetup.mutateAsync({ zajunaUsername: username.trim(), zajunaDocumentType: documentType, zajunaPassword: password })
-      toast('Conexión guardada correctamente.')
+      connectionTest.forget()
+      toast('Credenciales guardadas. Pulsa “Probar conexión” para confirmar que Zajuna las acepta.')
       setPassword('')
     } catch (err) {
       const message = err instanceof Error ? err.message : 'No se pudo guardar la conexión.'
+      toast(friendlyError(message), true)
+    }
+  }
+
+  async function handleTestConnection() {
+    try {
+      await connectionTest.start()
+      toast('Probando la conexión con Zajuna. El resultado aparece aquí en unos segundos.')
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'No se pudo iniciar la prueba de conexión.'
       toast(friendlyError(message), true)
     }
   }
@@ -209,6 +222,7 @@ export function Settings() {
   }
 
   const evidenceCount = (dashboard?.items ?? []).reduce((sum, item) => sum + (Number(item.evidenceCount) || 0), 0)
+  const connection = connectionStatus(setup, connectionTest.job)
 
   return (
     <div className="settings-layout">
@@ -296,24 +310,33 @@ export function Settings() {
           <div className="grid">
             <section className="card settings-section">
               <div className="settings-section-head">
-                <h3>Sesión y automatización</h3>
-                <p className="helper">La aplicación protege la sesión y la reutiliza durante los trabajos.</p>
+                <h3>Conexión y sesión</h3>
+                <p className="helper">Comprueba que Zajuna acepta tus credenciales antes de sincronizar o capturar.</p>
+              </div>
+              <div className="settings-row" aria-live="polite">
+                <div>
+                  <strong>Estado de conexión</strong>
+                  <span>{connection.detail}</span>
+                  {connectionTest.job ? <Link className="settings-inline-link" to={`/trabajos/${encodeURIComponent(connectionTest.job.id)}`}>Ver detalle de la prueba</Link> : null}
+                </div>
+                <span className={`status-chip ${connection.tone}`}>{connection.label}</span>
+              </div>
+              <div className="card-pad">
+                <button
+                  className="button"
+                  type="button"
+                  onClick={handleTestConnection}
+                  disabled={!setup?.setupComplete || connection.testing || connectionTest.isStarting}
+                >
+                  {connection.testing || connectionTest.isStarting ? 'Probando conexión…' : 'Probar conexión'}
+                </button>
               </div>
               <div className="settings-row">
                 <div>
                   <strong>Renovar la sesión automáticamente</strong>
-                  <span>Si la sesión caduca, se vuelve a autenticar sin detener la captura.</span>
+                  <span>Si Zajuna cierra la sesión mientras se preparan evidencias, se inicia sesión de nuevo y esa evidencia se reintenta una vez.</span>
                 </div>
                 <Toggle pressed={preferences.session.autoRenew} label="Renovar la sesión automáticamente" onClick={() => togglePreference('session', 'autoRenew')} />
-              </div>
-              <div className="settings-row">
-                <div>
-                  <strong>Estado de conexión</strong>
-                  <span>{setup?.setupComplete ? 'Conexión configurada en este equipo.' : 'Pendiente de configurar.'}</span>
-                </div>
-                <span className={`status-chip ${setup?.setupComplete ? 'ok' : 'pending'}`}>
-                  {setup?.setupComplete ? 'Verificada' : 'Pendiente'}
-                </span>
               </div>
             </section>
           </div>
@@ -325,38 +348,38 @@ export function Settings() {
           <section className="card settings-section">
             <div className="settings-section-head">
               <h3>Preferencias de captura</h3>
-              <p className="helper">Estas opciones conservan la proporción de la maqueta y ayudan a que las evidencias sean comparables.</p>
+              <p className="helper">Se aplican la próxima vez que prepares evidencias. Las evidencias ya guardadas no cambian.</p>
             </div>
             <div className="settings-row">
               <div>
-                <strong>Página completa</strong>
-                <span>Captura toda la sección, incluyendo contenido desplegado.</span>
+                <strong>Página completa en perfil y cronogramas</strong>
+                <span>El perfil del instructor y los cronogramas se capturan con toda la página. Si lo desactivas, solo se guarda el bloque detectado.</span>
               </div>
-              <Toggle pressed={preferences.capture.fullPage} label="Capturar página completa" onClick={() => togglePreference('capture', 'fullPage')} />
+              <Toggle pressed={preferences.capture.fullPage} label="Capturar página completa en perfil y cronogramas" onClick={() => togglePreference('capture', 'fullPage')} />
             </div>
             <div className="settings-row">
               <div>
-                <strong>Sesión del navegador reutilizable</strong>
-                <span>Reduce el tiempo entre capturas sin volver a iniciar sesión.</span>
+                <strong>Reutilizar la sesión entre evidencias</strong>
+                <span>Una misma sesión de Zajuna sirve para varias evidencias. Si lo desactivas, cada evidencia inicia sesión por separado: es más lento y Zajuna puede limitar los accesos.</span>
               </div>
-              <Toggle pressed={preferences.capture.reuseSession} label="Reutilizar la sesión del navegador" onClick={() => togglePreference('capture', 'reuseSession')} />
+              <Toggle pressed={preferences.capture.reuseSession} label="Reutilizar la sesión entre evidencias" onClick={() => togglePreference('capture', 'reuseSession')} />
             </div>
             <div className="settings-row">
               <div>
                 <strong>Animaciones de carga</strong>
-                <span>Muestra una animación de carga mientras llegan los datos locales o de Zajuna.</span>
+                <span>Muestra una animación mientras llegan los datos. Solo afecta a esta interfaz, no a las capturas.</span>
               </div>
               <Toggle pressed={preferences.capture.motion} label="Mostrar animaciones de carga" onClick={() => togglePreference('capture', 'motion')} />
             </div>
           </section>
           <section className="card settings-section">
             <div className="settings-section-head">
-              <h3>Recomendación</h3>
-              <p className="helper">Mantén esta configuración para conservar evidencias completas y consistentes.</p>
+              <h3>Cómo se capturan</h3>
+              <p className="helper">Reglas fijas que no dependen de estas preferencias.</p>
             </div>
             <div className="card-pad">
               <div className="route-note">
-                <strong>Resolución sugerida:</strong> 1440 px de ancho virtual, sin GPU obligatoria.
+                <strong>Cronogramas:</strong> se abren con 2560 px de ancho para que la tabla completa quede en la imagen.
               </div>
               <div className="route-note">
                 <strong>Fechas:</strong> se toma la fecha del equipo al crear cada evidencia.
@@ -393,43 +416,6 @@ export function Settings() {
                 <span>No se incluyen en PDF ni respaldos.</span>
               </div>
               <span className="status-chip ok">Protegidas</span>
-            </div>
-            <div className="settings-row">
-              <div>
-                <strong>Copias recientes a conservar</strong>
-                <span>La limpieza nunca toca las copias más nuevas que este número.</span>
-              </div>
-              <input
-                className="retention-input"
-                type="number"
-                min={1}
-                max={1000}
-                value={preferences.storage.retentionKeep}
-                aria-label="Copias recientes a conservar"
-                onChange={(event) => setPreferences({ ...preferences, storage: { ...preferences.storage, retentionKeep: Math.min(1000, Math.max(1, Number(event.target.value) || 1)) } })}
-                onBlur={() => updatePreferences(preferences)}
-                disabled={saveSettings.isPending}
-              />
-            </div>
-            <div className="settings-row">
-              <div>
-                <strong>Antigüedad mínima para limpiar</strong>
-                <span>Solo se eliminan copias más antiguas que este número de días.</span>
-              </div>
-              <div className="retention-input-suffix">
-                <input
-                  className="retention-input"
-                  type="number"
-                  min={1}
-                  max={3650}
-                  value={preferences.storage.retentionDays}
-                  aria-label="Antigüedad mínima de copias en días"
-                  onChange={(event) => setPreferences({ ...preferences, storage: { ...preferences.storage, retentionDays: Math.min(3650, Math.max(1, Number(event.target.value) || 1)) } })}
-                  onBlur={() => updatePreferences(preferences)}
-                  disabled={saveSettings.isPending}
-                />
-                <span>días</span>
-              </div>
             </div>
           </section>
           <section className="card settings-section">
@@ -521,6 +507,45 @@ export function Settings() {
               <div className="route-note" style={{ marginTop: 14 }}>
                 Las credenciales de Zajuna no se incluyen en el archivo.
               </div>
+            </div>
+            <div className="settings-row">
+              <div>
+                <strong>Copias recientes a conservar</strong>
+                <span>“Limpiar antiguas” nunca borra las copias más recientes que este número.</span>
+              </div>
+              <input
+                className="retention-input"
+                type="number"
+                min={1}
+                max={1000}
+                value={preferences.storage.retentionKeep}
+                aria-label="Copias recientes a conservar"
+                onChange={(event) => setPreferences({ ...preferences, storage: { ...preferences.storage, retentionKeep: Math.min(1000, Math.max(1, Number(event.target.value) || 1)) } })}
+                onBlur={() => updatePreferences(preferences)}
+                disabled={saveSettings.isPending}
+              />
+            </div>
+            <div className="settings-row">
+              <div>
+                <strong>Antigüedad mínima para limpiar</strong>
+                <span>“Limpiar antiguas” solo borra copias con más días que este número. No hay limpieza automática.</span>
+              </div>
+              <div className="retention-input-suffix">
+                <input
+                  className="retention-input"
+                  type="number"
+                  min={1}
+                  max={3650}
+                  value={preferences.storage.retentionDays}
+                  aria-label="Antigüedad mínima de copias en días"
+                  onChange={(event) => setPreferences({ ...preferences, storage: { ...preferences.storage, retentionDays: Math.min(3650, Math.max(1, Number(event.target.value) || 1)) } })}
+                  onBlur={() => updatePreferences(preferences)}
+                  disabled={saveSettings.isPending}
+                />
+                <span>días</span>
+              </div>
+            </div>
+            <div className="card-pad">
               <div className="backup-list">
                 <strong className="eyebrow">Copias disponibles</strong>
                 {backupsQuery.isError ? (

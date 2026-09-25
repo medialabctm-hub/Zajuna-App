@@ -111,4 +111,16 @@ func TestPruneCaptureChecklistEvidenceDropsUnplannedAndSkippedSlots(t *testing.T
 	if n, err := store.PruneCaptureChecklistEvidence(ctx, fichaID, nil, nil); err != nil || n != 0 {
 		t.Fatalf("empty item list must be a no-op, got %d (%v)", n, err)
 	}
+
+	cancelled, cancel := context.WithCancel(ctx)
+	cancel()
+	if n, err := store.PruneCaptureChecklistEvidence(cancelled, fichaID, []string{"X.1"}, nil); err == nil || n != 0 {
+		t.Fatalf("a cancelled prune must fail without deleting, got %d (%v)", n, err)
+	}
+	if remaining, _ := store.ListEvidences(ctx, 50); len(remaining) != len(want) {
+		t.Fatalf("a cancelled prune deleted evidence: %d rows left", len(remaining))
+	}
+	if _, err := os.Stat(paths["X.1#1"]); err != nil {
+		t.Fatalf("a cancelled prune removed a file: %v", err)
+	}
 }

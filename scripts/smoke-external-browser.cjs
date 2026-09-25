@@ -85,6 +85,16 @@ async function main() {
     const health = await fetch(`${endpoint.url}/api/health`);
     if (!health.ok) throw new Error('el core existente dejó de responder después del segundo lanzamiento');
     console.log('Smoke OK: el segundo lanzamiento reutilizó la instancia existente.');
+    const coreLog = await fs.readFile(path.join(userDataDir, 'logs', 'zajuna-core.log'), 'utf8').catch(() => '');
+    const prepared = coreLog.split('Sesión local preparada').length - 1;
+    if (prepared < 2) {
+      throw new Error(`el lanzador no preparó la sesión local en ambos lanzamientos (${prepared})`);
+    }
+    const anonymous = await fetch(`${endpoint.url}/api/setup/status`);
+    if (anonymous.status !== 401 || anonymous.headers.get('set-cookie')) {
+      throw new Error(`la API aceptó una lectura sin sesión local (HTTP ${anonymous.status})`);
+    }
+    console.log('Smoke OK: cada lanzamiento obtuvo un enlace de sesión y la API rechaza lecturas anónimas.');
     await stopProcess(duplicate);
     await stopProcess(child);
     await fs.rm(file, { force: true });

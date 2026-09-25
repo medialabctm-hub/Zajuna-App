@@ -3,6 +3,8 @@ import { useDashboard, useDiscoverCourseMaps, useJobs, useSetupStatus, useTarget
 import { friendlyJobStatus, friendlyJobType, jobStatusClass } from '../lib/format'
 import { useToast } from '../hooks/useToast'
 import { friendlyError } from '../lib/friendlyError'
+import { useWorkflow } from '../hooks/workflow'
+import { StepBadge } from './WorkflowSteps'
 
 interface RouteDiscoveryActionProps {
   variant?: 'primary' | 'ghost' | 'secondary'
@@ -29,6 +31,9 @@ export function RouteDiscoveryAction({
   const jobsQuery = useJobs()
   const discover = useDiscoverCourseMaps()
   const mapReady = targetsQuery.data?.mapReady === true
+  const { isCurrent, step } = useWorkflow()
+  // Paso ya hecho: botón secundario, para no competir con el siguiente paso.
+  const routesDone = step('routes')?.state === 'done'
 
   const discoverJobs = (jobsQuery.data || [])
     .filter((job) => job.type === 'discover-course-maps')
@@ -36,7 +41,7 @@ export function RouteDiscoveryAction({
   const latest = discoverJobs[0]
   const active = latest && ['queued', 'running', 'waiting_user', 'retrying'].includes(latest.status) ? latest : undefined
   const buttonLabel = !dashboard?.activeFichaId ? 'Selecciona una ficha' : discover.isPending ? 'Enviando…' : active ? (latest.status === 'queued' ? 'En cola…' : 'Buscando rutas…') : label
-  const classes = ['button', variant, compact ? 'small' : '', className].filter(Boolean).join(' ')
+  const classes = ['button', isCurrent('routes') ? 'primary is-next-step' : routesDone ? 'ghost' : variant, compact ? 'small' : '', className].filter(Boolean).join(' ')
 
   function handleDiscover() {
     if (active || discover.isPending) return
@@ -55,6 +60,7 @@ export function RouteDiscoveryAction({
   return (
     <span className="route-discovery-action">
       <button type="button" className={classes} onClick={handleDiscover} disabled={!dashboard?.activeFichaId || !!active || discover.isPending}>
+        <StepBadge step="routes" />
         {buttonLabel}
       </button>
       {latest && !active && latest.status === 'completed' && mapReady ? (

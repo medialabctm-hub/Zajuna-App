@@ -1,4 +1,4 @@
-import type { Job } from '../types'
+import type { Job, JobEvent } from '../types'
 
 export type FailureActionKind = 'settings' | 'discover' | 'activities' | 'checklist' | 'diagnostics' | 'reports' | 'retry'
 
@@ -276,6 +276,47 @@ export function explainJobFailure(job: Pick<Job, 'type' | 'status' | 'errorCode'
     next: 'Vuelve a intentarlo. Si se repite, abre Diagnóstico y comparte el detalle técnico con soporte.',
     actions: [RETRY, DIAGNOSTICS],
   })
+}
+
+export interface FailedCaptureItem {
+  itemCode: string
+  slots: number[]
+  /** Motivos en lenguaje claro, sin repetir. */
+  reasons: string[]
+}
+
+const SELECTOR_MISSING = /selector requerido|no apareció|candidatos=/i
+
+function friendlyCaptureReason(detail: string) {
+  const known = connectionProblem(detail)
+  if (known) return known.title
+  if (SELECTOR_MISSING.test(detail)) return 'No encontramos la sección esperada en la página'
+  if (/origen de URL no permitido|fuera del origen/i.test(detail)) return 'La ruta apunta fuera de Zajuna'
+  return detail.length > 160 ? `${detail.slice(0, 157)}…` : detail
+}
+
+/**
+ * Groups the `evidence_failed` events of a checklist capture by item. The
+ * final job message only lists item codes and the first error; the events
+ * keep every failed slot with its own reason.
+ */
+export function partialCaptureFailures(events: JobEvent[]): FailedCaptureItem[] {
+  const byItem = new Map<string, FailedCaptureItem>()
+  for (const event of events) {
+    if (event.kind !== 'evidence_failed') continue
+    const data = (event.data && typeof event.data === 'object' ? event.data : {}) as Record<string, unknown>
+    const message = String(event.message || '')
+    const itemCode = String(data.itemCode || message.split(':')[0] || '').trim()
+    if (!itemCode) continue
+    const detail = message.startsWith(`${itemCode}:`) ? message.slice(itemCode.length + 1).trim() : message
+    const entry = byItem.get(itemCode) ?? { itemCode, slots: [], reasons: [] }
+    const slot = Number(data.slotNumber)
+    if (Number.isFinite(slot) && slot > 0 && !entry.slots.includes(slot)) entry.slots.push(slot)
+    const reason = friendlyCaptureReason(detail)
+    if (reason && !entry.reasons.includes(reason)) entry.reasons.push(reason)
+    byItem.set(itemCode, entry)
+  }
+  return [...byItem.values()].map((entry) => ({ ...entry, slots: entry.slots.sort((a, b) => a - b) }))
 }
 
 const ACTIVE = ['queued', 'running', 'waiting_user', 'retrying']

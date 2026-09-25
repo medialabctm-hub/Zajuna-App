@@ -21,6 +21,11 @@ type Route struct {
 	ActivityID   string `json:"activityId,omitempty"`
 	Subsection   string `json:"subsection,omitempty"`
 	Technical    bool   `json:"technical,omitempty"`
+	// Restricted marks a route the authenticated session could not open
+	// (e.g. a forum that redirects with "No dispone de permiso para ver los
+	// debates de este foro"). It stays in the map for diagnostics but is
+	// never chosen as evidence.
+	Restricted bool `json:"restricted,omitempty"`
 }
 
 // Activity is an instructor-selectable assignment discovered in a course.

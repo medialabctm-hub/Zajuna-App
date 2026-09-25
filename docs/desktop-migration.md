@@ -72,7 +72,8 @@ El core contiene:
 - Checklist de 62 ítems y 15 categorías.
 - Historial de cambios por ítem y decisiones de rutas.
 - Galería, hashes, metadata, reportes y backups ZIP locales.
-- Diagnóstico y centro de notificaciones en SQLite schema v12.
+- Diagnóstico y centro de notificaciones (tabla introducida en el schema v12;
+  el schema vigente es v14, ver [`architecture.md`](architecture.md#persistencia)).
 
 La API expone, entre otros, `/api/setup`, `/api/fichas`, `/api/checklist`,
 `/api/course-maps`, `/api/jobs`, `/api/schedules`, `/api/evidences`,

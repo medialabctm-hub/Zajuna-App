@@ -40,7 +40,6 @@ type crawlNode struct {
 
 var anchorHrefPattern = regexp.MustCompile(`(?is)<a\b[^>]*\bhref\s*=\s*["']([^"']+)["'][^>]*>(.*?)</a\s*>`)
 var optionValuePattern = regexp.MustCompile(`(?is)<option\b[^>]*\bvalue\s*=\s*["']([^"']+)["'][^>]*>(.*?)</option\s*>`)
-var titlePattern = regexp.MustCompile(`(?is)<title\b[^>]*>(.*?)</title\s*>`)
 
 // DiscoverCourseMap crawls same-origin course pages using the authenticated
 // HTTP session and stores only normalized route metadata in its result. It
@@ -66,7 +65,11 @@ func (c *Client) DiscoverCourseMap(ctx context.Context, session Session, courseI
 		mergeRoute(routeIndex, route)
 	}
 	warning := ""
+	truncated := false
+	foreignPages := map[string]bool{}
 	pagesVisited := 0
+	sessionUserID := ""
+	restricted := map[string]bool{}
 
 	for len(queue) > 0 && pagesVisited < options.MaxPages {
 		if err := ctx.Err(); err != nil {
@@ -92,19 +95,35 @@ func (c *Client) DiscoverCourseMap(ctx context.Context, session Session, courseI
 			return coursemaps.Record{}, fmt.Errorf("%w: la sesión venció durante el descubrimiento", ErrSessionExpired)
 		}
 		pagesVisited++
+		if node.URL == courseURL {
+			sessionUserID = parseSessionUserID(body)
+		}
+		if classifyRoute(node.URL) == "forum" && forumAccessDenied(body) {
+			// Moodle redirected to the course page: its links are not the
+			// forum's and the forum itself is unusable as evidence.
+			restricted[node.URL] = true
+			continue
+		}
+		if owner, known := pageCourseID(body); known && owner != courseID {
+			// Moodle stamps every page with its course (body class
+			// course-<id>). A followed link that lands in another course
+			// (site news, a shared activity) is dropped with all its links.
+			foreignPages[node.URL] = true
+			continue
+		}
 
 		matches := anchorHrefPattern.FindAllStringSubmatch(body, -1)
 		if len(matches) > options.MaxLinksPerPage {
 			matches = matches[:options.MaxLinksPerPage]
 			warning = "se alcanzó el límite de enlaces por página"
+			truncated = true
 		}
-		pageTitle := extractPageTitle(body)
 		for _, match := range matches {
 			target, ok := normalizeInternalURL(node.URL, match[1], c.baseURL)
 			if !ok {
 				continue
 			}
-			if target == node.URL {
+			if target == node.URL || belongsToOtherCourse(target, courseID) {
 				continue
 			}
 			kind := classifyRoute(target)
@@ -118,9 +137,9 @@ func (c *Client) DiscoverCourseMap(ctx context.Context, session Session, courseI
 			if kind == "forum" || kind == "assign" || kind == "grading" {
 				route.Technical = coursemaps.IsTechnicalActivity(route.Title)
 			}
-			if route.Title == "" {
-				route.Title = pageTitle
-			}
+			// A link without text (icon, image) keeps an empty title: the
+			// source page's <title> describes that page, not the target, and
+			// used to make icon links match forum/page title pools.
 			mergeDiscoveredRoute(route)
 
 			if node.Depth < options.MaxDepth && isCourseMapFollowCandidate(target, kind, courseID) && !visitedPages[target] {
@@ -132,7 +151,7 @@ func (c *Client) DiscoverCourseMap(ctx context.Context, session Session, courseI
 		// entries in the same normalized route map and deduplicate by URL.
 		for _, match := range optionValuePattern.FindAllStringSubmatch(body, -1) {
 			target, ok := normalizeInternalURL(node.URL, match[1], c.baseURL)
-			if !ok || target == node.URL {
+			if !ok || target == node.URL || belongsToOtherCourse(target, courseID) {
 				continue
 			}
 			route := coursemaps.Route{
@@ -158,6 +177,7 @@ func (c *Client) DiscoverCourseMap(ctx context.Context, session Session, courseI
 	}
 	if len(queue) > 0 {
 		warning = firstNonEmpty(warning, "se alcanzó el límite de páginas del mapa")
+		truncated = true
 	}
 	if pagesVisited == 0 {
 		return coursemaps.Record{}, errors.New("no se pudo descubrir ninguna página del curso")
@@ -165,15 +185,28 @@ func (c *Client) DiscoverCourseMap(ctx context.Context, session Session, courseI
 
 	routes := make([]coursemaps.Route, 0, len(routeOrder))
 	for _, target := range routeOrder {
-		routes = append(routes, routeIndex[target])
+		if foreignPages[target] {
+			continue
+		}
+		route := routeIndex[target]
+		if restricted[target] {
+			route.Restricted = true
+		}
+		routes = append(routes, route)
 	}
 
-	byItemCode, stats := groupRoutesForCourse(routes, courseID, c.baseURL+"/zajuna/user/profile.php")
+	// Without an id, profile.php shows whoever owns the capture session; with
+	// the id read from the course page the evidence is pinned to that user.
+	profileURL := c.baseURL + "/zajuna/user/profile.php"
+	if sessionUserID != "" {
+		profileURL += "?id=" + url.QueryEscape(sessionUserID)
+	}
+	byItemCode, stats := groupRoutesForCourseMap(routes, courseID, profileURL, truncated)
 	now := time.Now().UTC()
 	return coursemaps.Record{
 		CourseID:      courseID,
 		CourseURL:     security.RedactURL(courseURL),
-		ProfileURL:    security.RedactURL(c.baseURL + "/zajuna/user/profile.php"),
+		ProfileURL:    security.RedactURL(profileURL),
 		ByItemCode:    byItemCode,
 		Routes:        routes,
 		LinkCount:     len(routes),
@@ -184,6 +217,44 @@ func (c *Client) DiscoverCourseMap(ctx context.Context, session Session, courseI
 		DiscoveredAt:  now,
 		UpdatedAt:     now,
 	}, nil
+}
+
+// sessionUserIDPatterns read the authenticated user's id from a Moodle page:
+// M.cfg.userId (Moodle 4) or the notification popover of the user menu. Links
+// to other users' profiles (teachers, forum authors) are never used.
+var sessionUserIDPatterns = []*regexp.Regexp{
+	regexp.MustCompile(`M\.cfg\s*=\s*\{[^;]*?"userId"\s*:\s*"?(\d+)`),
+	regexp.MustCompile(`(?is)<[^>]+id=["']nav-notification-popover-container["'][^>]*\bdata-userid=["'](\d+)["']`),
+}
+
+func parseSessionUserID(body string) string {
+	for _, pattern := range sessionUserIDPatterns {
+		match := pattern.FindStringSubmatch(body)
+		// 0 is "not logged in" and 1 is Moodle's guest user.
+		if len(match) == 2 && match[1] != "0" && match[1] != "1" {
+			return match[1]
+		}
+	}
+	return ""
+}
+
+// forumAccessDeniedMarkers are Moodle's "noviewdiscussionspermission" notice
+// (shown after redirecting away from the forum) in Spanish and English.
+var forumAccessDeniedMarkers = []string{
+	"no dispone de permiso para ver los debates",
+	"no tiene permiso para ver los debates",
+	"do not have the permission to view discussions",
+	"do not have permission to view discussions",
+}
+
+func forumAccessDenied(body string) bool {
+	lower := strings.ToLower(body)
+	for _, marker := range forumAccessDeniedMarkers {
+		if strings.Contains(lower, marker) {
+			return true
+		}
+	}
+	return false
 }
 
 func normalizeCrawlOptions(options CrawlOptions) CrawlOptions {
@@ -280,11 +351,46 @@ func isHTMLCandidate(rawURL, kind string) bool {
 }
 
 func isCourseMapFollowCandidate(rawURL, kind, courseID string) bool {
-	if kind == "course" {
-		parsed, err := url.Parse(rawURL)
-		return err == nil && parsed.Query().Get("id") == courseID && isHTMLCandidate(rawURL, kind)
+	if !isHTMLCandidate(rawURL, kind) {
+		return false
 	}
-	return isHTMLCandidate(rawURL, kind)
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		return false
+	}
+	path := strings.ToLower(parsed.Path)
+	if strings.Contains(path, "/login/") || strings.Contains(path, "/admin/") || strings.Contains(path, "/enrol/") {
+		return false
+	}
+	query := parsed.Query()
+	if strings.Contains(path, "/course/") {
+		id := query.Get("id")
+		return id == courseID
+	}
+	if strings.Contains(path, "/grade/") {
+		id := query.Get("id")
+		return id == "" || id == courseID
+	}
+	if course := query.Get("course"); course != "" && course != courseID {
+		return false
+	}
+	return true
+}
+
+func fallbackRouteTitle(rawURL, kind string) string {
+	parsed, err := url.Parse(rawURL)
+	if err != nil || parsed.Path == "" {
+		return kind
+	}
+	parts := strings.Split(strings.Trim(parsed.Path, "/"), "/")
+	last := parts[len(parts)-1]
+	if last == "" && len(parts) > 1 {
+		last = parts[len(parts)-2]
+	}
+	if id := parsed.Query().Get("id"); id != "" {
+		return strings.TrimSpace(kind + " " + last + " " + id)
+	}
+	return strings.TrimSpace(kind + " " + last)
 }
 
 func hasResourceExtension(path string) bool {
@@ -297,19 +403,19 @@ func hasResourceExtension(path string) bool {
 	return false
 }
 
-func extractPageTitle(body string) string {
-	match := titlePattern.FindStringSubmatch(body)
-	if len(match) != 2 {
-		return ""
-	}
-	return cleanText(match[1])
-}
-
 func groupRoutes(routes []coursemaps.Route) (map[string]json.RawMessage, coursemaps.Stats) {
 	return groupRoutesForCourse(routes, "", "")
 }
 
 func groupRoutesForCourse(routes []coursemaps.Route, courseID, profileURL string) (map[string]json.RawMessage, coursemaps.Stats) {
+	return groupRoutesForCourseMap(routes, courseID, profileURL, false)
+}
+
+// groupRoutesForCourseMap projects routes into checklist items. truncated
+// marks a crawl that hit its page/link limits: a title-resolved item that
+// found no match may simply not have been crawled, so it stays empty instead
+// of falling back to every route of the same kind.
+func groupRoutesForCourseMap(routes []coursemaps.Route, courseID, profileURL string, truncated bool) (map[string]json.RawMessage, coursemaps.Stats) {
 	groups := map[string][]string{}
 	stats := coursemaps.Stats{}
 	for _, route := range routes {
@@ -341,7 +447,7 @@ func groupRoutesForCourse(routes []coursemaps.Route, courseID, profileURL string
 		encoded, _ := json.Marshal(values)
 		result[itemCode] = encoded
 	}
-	for itemCode, values := range buildExactChecklistRouteGroups(routes, courseID, profileURL) {
+	for itemCode, values := range buildExactChecklistRouteGroupsForMap(routes, courseID, profileURL, truncated) {
 		encoded, _ := json.Marshal(values)
 		result[itemCode] = encoded
 	}
@@ -372,6 +478,9 @@ func checklistRouteGroups(routes []coursemaps.Route) map[string][]string {
 	for itemCode, kinds := range rules {
 		seen := map[string]bool{}
 		for _, route := range routes {
+			if route.Restricted {
+				continue
+			}
 			for _, kind := range kinds {
 				if route.Kind == kind && !seen[route.URL] {
 					groups[itemCode] = append(groups[itemCode], route.URL)
@@ -407,6 +516,9 @@ func mergeRoute(routes map[string]coursemaps.Route, candidate coursemaps.Route) 
 		if candidate.Technical {
 			existing.Technical = true
 		}
+		if candidate.Restricted {
+			existing.Restricted = true
+		}
 		if candidate.Depth < existing.Depth {
 			existing.Depth = candidate.Depth
 		}
@@ -417,6 +529,55 @@ func mergeRoute(routes map[string]coursemaps.Route, candidate coursemaps.Route) 
 		return
 	}
 	routes[candidate.URL] = candidate
+}
+
+var bodyCourseClassPattern = regexp.MustCompile(`(?is)<body\b[^>]*\bclass\s*=\s*["'][^"']*\bcourse-(\d+)\b`)
+
+// pageCourseID reads the course Moodle renders a page for. known is false
+// when the page does not declare it (then membership is not verifiable).
+func pageCourseID(body string) (string, bool) {
+	match := bodyCourseClassPattern.FindStringSubmatch(body)
+	if len(match) != 2 {
+		return "", false
+	}
+	return match[1], true
+}
+
+// routeCourseID extracts the course a URL is explicitly scoped to, for the
+// Moodle routes whose parameters name it. Activity URLs (mod/*/view.php?id=)
+// carry a module id instead, so they are not verifiable from the URL alone.
+func routeCourseID(rawURL string) (string, bool) {
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		return "", false
+	}
+	query := parsed.Query()
+	for _, key := range []string{"courseid", "course"} {
+		if value := strings.TrimSpace(query.Get(key)); isNumericID(value) {
+			return value, true
+		}
+	}
+	path := strings.ToLower(parsed.Path)
+	id := strings.TrimSpace(query.Get("id"))
+	if !isNumericID(id) {
+		return "", false
+	}
+	switch {
+	case strings.HasSuffix(path, "/course/view.php"),
+		strings.HasSuffix(path, "/user/index.php"),
+		strings.Contains(path, "/grade/report/") && strings.HasSuffix(path, "/index.php"),
+		strings.Contains(path, "/mod/") && strings.HasSuffix(path, "/index.php"):
+		return id, true
+	}
+	return "", false
+}
+
+func belongsToOtherCourse(rawURL, courseID string) bool {
+	if strings.TrimSpace(courseID) == "" {
+		return false
+	}
+	owner, known := routeCourseID(rawURL)
+	return known && owner != courseID
 }
 
 func isNumericID(value string) bool {

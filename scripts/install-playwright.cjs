@@ -5,7 +5,6 @@ const projectRoot = path.join(__dirname, '..');
 const result = spawnSync('go', ['run', './cmd/playwright-install'], {
   cwd: path.join(projectRoot, 'core'),
   stdio: 'inherit',
-  shell: process.platform === 'win32',
 });
 
 if (result.error) {

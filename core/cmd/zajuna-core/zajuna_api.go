@@ -29,13 +29,19 @@ func registerZajunaRoutes(mux *http.ServeMux, runtime *jobs.Runtime, dataDir str
 			}
 		}
 		request.Username = strings.TrimSpace(request.Username)
-		if request.Username == "" {
+		request.DocumentType = strings.ToUpper(strings.TrimSpace(request.DocumentType))
+		if request.Username == "" || request.DocumentType == "" {
 			config, err := readConfig(dataDir)
 			if err != nil {
 				writeError(w, http.StatusInternalServerError, err)
 				return
 			}
-			request.Username = config.ZajunaUsername
+			if request.Username == "" {
+				request.Username = config.ZajunaUsername
+			}
+			if request.DocumentType == "" {
+				request.DocumentType = strings.ToUpper(strings.TrimSpace(config.ZajunaDocumentType))
+			}
 		}
 		if request.Username == "" {
 			writeError(w, http.StatusBadRequest, errors.New("configura primero el usuario de Zajuna"))

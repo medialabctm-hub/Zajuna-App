@@ -50,3 +50,27 @@ func TestMoodleNotificationSelectors(t *testing.T) {
 		t.Fatalf("moodleNotificationSelectors = %v", moodleNotificationSelectors)
 	}
 }
+
+func TestSameCapturePageIgnoresFragmentsOnly(t *testing.T) {
+	course := "https://zajuna.sena.edu.co/zajuna/course/view.php?id=41080"
+	if !sameCapturePage(course+"#section-12", course) {
+		t.Fatal("a fragment change is the same page")
+	}
+	if sameCapturePage("https://zajuna.sena.edu.co/zajuna/mod/page/view.php?id=3010176", course) {
+		t.Fatal("an activity page is not the course page")
+	}
+}
+
+func TestSheetTabForTitle(t *testing.T) {
+	cases := map[string]string{
+		"P_524703_V_3135429_R_5_C_9205: Cronograma Fase - Planear | Zajuna": "planear",
+		"P_524703_V_3135429_R_5_C_9205: Cronograma Fase - Hacer | Zajuna":   "hacer",
+		"Cronograma General | Zajuna":                                       "general",
+		"Foro temático | Zajuna":                                            "",
+	}
+	for title, want := range cases {
+		if got := sheetTabForTitle(title); got != want {
+			t.Fatalf("sheetTabForTitle(%q) = %q, want %q", title, got, want)
+		}
+	}
+}

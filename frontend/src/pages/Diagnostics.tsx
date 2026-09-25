@@ -1,3 +1,4 @@
+import { explainJobFailure } from '../lib/jobFailure'
 import { Link } from 'react-router-dom'
 import type { ComponentProps } from 'react'
 import { PageError, PageSkeleton } from '../components/AsyncState'
@@ -71,7 +72,7 @@ export function Diagnostics() {
               {query.data.incidents.map((incident) => (
                 <Link className="diagnostic-incident" key={incident.jobId} to={`/trabajos/${encodeURIComponent(incident.jobId)}`}>
                   <span><strong>{friendlyJobType(incident.type as import('../types').JobType)}</strong><small>{formatDate(incident.updatedAt)}</small></span>
-                  <span className="status-chip error">{incident.errorCode || 'Revisar'}</span>
+                  <span className="status-chip error">{explainJobFailure({ type: incident.type as import('../types').JobType, status: 'failed', errorCode: incident.errorCode }).title} · Ver trabajo</span>
                 </Link>
               ))}
             </div>
@@ -86,10 +87,11 @@ export function Diagnostics() {
         <div className="card-pad">
           <div className="eyebrow">Guía rápida</div>
           <h3 style={{ marginTop: 7 }}>Cómo trabajar con la aplicación</h3>
-          <div className="route-note" style={{ marginTop: 14 }}><strong>1. Fichas:</strong> elige el curso que quieres preparar.</div>
-          <div className="route-note"><strong>2. Checklist:</strong> confirma actividades y rutas.</div>
-          <div className="route-note"><strong>3. Evidencias:</strong> revisa capturas y archivos locales.</div>
-          <div className="route-note"><strong>4. Reportes:</strong> genera el PDF cuando termines.</div>
+          <div className="route-note" style={{ marginTop: 14 }}><strong>1. Sincronizar fichas:</strong> trae tus fichas y elige con cuál trabajar.</div>
+          <div className="route-note"><strong>2. Buscar rutas:</strong> leemos el contenido del curso de la ficha activa.</div>
+          <div className="route-note"><strong>3. Seleccionar actividades:</strong> marca las actividades técnicas que tú calificas.</div>
+          <div className="route-note"><strong>4. Preparar evidencias:</strong> capturamos las evidencias en Zajuna.</div>
+          <div className="route-note"><strong>5. Revisar evidencias:</strong> aprueba las correctas y corrige las que fallaron; después genera el reporte PDF.</div>
         </div>
       </section>
     </div>

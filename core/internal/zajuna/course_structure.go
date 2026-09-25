@@ -66,7 +66,7 @@ func extractCourseStructure(body, courseID, baseURL, sourceURL string) []coursem
 			}
 		}
 		section := sectionBefore(body, blockStart)
-		phaseName := phaseBySection[section]
+		phaseName := phaseForSection(phases, phaseBySection, section)
 		subsection := subsectionBefore(subsections, blockStart)
 		technical := isTechnicalActivity(activityName)
 		result = append(result, coursemaps.Route{
@@ -185,4 +185,23 @@ func subsectionBefore(subsections []detectedSubsection, index int) string {
 
 func isTechnicalActivity(name string) bool {
 	return coursemaps.IsTechnicalActivity(name)
+}
+
+// phaseForSection returns the phase a section belongs to. Activities of SENA
+// courses live in nested subsections ("Actividad de aprendizaje GA1-…")
+// numbered after their phase in document order, so a section belongs to the
+// last phase whose number is not greater than its own. Sections before the
+// first phase (inducción) have no phase.
+func phaseForSection(phases []detectedPhase, bySection map[int]string, section int) string {
+	if name, ok := bySection[section]; ok {
+		return name
+	}
+	best := -1
+	name := ""
+	for _, phase := range phases {
+		if phase.Section <= section && phase.Section > best {
+			best, name = phase.Section, phase.Name
+		}
+	}
+	return name
 }

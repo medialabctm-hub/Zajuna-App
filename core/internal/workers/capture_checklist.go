@@ -31,7 +31,14 @@ type CaptureChecklistInput struct {
 	DocumentType string   `json:"documentType"`
 	ItemCodes    []string `json:"itemCodes,omitempty"`
 	MaxTargets   int      `json:"maxTargets,omitempty"`
+	FullPage     *bool    `json:"fullPage,omitempty"`
+	ReuseSession *bool    `json:"reuseSession,omitempty"`
+	AutoRenew    *bool    `json:"autoRenew,omitempty"`
 }
+
+// fichaCaptureLocks serializes captures of one ficha; entries are dropped
+// once nobody holds or waits for them (see keyedLocks).
+var fichaCaptureLocks = &keyedLocks{slots: make(map[string]*keyedLock)}
 
 type checklistCaptureFichaStore interface {
 	GetFicha(context.Context, string) (sqlite.FichaRecord, error)
@@ -54,6 +61,12 @@ type CaptureChecklistWorker struct {
 	fichaStore  checklistCaptureFichaStore
 	evidence    evidence.Store
 	concurrency int
+	// allowPrivateTargets lets same-package tests capture a loopback fixture.
+	// It is never set in production: Zajuna routes must not resolve into the
+	// local network (see security.ValidateHTTPURL).
+	allowPrivateTargets bool
+
+	loadPreferences func(context.Context) CapturePreferences
 }
 
 func NewCaptureChecklistWorker(runtime capture.Runtime, dataDir string, client authenticatedCaptureClient, credentials secrets.Store, mapStore coursemaps.Store, fichaStore checklistCaptureFichaStore, evidenceStore evidence.Store) (*CaptureChecklistWorker, error) {
@@ -81,7 +94,6 @@ func (w *CaptureChecklistWorker) fanoutConcurrency() int {
 	return w.concurrency
 }
 
-
 func (w *CaptureChecklistWorker) Execute(ctx context.Context, job jobs.Job, reporter jobs.Reporter) jobs.Result {
 	var input CaptureChecklistInput
 	if err := json.Unmarshal(job.Input, &input); err != nil {
@@ -93,6 +105,11 @@ func (w *CaptureChecklistWorker) Execute(ctx context.Context, job jobs.Job, repo
 	if input.FichaID == "" || input.Username == "" {
 		return jobs.Result{ErrorCode: "invalid_input", ErrorMessage: "fichaId y usuario de Zajuna son obligatorios"}
 	}
+	unlock, lockErr := lockFichaCapture(ctx, input.FichaID)
+	if lockErr != nil {
+		return jobs.Result{ErrorCode: "capture_cancelled", ErrorMessage: lockErr.Error()}
+	}
+	defer unlock()
 	if input.DocumentType == "" {
 		input.DocumentType = "CC"
 	}
@@ -116,8 +133,8 @@ func (w *CaptureChecklistWorker) Execute(ctx context.Context, job jobs.Job, repo
 			return jobs.Result{ErrorCode: "activity_selection_read_failed", ErrorMessage: fmt.Sprintf("no se pudieron leer las actividades seleccionadas: %v", err), Retryable: true}
 		}
 	}
-	if hasSelectionStore && len(selectedActivityIDs) == 0 && captureRequiresActivitySelection(input.ItemCodes) {
-		return jobs.Result{ErrorCode: "activities_not_selected", ErrorMessage: "selecciona primero las actividades que pertenecen al instructor para filtrar fechas y evidencias"}
+	if hasSelectionStore && len(checklist.TechnicalSelectionForRecord(record, selectedActivityIDs)) == 0 && captureRequiresActivitySelection(input.ItemCodes) {
+		return jobs.Result{ErrorCode: "activities_not_selected", ErrorMessage: "selecciona primero las actividades técnicas que pertenecen al instructor para filtrar fechas y evidencias"}
 	}
 	targets, summary, err := checklist.BuildCaptureTargetsForActivities(record, selectedActivityIDs)
 	if err != nil {
@@ -132,6 +149,18 @@ func (w *CaptureChecklistWorker) Execute(ctx context.Context, job jobs.Job, repo
 	} else {
 		targets = checklist.ApplyRouteReviews(targets, nil)
 	}
+	prefs := w.preferences(ctx)
+	// An explicit value in the request wins over the saved preference.
+	if input.FullPage != nil {
+		prefs.FullPage = *input.FullPage
+	}
+	if input.ReuseSession != nil {
+		prefs.ReuseSession = *input.ReuseSession
+	}
+	if input.AutoRenew != nil {
+		prefs.AutoRenew = *input.AutoRenew
+	}
+	targets = applyCapturePreferences(targets, prefs)
 	plannedTargets := targets
 	targets = filterCaptureTargets(targets, input.ItemCodes)
 	if input.MaxTargets > 0 && len(targets) > input.MaxTargets {
@@ -145,6 +174,7 @@ func (w *CaptureChecklistWorker) Execute(ctx context.Context, job jobs.Job, repo
 	if err := reporter.Progress(ctx, "credentials", 5, "Preparando captura dirigida por checklist"); err != nil {
 		return jobs.Result{ErrorCode: "progress_failed", ErrorMessage: err.Error()}
 	}
+	_ = reporter.Event(ctx, "capture_preferences", "Preferencias de captura aplicadas", prefs)
 	password, err := w.credentials.Get(input.Username)
 	if err != nil || password == "" {
 		return jobs.Result{ErrorCode: "credential_unavailable", ErrorMessage: "no se encontró la contraseña de Zajuna en el almacén seguro"}
@@ -199,14 +229,19 @@ func (w *CaptureChecklistWorker) Execute(ctx context.Context, job jobs.Job, repo
 	var cookieMu sync.Mutex
 	var sessions *browserSessionPool
 	if useBrowser {
-		sessions = newBrowserSessionPool(func(openCtx context.Context) (checklistBrowserSession, error) {
-			return w.openChecklistBrowserSession(openCtx, baseURL, input, password)
-		})
-		defer sessions.closeAll()
-		if identitySeed != nil {
-			// The identity check already logged in: reuse that session.
-			sessions.all = append(sessions.all, identitySeed)
-			sessions.release(identitySeed, true)
+		if prefs.ReuseSession {
+			sessions = newBrowserSessionPool(func(openCtx context.Context) (checklistBrowserSession, error) {
+				return w.openChecklistBrowserSession(openCtx, baseURL, input, password)
+			})
+			defer sessions.closeAll()
+			if identitySeed != nil {
+				// The identity check already logged in: reuse that session.
+				sessions.all = append(sessions.all, identitySeed)
+				sessions.release(identitySeed, true)
+			}
+		} else if identitySeed != nil {
+			identitySeed.Close()
+			identitySeed = nil
 		}
 	} else if identitySeed != nil {
 		identitySeed.Close()
@@ -228,6 +263,7 @@ func (w *CaptureChecklistWorker) Execute(ctx context.Context, job jobs.Job, repo
 			UseBrowser: useBrowser,
 			CookieMu:   &cookieMu,
 			Sessions:   sessions,
+			AutoRenew:  prefs.AutoRenew,
 		})
 		outcomes[index] = outcome
 		done := int(atomic.AddInt64(&completed, 1))
@@ -254,15 +290,23 @@ func (w *CaptureChecklistWorker) Execute(ctx context.Context, job jobs.Job, repo
 		}
 		return nil
 	})
-	if fanoutErr != nil && ctx.Err() == nil && !errors.Is(fanoutErr, context.Canceled) {
-		return jobs.Result{ErrorCode: "capture_fanout_failed", ErrorMessage: fanoutErr.Error()}
-	}
-	if err := ctx.Err(); err != nil {
-		return jobs.Result{ErrorCode: "capture_cancelled", ErrorMessage: err.Error()}
-	}
-
 	tally := tallyTargetOutcomes(outcomes)
 	captured, skipped, failed, evidenceRecords, failures := tally.captured, tally.skipped, tally.failed, tally.evidenceRecords, tally.failures
+	partialOutput := func(stage string) map[string]any {
+		return map[string]any{
+			"partial": true, "stage": stage, "fichaId": input.FichaID, "courseId": ficha.CourseID, "targets": len(targets),
+			"captured": captured, "failed": failed, "skipped": skipped, "coverageCount": evidenceRecords,
+			"failedItemCodes": failedItemCodes(failures), "failures": failures,
+			"absent": tally.absent, "absences": tally.absences, "preferences": prefs,
+		}
+	}
+	if fanoutErr != nil && ctx.Err() == nil && !errors.Is(fanoutErr, context.Canceled) {
+		return jobs.Result{ErrorCode: "capture_fanout_failed", ErrorMessage: fanoutErr.Error(), Output: partialOutput("capture")}
+	}
+	// A cancelled run never prunes: its outcomes do not cover the plan.
+	if err := ctx.Err(); err != nil {
+		return jobs.Result{ErrorCode: "capture_cancelled", ErrorMessage: err.Error(), Output: partialOutput("capture")}
+	}
 
 	prunedEvidences := 0
 	if pruneStore, ok := w.evidence.(captureChecklistPruneStore); ok {
@@ -286,26 +330,55 @@ func (w *CaptureChecklistWorker) Execute(ctx context.Context, job jobs.Job, repo
 		groupCount = len(groups)
 		_ = reporter.Event(ctx, "evidence_groups_rebuilt", "Evidencias agrupadas para evitar duplicados", map[string]any{"fichaId": input.FichaID, "groupCount": groupCount})
 	}
-	if err := reporter.Progress(ctx, "completed", 100, fmt.Sprintf("Captura dirigida terminada: %d guardadas, %d omitidas, %d con error", captured, skipped, failed)); err != nil {
-		return jobs.Result{ErrorCode: "progress_failed", ErrorMessage: err.Error()}
+	output := map[string]any{
+		"fichaId": input.FichaID, "courseId": ficha.CourseID, "targets": len(targets), "captured": captured,
+		"failed": failed, "skipped": skipped, "prunedEvidences": prunedEvidences, "unresolved": summary.UnresolvedItems, "slotCount": len(targets), "captureUnitCount": len(targets), "coverageCount": evidenceRecords,
+		"targetItems": len(targetItemCodes), "itemCount": summary.ItemCount, "groupCount": groupCount, "failures": failures,
+		"absent": tally.absent, "absences": tally.absences, "preferences": prefs,
+	}
+	if ctx.Err() != nil {
+		return jobs.Result{ErrorCode: "capture_cancelled", ErrorMessage: ctx.Err().Error(), Output: output}
+	}
+	// Best effort: prepare the review screen. A verification error never fails
+	// the capture.
+	if verifier, ok := w.evidence.(evidence.ReviewVerifier); ok {
+		if report, verifyErr := verifier.VerifyEvidenceReviews(ctx, input.FichaID); verifyErr == nil {
+			_ = reporter.Event(ctx, "evidence_reviews_verified", "Evidencias revisadas automáticamente", map[string]any{"fichaId": input.FichaID, "approved": report.Summary.Approved, "pending": report.Summary.Pending, "rejected": report.Summary.Rejected})
+		}
+	}
+	absentNote := ""
+	if tally.absent > 0 {
+		absentNote = fmt.Sprintf(", %d sin contenido en Zajuna: %s", tally.absent, strings.Join(failedItemCodes(tally.absences), ", "))
+	}
+	if err := reporter.Progress(ctx, "completed", 100, fmt.Sprintf("Captura dirigida terminada: %d guardadas, %d omitidas, %d con error%s", captured, skipped, failed, absentNote)); err != nil {
+		return jobs.Result{ErrorCode: "progress_failed", ErrorMessage: err.Error(), Output: output}
 	}
 	if failed > 0 {
 		message := fmt.Sprintf("captura incompleta: %d guardadas, %d omitidas, %d con error", captured, skipped, failed)
-		// Sin Output en un fallo, el mensaje es lo único que llega a la UI:
-		// listamos todos los ítems afectados, no solo el primero.
+		// La UI muestra el mensaje del fallo (el Output parcial es para
+		// detalle): listamos todos los ítems afectados, no solo el primero.
 		if codes := failedItemCodes(failures); len(codes) > 0 {
 			message += " (ítems " + strings.Join(codes, ", ") + ")"
 		}
 		if len(failures) > 0 {
 			message += ". Primer error: " + failures[0]
 		}
-		return jobs.Result{ErrorCode: "capture_partial_failure", ErrorMessage: message}
+		if tally.absent > 0 {
+			// Al final y sin "(ítems …)": el frontend lee esa lista como los
+			// ítems que fallaron.
+			message += fmt.Sprintf(". Sin contenido en Zajuna: %s", strings.Join(failedItemCodes(tally.absences), ", "))
+		}
+		output["partial"], output["stage"], output["failedItemCodes"] = true, "completed", failedItemCodes(failures)
+		return jobs.Result{ErrorCode: "capture_partial_failure", ErrorMessage: message, Output: output}
 	}
-	return jobs.Result{Output: map[string]any{
-		"fichaId": input.FichaID, "courseId": ficha.CourseID, "targets": len(targets), "captured": captured,
-		"failed": failed, "skipped": skipped, "prunedEvidences": prunedEvidences, "unresolved": summary.UnresolvedItems, "slotCount": len(targets), "captureUnitCount": len(targets), "coverageCount": evidenceRecords,
-		"targetItems": len(targetItemCodes), "itemCount": summary.ItemCount, "groupCount": groupCount, "failures": failures,
-	}}
+	return jobs.Result{Output: output}
+}
+
+// lockFichaCapture serializes captures of the same ficha (they write the same
+// slots). Waiting honours ctx, so a cancelled job does not hold a worker until
+// the running capture ends.
+func lockFichaCapture(ctx context.Context, fichaID string) (func(), error) {
+	return fichaCaptureLocks.lock(ctx, fichaID)
 }
 
 // captureChecklistPruneStore is optional (like evidence.GroupStore) so test
@@ -315,8 +388,19 @@ type captureChecklistPruneStore interface {
 }
 
 type targetOutcomeTally struct {
-	captured, skipped, failed, evidenceRecords int
-	failures                                   []string
+	captured, skipped, failed, absent, evidenceRecords int
+	failures, absences                                 []string
+}
+
+// absentContent recognizes failures that mean "Zajuna has nothing to show
+// here" (no instructor post in a forum, an activity without a grading
+// table) rather than a capture problem. They are reported separately and do
+// not turn the whole capture into a failure.
+func absentContent(failure string) bool {
+	return strings.Contains(failure, "no tiene publicaciones del instructor") ||
+		strings.Contains(failure, "no tiene respuestas del instructor") ||
+		strings.Contains(failure, semanticAbsenceMarker) ||
+		strings.Contains(failure, "table.generaltable (candidatos=0)")
 }
 
 // tallyTargetOutcomes aggregates fan-out results. Skipped slots (empty row
@@ -330,6 +414,16 @@ func tallyTargetOutcomes(outcomes []targetOutcome) targetOutcomeTally {
 			tally.evidenceRecords += outcome.evidenceRecords
 		case outcome.skipped:
 			tally.skipped++
+		case outcome.absent || absentContent(outcome.failure):
+			tally.absent++
+			tally.absences = append(tally.absences, outcome.failure)
+			if primary, detail, ok := strings.Cut(outcome.failure, ": "); ok {
+				for _, code := range outcome.coveredItemCodes {
+					if code != primary {
+						tally.absences = append(tally.absences, code+": "+detail)
+					}
+				}
+			}
 		default:
 			tally.failed++
 			if outcome.failure != "" {
@@ -344,8 +438,9 @@ func tallyTargetOutcomes(outcomes []targetOutcome) targetOutcomeTally {
 // targets and, per item, the slots whose evidence must survive: captured
 // slots (fresh evidence), failed slots (previous evidence is kept) and slots
 // of the full plan that this run did not execute (filtered out by itemCodes
-// or cut by maxTargets). Skipped slots (empty row batches) and slots no longer
-// in the plan are left out, so their evidence is pruned.
+// or cut by maxTargets). Skipped slots (empty row batches), absent slots (no
+// content in Zajuna) and slots no longer in the plan are left out, so their
+// evidence is pruned.
 func captureChecklistPrunePlan(planned, executed []checklist.CaptureTarget, outcomes []targetOutcome) ([]string, map[string]map[int]bool) {
 	keep := make(map[string]map[int]bool)
 	mark := func(target checklist.CaptureTarget) {
@@ -374,7 +469,13 @@ func captureChecklistPrunePlan(planned, executed []checklist.CaptureTarget, outc
 				itemCodes = append(itemCodes, itemCode)
 			}
 		}
-		if index < len(outcomes) && outcomes[index].skipped {
+		// A typed absence (capture.ErrContentAbsent: the right page loaded
+		// and has nothing that proves the item) retires the evidence an
+		// earlier run or an older rule left there. Absences recognised only by
+		// their message (10.1.x without a grading table) are reported but
+		// keep the previous evidence: that message is also what an error or
+		// permission page produces.
+		if index < len(outcomes) && (outcomes[index].skipped || outcomes[index].absent) {
 			continue
 		}
 		mark(target)

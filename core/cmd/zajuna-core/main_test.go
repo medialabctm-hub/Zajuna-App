@@ -520,7 +520,7 @@ func TestZajunaConnectionAPIEnqueuesWorker(t *testing.T) {
 	}
 	runtime.Start(context.Background())
 	defer runtime.Close()
-	if err := writeConfig(dataDir, appConfig{SetupComplete: true, ZajunaUsername: "123456", CredentialsStored: true}); err != nil {
+	if err := writeConfig(dataDir, appConfig{SetupComplete: true, ZajunaUsername: "123456", ZajunaDocumentType: "CE", CredentialsStored: true}); err != nil {
 		t.Fatal(err)
 	}
 	server := httptest.NewServer(newRouterWithServices(dataDir, credentials, runtime, store, nil))
@@ -540,6 +540,13 @@ func TestZajunaConnectionAPIEnqueuesWorker(t *testing.T) {
 		t.Fatal(err)
 	}
 	response.Body.Close()
+	queued, err := runtime.Get(context.Background(), created.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(queued.Input), `"documentType":"CE"`) {
+		t.Fatalf("empty body must use the configured document type, got %s", queued.Input)
+	}
 	deadline := time.Now().Add(2 * time.Second)
 	for time.Now().Before(deadline) {
 		statusResponse, err := server.Client().Get(server.URL + "/api/jobs/" + created.ID)

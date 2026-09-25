@@ -35,12 +35,25 @@ func RedactURL(raw string) string {
 // diagnostics. It is deliberately conservative: ordinary URLs remain intact
 // except for sensitive query keys, while credential values are replaced.
 func RedactText(value string) string {
-	for _, key := range []string{"password", "token", "sesskey", "access_token", "refresh_token", "secret", "cookie", "authorization"} {
-		re := regexp.MustCompile(`(?i)(` + regexp.QuoteMeta(key) + `\s*[:=]\s*)([^&\s,;]+)`)
+	// Before the key patterns: "Authorization: Bearer x" would otherwise
+	// only lose the scheme word.
+	value = bearerCredential.ReplaceAllString(value, `${1}[redacted]`)
+	for _, re := range sensitiveTextPatterns {
 		value = re.ReplaceAllString(value, `${1}[redacted]`)
 	}
 	return value
 }
+
+var sensitiveTextPatterns = func() []*regexp.Regexp {
+	keys := []string{"password", "token", "sesskey", "access_token", "refresh_token", "secret", "cookie", "authorization", "moodlesession"}
+	patterns := make([]*regexp.Regexp, 0, len(keys))
+	for _, key := range keys {
+		patterns = append(patterns, regexp.MustCompile(`(?i)(`+regexp.QuoteMeta(key)+`\s*[:=]\s*)([^&\s,;]+)`))
+	}
+	return patterns
+}()
+
+var bearerCredential = regexp.MustCompile(`(?i)(\b(?:bearer|basic)\s+)[A-Za-z0-9._~+/=-]{8,}`)
 
 // ValidateHTTPURL validates a target before a worker starts network I/O. When
 // allowedOrigins is non-empty, the scheme/host/port must match one of them.

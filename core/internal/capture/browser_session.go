@@ -67,6 +67,12 @@ func (r Runtime) OpenBrowserSession(ctx context.Context, credentials BrowserCred
 		cleanup()
 		return nil, fmt.Errorf("crear contexto Chromium: %w", err)
 	}
+	if err := installNetworkPolicy(context, loginURL); err != nil {
+		_ = context.Close()
+		_ = browser.Close()
+		cleanup()
+		return nil, fmt.Errorf("configurar política de red de Chromium: %w", err)
+	}
 	page, err := context.NewPage()
 	if err != nil {
 		_ = context.Close()
@@ -88,6 +94,7 @@ func (r Runtime) OpenBrowserSession(ctx context.Context, credentials BrowserCred
 		session.Close()
 		return nil, fmt.Errorf("%w: %s", ErrChallengePage, reason)
 	}
+	dismissLoginNotices(page)
 	loginForm := learnerLoginForm(page)
 	if err := selectDocumentType(loginForm, credentials.DocumentType); err != nil {
 		session.Close()
@@ -241,6 +248,19 @@ func (s *BrowserSession) Close() {
 		_ = s.pw.Stop()
 		s.pw = nil
 	}
+}
+
+// loginNoticeStyle hides informative overlays of the Zajuna login page. The
+// "Connection Quality Guard" (#connection-guard-modal, js/connection-guard.js)
+// appears 1–2 s after load when latency is above 400 ms; by its own text it
+// never blocks the login ("Puedes cerrar este mensaje y continuar"), but it
+// covers the submit button, so the click waited 30 s and the capture failed.
+// It is set with an inline display, which an !important rule overrides even
+// when it shows up after this call.
+const loginNoticeStyle = `#connection-guard-modal { display: none !important; }`
+
+func dismissLoginNotices(page playwright.Page) {
+	_, _ = page.AddStyleTag(playwright.PageAddStyleTagOptions{Content: playwright.String(loginNoticeStyle)})
 }
 
 func learnerLoginForm(page playwright.Page) playwright.Locator {

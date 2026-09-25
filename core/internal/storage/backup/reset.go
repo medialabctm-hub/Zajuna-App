@@ -20,7 +20,7 @@ const PendingResetFile = ".reset-pending"
 // one first); a new-version install removes it too (see FullResetMarker).
 var resetTargets = []string{
 	"zajuna.db", "zajuna.db-wal", "zajuna.db-shm",
-	"config.json", "evidences", "reports", "exports",
+	"config.json", "evidences", "reports", "exports", "thumbnails",
 	pendingRestoreDir, appliedRestoreFile,
 	// Copies left by a restore that was applied but never committed.
 	"zajuna.db.restore-old", "config.json.restore-old", "evidences.restore-old",
@@ -87,8 +87,10 @@ func EnforceVersion(dataDir, version string) (bool, error) {
 	return wiped, nil
 }
 
+// hasUserData reports whether anything a reset would remove is on disk, so
+// data from a release without the version marker is never left behind.
 func hasUserData(dataDir string) bool {
-	for _, name := range []string{"zajuna.db", "config.json", "evidences", "reports"} {
+	for _, name := range append(append([]string{}, resetTargets...), "backups") {
 		if _, err := os.Stat(filepath.Join(dataDir, name)); err == nil {
 			return true
 		}

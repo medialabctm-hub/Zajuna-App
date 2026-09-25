@@ -10,6 +10,9 @@ import (
 )
 
 func TestResolveUsesExecutableAdjacentRuntime(t *testing.T) {
+	// The browser smokes set ZAJUNA_PLAYWRIGHT_DIR, which Resolve honours
+	// first; this test is about the executable-adjacent fallback.
+	t.Setenv("ZAJUNA_PLAYWRIGHT_DIR", "")
 	runtime := Resolve(filepath.Join("C:", "Program Files", "Zajuna App", "zajuna-core.exe"))
 	if runtime.Root != filepath.Join("C:", "Program Files", "Zajuna App", "playwright") {
 		t.Fatalf("unexpected runtime root: %s", runtime.Root)

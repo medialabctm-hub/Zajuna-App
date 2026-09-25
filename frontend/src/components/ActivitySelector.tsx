@@ -3,9 +3,10 @@ import { Link } from 'react-router-dom'
 import { useSaveActivities } from '../hooks/api'
 import { useToast } from '../hooks/useToast'
 import { friendlyError } from '../lib/friendlyError'
+import { activitiesUsedForEvidence, isSelectable } from '../lib/activitySelection'
 import type { ActivitiesResponse, Activity } from '../types'
 
-type ActivityFilter = 'all' | 'technical' | 'transversal' | 'selected'
+type ActivityFilter = 'all' | 'selected' | 'unselected'
 
 // Los ítems ligados a actividades (6.1, 10.1.1 y 10.1.2) admiten hasta este
 // número de evidencias; el core usa las primeras en orden de fase.
@@ -18,13 +19,15 @@ function sameSelection(a: Set<string>, b: Set<string>) {
 }
 
 function savedSelection(data?: ActivitiesResponse) {
-  return new Set((data?.activities || []).filter((activity) => activity.selected).map((activity) => activity.id))
+  return new Set(
+    (data?.activities || []).filter((activity) => activity.selected && isSelectable(activity)).map((activity) => activity.id),
+  )
 }
 
 function groupByPhase(activities: Activity[]) {
   const groups = new Map<string, Activity[]>()
   activities.forEach((activity) => {
-    const key = activity.phaseName?.trim() || 'Sin fase identificada'
+    const key = activity.phaseName?.trim() || 'Inducción y otras secciones del curso'
     const list = groups.get(key) || []
     list.push(activity)
     groups.set(key, list)
@@ -34,9 +37,9 @@ function groupByPhase(activities: Activity[]) {
 
 /**
  * Guided activity picker shared by the Activities page and the Checklist.
- * It owns the draft selection so both screens behave the same way: the user
- * sees what to do, can bulk-select, and knows when changes are unsaved.
- * Render it with key={fichaId} so the draft resets when the ficha changes.
+ * Only technical activities can be selected: transversal ones belong to
+ * other instructors and only produced wrong evidence. The draft is local so
+ * the user sees unsaved changes; render with key={fichaId}.
  */
 export function ActivitySelector({ data, fichaId }: { data: ActivitiesResponse; fichaId: string }) {
   const toast = useToast()
@@ -57,29 +60,29 @@ export function ActivitySelector({ data, fichaId }: { data: ActivitiesResponse; 
     else if (sameSelection(draft, saved)) setTouched(false)
   }, [saved, touched, draft])
 
-  const activities = data.activities || []
-  const technicalIds = activities.filter((activity) => activity.technical).map((activity) => activity.id)
-  const transversalCount = activities.length - technicalIds.length
+  const all = data.activities || []
+  const technical = all.filter(isSelectable)
+  const transversal = all.filter((activity) => !isSelectable(activity))
+  const technicalIds = technical.map((activity) => activity.id)
   const slotsPerItem = Number(data.slotsPerItem) || DEFAULT_SLOTS_PER_ITEM
+  const used = activitiesUsedForEvidence(technical, draft, slotsPerItem)
   const normalizedQuery = query.trim().toLowerCase()
-  const visible = activities.filter((activity) => {
+  const visible = technical.filter((activity) => {
     const matchesQuery =
       !normalizedQuery ||
       [activity.id, activity.title, activity.phaseName].some((value) => String(value || '').toLowerCase().includes(normalizedQuery))
     const matchesFilter =
-      filter === 'all' ||
-      (filter === 'technical' && activity.technical) ||
-      (filter === 'transversal' && !activity.technical) ||
-      (filter === 'selected' && draft.has(activity.id))
+      filter === 'all' || (filter === 'selected' && draft.has(activity.id)) || (filter === 'unselected' && !draft.has(activity.id))
     return matchesQuery && matchesFilter
   })
   const visibleIds = visible.map((activity) => activity.id)
-  const narrowed = visible.length !== activities.length
+  const narrowed = visible.length !== technical.length
   const allVisibleSelected = visibleIds.length > 0 && visibleIds.every((id) => draft.has(id))
   const hasSavedSelection = saved.size > 0
 
   function update(next: Set<string>) {
-    setDraft(next)
+    // Nunca guardamos transversales en el borrador.
+    setDraft(new Set([...next].filter((id) => technicalIds.includes(id))))
     setTouched(true)
     setJustSaved(false)
   }
@@ -100,7 +103,7 @@ export function ActivitySelector({ data, fichaId }: { data: ActivitiesResponse; 
   function handleSave() {
     const selectedActivityIds = Array.from(draft)
     if (!selectedActivityIds.length) {
-      toast('Marca al menos una actividad. Si todas son tuyas, usa “Seleccionar todas”.', true)
+      toast('Marca al menos una actividad técnica. Si todas son tuyas, usa “Seleccionar todas las técnicas”.', true)
       return
     }
     saveActivities.mutate(
@@ -118,42 +121,42 @@ export function ActivitySelector({ data, fichaId }: { data: ActivitiesResponse; 
   const status = saveActivities.isPending
     ? { tone: 'ok', text: 'Guardando tu selección…' }
     : dirty
-    ? { tone: 'warn', text: 'Tienes cambios sin guardar. Pulsa “Guardar selección” para aplicarlos.' }
-    : hasSavedSelection
-      ? { tone: 'ok', text: `Selección guardada: ${saved.size} de ${activities.length} actividades. Las evidencias se prepararán solo para estas.` }
-      : { tone: 'warn', text: 'Aún no has guardado una selección. Sin este paso no se preparan evidencias de fechas ni de retroalimentación.' }
+      ? { tone: 'warn', text: 'Tienes cambios sin guardar. Pulsa “Guardar selección” para aplicarlos.' }
+      : hasSavedSelection
+        ? { tone: 'ok', text: `Selección guardada: ${saved.size} actividades técnicas. Paso listo: ya puedes preparar las evidencias.` }
+        : { tone: 'warn', text: 'Aún no has guardado una selección. Sin este paso no se pueden preparar las evidencias.' }
 
   return (
     <section className="card activity-selector">
       <div className="card-pad">
         <div className="side-title">
           <div>
-            <div className="eyebrow">Antes de preparar evidencias</div>
-            <h3 style={{ marginTop: 7 }}>¿Qué actividades orientas tú en esta ficha?</h3>
+            <div className="eyebrow">Paso 3 · Seleccionar actividades</div>
+            <h3 style={{ marginTop: 7 }}>¿Qué actividades técnicas orientas tú en esta ficha?</h3>
           </div>
-          <span className="badge">{draft.size} de {activities.length} marcadas</span>
+          <span className="badge">{draft.size} de {technical.length} marcadas</span>
         </div>
 
         <ol className="activity-guide" aria-label="Cómo completar este paso">
           <li>
             <b>1</b>
             <span>
-              <strong>Marca solo las actividades que tú calificas.</strong> Con ellas revisamos fechas límite (ítem 6.1) y
-              retroalimentación (ítems 10.1.1 y 10.1.2).
+              <strong>Marca las actividades técnicas que tú calificas.</strong> Con ellas revisamos las fechas límite (ítem 6.1)
+              y la calificación y retroalimentación (ítems 10.1.1 y 10.1.2).
             </span>
           </li>
           <li>
             <b>2</b>
             <span>
-              <strong>¿Eres el único instructor?</strong> Usa “Seleccionar todas”. Si compartes la ficha, “Solo técnicas”
-              suele ser lo correcto: las <em>transversales</em> normalmente las orienta otro instructor.
+              <strong>Las transversales no se pueden marcar.</strong> Las orienta otro instructor, así que sus fechas y
+              calificaciones no son evidencia tuya y solo generaban evidencia errónea.
             </span>
           </li>
           <li>
             <b>3</b>
             <span>
-              <strong>Guarda la selección</strong> y después pulsa “Preparar evidencias”. Cada ítem admite hasta {slotsPerItem}{' '}
-              evidencias; si marcas más, usamos las primeras en orden de fase.
+              <strong>Guarda la selección.</strong> Por cada ítem se usan las {slotsPerItem} primeras en orden de fase:
+              aparecen marcadas con «Se usa en la evidencia».
             </span>
           </li>
         </ol>
@@ -161,17 +164,13 @@ export function ActivitySelector({ data, fichaId }: { data: ActivitiesResponse; 
         <div className={`activity-status ${status.tone}`} role="status">{status.text}</div>
 
         <div className="activity-bulk" role="group" aria-label="Selección rápida">
-          <button type="button" className="button ghost small" onClick={() => setMany(activities.map((a) => a.id), true)} disabled={!activities.length || draft.size === activities.length}>
-            Seleccionar todas ({activities.length})
-          </button>
           <button
             type="button"
             className="button ghost small"
-            onClick={() => update(new Set(technicalIds))}
-            disabled={!technicalIds.length || !transversalCount}
-            title="Marca solo las actividades de la competencia técnica y desmarca las transversales"
+            onClick={() => setMany(technicalIds, true)}
+            disabled={!technicalIds.length || draft.size === technicalIds.length}
           >
-            Solo técnicas ({technicalIds.length})
+            Seleccionar todas las técnicas ({technicalIds.length})
           </button>
           {narrowed && visibleIds.length ? (
             <button type="button" className="button ghost small" onClick={() => setMany(visibleIds, !allVisibleSelected)}>
@@ -197,18 +196,19 @@ export function ActivitySelector({ data, fichaId }: { data: ActivitiesResponse; 
             aria-label="Buscar actividades por código, nombre o fase"
           />
           <select aria-label="Filtrar actividades" value={filter} onChange={(event) => setFilter(event.target.value as ActivityFilter)}>
-            <option value="all">Todas</option>
-            <option value="technical">Técnicas</option>
-            <option value="transversal">Transversales</option>
+            <option value="all">Todas las técnicas</option>
             <option value="selected">Marcadas</option>
+            <option value="unselected">Sin marcar</option>
           </select>
         </div>
 
         <div className="activity-list">
-          {!activities.length ? (
+          {!all.length ? (
             <div className="empty">
-              El curso no tiene actividades detectadas. Pulsa “Buscar rutas” para volver a leer el contenido del curso.
+              El curso no tiene actividades detectadas. Vuelve al paso 2 y pulsa “Buscar rutas” para leer el contenido del curso.
             </div>
+          ) : !technical.length ? (
+            <div className="empty">Este curso no tiene actividades técnicas detectadas, así que no hay nada que seleccionar.</div>
           ) : visible.length ? (
             groupByPhase(visible).map(([phase, entries]) => {
               const ids = entries.map((entry) => entry.id)
@@ -237,12 +237,13 @@ export function ActivitySelector({ data, fichaId }: { data: ActivitiesResponse; 
                           <span>Referencia {activity.id}</span>
                         </span>
                       </span>
-                      <span
-                        className={`badge ${activity.technical ? '' : 'muted'}`}
-                        title={activity.technical ? 'Competencia técnica del programa' : 'Competencia transversal: normalmente la orienta otro instructor'}
-                      >
-                        {activity.technical ? 'Técnica' : 'Transversal'}
-                      </span>
+                      {used.has(activity.id) ? (
+                        <span className="badge ok" title={`Una de las ${slotsPerItem} actividades que se capturan para 6.1 y 10.1.x`}>
+                          Se usa en la evidencia
+                        </span>
+                      ) : (
+                        <span className="badge">Técnica</span>
+                      )}
                     </label>
                   ))}
                 </div>
@@ -253,14 +254,31 @@ export function ActivitySelector({ data, fichaId }: { data: ActivitiesResponse; 
           )}
         </div>
 
+        {transversal.length ? (
+          <details className="activity-blocked">
+            <summary>
+              {transversal.length} actividades transversales no seleccionables (las orienta otro instructor)
+            </summary>
+            <p className="helper">{transversal[0].blockedReason || 'Competencia transversal: su evidencia corresponde a otro instructor.'}</p>
+            <ul>
+              {transversal.map((activity) => (
+                <li key={activity.id}>
+                  <span className="activity-title">{activity.title || 'Actividad sin título'}</span>
+                  <span className="activity-meta">{activity.phaseName || 'Sin fase identificada'} · Referencia {activity.id}</span>
+                </li>
+              ))}
+            </ul>
+          </details>
+        ) : null}
+
         <div className="activity-actions">
           <span className="helper">
-            {narrowed ? `Mostrando ${visible.length} de ${activities.length} actividades` : `${activities.length} actividades encontradas`}
+            {narrowed ? `Mostrando ${visible.length} de ${technical.length} actividades técnicas` : `${technical.length} actividades técnicas`}
           </span>
           <div className="inline">
-            {justSaved && !dirty ? (
+            {(justSaved || hasSavedSelection) && !dirty ? (
               <Link className="button ghost small" to="/resumen">
-                Siguiente: preparar evidencias →
+                Siguiente: paso 4, preparar evidencias →
               </Link>
             ) : null}
             <button

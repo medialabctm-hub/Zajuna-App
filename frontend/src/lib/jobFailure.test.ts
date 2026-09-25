@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { explainJobFailure, unresolvedFailedJobs } from './jobFailure'
-import type { Job } from '../types'
+import { explainJobFailure, partialCaptureFailures, unresolvedFailedJobs } from './jobFailure'
+import type { Job, JobEvent } from '../types'
 
 function job(overrides: Partial<Job>): Job {
   return { id: 'j1', type: 'capture-checklist', status: 'failed', progress: 100, updatedAt: '2026-09-01T10:00:00Z', ...overrides }
@@ -46,6 +46,29 @@ describe('explainJobFailure', () => {
     const result = explainJobFailure(job({ errorCode: 'worker_panic', errorMessage: 'worker panic: nil pointer' }))
     expect(result.next).toBeTruthy()
     expect(result.actions.length).toBeGreaterThan(0)
+  })
+})
+
+describe('partialCaptureFailures', () => {
+  it('groups every failed slot by item with a plain reason', () => {
+    const events: JobEvent[] = [
+      { jobId: 'j1', kind: 'evidence_captured', message: 'Evidencia guardada', data: { itemCode: '1.1.1', slotNumber: 1 } },
+      { jobId: 'j1', kind: 'evidence_failed', message: '6.1: el selector requerido no apareció en la página destino: #module-1 (candidatos=0)', data: { itemCode: '6.1', slotNumber: 2 } },
+      { jobId: 'j1', kind: 'evidence_failed', message: '6.1: el selector requerido no apareció en la página destino: #module-2 (candidatos=0)', data: { itemCode: '6.1', slotNumber: 1 } },
+      { jobId: 'j1', kind: 'evidence_failed', message: '9.1.5: sesión de Zajuna expirada o página de login', data: { itemCode: '9.1.5', slotNumber: 1 } },
+      { jobId: 'j1', kind: 'evidence_skipped', message: 'Lote de filas vacío', data: { itemCode: '5.1', slotNumber: 3 } },
+    ]
+    expect(partialCaptureFailures(events)).toEqual([
+      { itemCode: '6.1', slots: [1, 2], reasons: ['No encontramos la sección esperada en la página'] },
+      { itemCode: '9.1.5', slots: [1], reasons: ['La sesión de Zajuna se cerró durante el proceso'] },
+    ])
+  })
+
+  it('falls back to the message prefix when the event has no data', () => {
+    const events: JobEvent[] = [{ jobId: 'j1', kind: 'evidence_failed', message: '7.2.1: timeout 30000ms exceeded' }]
+    expect(partialCaptureFailures(events)).toEqual([
+      { itemCode: '7.2.1', slots: [], reasons: ['Zajuna tardó demasiado en responder'] },
+    ])
   })
 })
 

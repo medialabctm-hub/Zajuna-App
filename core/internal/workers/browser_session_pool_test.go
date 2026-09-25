@@ -4,9 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/url"
+	"strings"
 	"testing"
 
 	"github.com/zajuna-app/core/internal/capture"
+	"github.com/zajuna-app/core/internal/checklist"
 )
 
 type fakePoolSession struct{ closed bool }
@@ -94,7 +97,47 @@ func TestReusableBrowserSession(t *testing.T) {
 	if !reusableBrowserSession(fmt.Errorf("%w: x", capture.ErrSelectorNotFound), "") {
 		t.Fatal("selector not found is a page outcome, the session is still valid")
 	}
+	if !reusableBrowserSession(fmt.Errorf("%w: x", capture.ErrForumAccessDenied), "") {
+		t.Fatal("a forum without access is a page outcome, the session is still valid")
+	}
 	if reusableBrowserSession(fmt.Errorf("%w: x", capture.ErrLoginPage), "") {
 		t.Fatal("a login page error invalidates the session")
+	}
+}
+
+type scriptedPoolSession struct {
+	err    error
+	closed bool
+}
+
+func (s *scriptedPoolSession) CaptureURLWithMetadataAndOptions(context.Context, string, string, capture.CaptureOptions) (capture.CaptureResult, error) {
+	return capture.CaptureResult{}, s.err
+}
+func (s *scriptedPoolSession) Close() { s.closed = true }
+
+func TestCaptureChecklistTargetAutoRenewLogsInAgainOnce(t *testing.T) {
+	base, _ := url.Parse("https://zajuna.sena.edu.co")
+	target := checklist.CaptureTarget{ItemCode: "1.1.1", URL: "https://zajuna.sena.edu.co/zajuna/course/view.php?id=1", SlotNumber: 1}
+	for _, autoRenew := range []bool{true, false} {
+		opened := 0
+		pool := newBrowserSessionPool(func(context.Context) (checklistBrowserSession, error) {
+			opened++
+			if opened == 1 {
+				return &scriptedPoolSession{err: fmt.Errorf("%w: expirada", capture.ErrLoginPage)}, nil
+			}
+			return &scriptedPoolSession{err: fmt.Errorf("%w: sin lista", capture.ErrSelectorNotFound)}, nil
+		})
+		worker := &CaptureChecklistWorker{dataDir: t.TempDir()}
+		outcome := worker.captureChecklistTarget(context.Background(), checklistTargetParams{
+			Target: target, BaseURL: base, UseBrowser: true, Sessions: pool, AutoRenew: autoRenew,
+		})
+		pool.closeAll()
+		expired := strings.Contains(outcome.failure, "sesión de Zajuna expirada")
+		if autoRenew && (opened != 2 || expired) {
+			t.Fatalf("auto-renew must log in again and retry once: opened=%d outcome=%#v", opened, outcome)
+		}
+		if !autoRenew && (opened != 1 || !expired) {
+			t.Fatalf("without auto-renew an expired session fails the target: opened=%d outcome=%#v", opened, outcome)
+		}
 	}
 }

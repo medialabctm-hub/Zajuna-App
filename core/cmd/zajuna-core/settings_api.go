@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+
+	"github.com/zajuna-app/core/internal/workers"
 )
 
 const appSettingsKey = "ui_preferences"
@@ -103,6 +105,23 @@ func loadSettings(ctx context.Context, store appSettingsStore) (settingsView, er
 		return defaultSettings(), nil
 	}
 	return settings, nil
+}
+
+// capturePreferencesLoader exposes the persisted capture and session
+// preferences to the checklist worker; a read error keeps the defaults so a
+// capture never fails because of a preference.
+func capturePreferencesLoader(store appSettingsStore) func(context.Context) workers.CapturePreferences {
+	return func(ctx context.Context) workers.CapturePreferences {
+		settings, err := loadSettings(ctx, store)
+		if err != nil {
+			return workers.DefaultCapturePreferences()
+		}
+		return workers.CapturePreferences{
+			FullPage:     settings.Capture.FullPage,
+			ReuseSession: settings.Capture.ReuseSession,
+			AutoRenew:    settings.Session.AutoRenew,
+		}
+	}
 }
 
 func saveSettings(ctx context.Context, store appSettingsStore, settings settingsView) error {

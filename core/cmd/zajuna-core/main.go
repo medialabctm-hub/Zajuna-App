@@ -28,6 +28,7 @@ import (
 	"github.com/zajuna-app/core/internal/scheduler"
 	"github.com/zajuna-app/core/internal/secrets"
 	"github.com/zajuna-app/core/internal/storage/backup"
+	"github.com/zajuna-app/core/internal/storage/datalock"
 	"github.com/zajuna-app/core/internal/storage/sqlite"
 	"github.com/zajuna-app/core/internal/workers"
 	"github.com/zajuna-app/core/internal/zajuna"
@@ -91,6 +92,13 @@ func main() {
 	if err := os.MkdirAll(dataDir, 0o700); err != nil {
 		log.Fatalf("no se pudo crear la carpeta local de datos: %v", err)
 	}
+	// One core per data folder, taken before a pending reset runs. A
+	// supervisor restart may overlap the previous process for a moment.
+	dataLock, err := datalock.Acquire(dataDir, 15*time.Second)
+	if err != nil {
+		log.Fatalf("no se pudo usar la carpeta local de datos: %v", err)
+	}
+	defer dataLock.Release()
 	if reset, resetErr := backup.ApplyPendingReset(dataDir); resetErr != nil {
 		log.Printf("restablecimiento de datos locales: %v", resetErr)
 	} else if reset {
@@ -170,6 +178,7 @@ func main() {
 		log.Fatalf("no se pudo crear CaptureChecklistWorker: %v", err)
 	}
 	checklistCaptureWorker.SetConcurrency(concurrency)
+	checklistCaptureWorker.SetPreferences(capturePreferencesLoader(localStore))
 	if err := jobRuntime.Register(checklistCaptureWorker); err != nil {
 		log.Fatalf("no se pudo registrar CaptureChecklistWorker: %v", err)
 	}
@@ -212,12 +221,15 @@ func main() {
 		log.Fatalf("no se pudo abrir el puerto local: %v", err)
 	}
 
-	capability, err := newCapabilityToken()
+	// Children (Chromium, Playwright) must not inherit the launcher secret.
+	launcherSecret := os.Getenv(launcherSecretEnv)
+	_ = os.Unsetenv(launcherSecretEnv)
+	session, err := newLocalSession(launcherSecret)
 	if err != nil {
 		log.Fatalf("no se pudo crear la capacidad local del proceso: %v", err)
 	}
 	server := &http.Server{
-		Handler:           protectLocalAPI(newRouterWithServices(dataDir, secrets.SystemStore{}, jobRuntime, localStore, backupManager), capability),
+		Handler:           securityHeaders(protectLocalAPI(newRouterWithServices(dataDir, secrets.SystemStore{}, jobRuntime, localStore, backupManager), session)),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       35 * time.Second,
 		WriteTimeout:      90 * time.Second,
@@ -241,10 +253,19 @@ func main() {
 
 	if err := waitUntilReady(url, 5*time.Second); err != nil {
 		log.Printf("el núcleo local no respondió a tiempo: %v", err)
-	} else if !*noBrowser {
-		if err := openBrowser(url); err != nil {
+	} else if !*noBrowser || !supervised() {
+		// Under the Electron supervisor the launcher mints its own bootstrap
+		// URLs; a standalone core hands one out itself.
+		token, mintErr := session.MintBootstrap()
+		if mintErr != nil {
+			log.Fatalf("no se pudo preparar el inicio de sesión local: %v", mintErr)
+		}
+		startURL := url + session.StartPath(token)
+		if *noBrowser {
+			log.Printf("abre %s (enlace de un solo uso, vence en %s)", startURL, bootstrapTokenTTL)
+		} else if err := openBrowser(startURL); err != nil {
 			log.Printf("no se pudo abrir el navegador automáticamente: %v", err)
-			log.Printf("abre manualmente %s", url)
+			log.Printf("abre manualmente %s (enlace de un solo uso, vence en %s)", startURL, bootstrapTokenTTL)
 		}
 	}
 
@@ -282,10 +303,11 @@ func newRouterWithServices(dataDir string, credentials secrets.Store, jobRuntime
 		profileStore = candidate
 	}
 
+	// Unauthenticated liveness probe for the launcher: it must not reveal
+	// anything beyond "the core is up" (version and data live behind the
+	// local session in /api/app/info).
 	mux.HandleFunc("GET /api/health", func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(w, http.StatusOK, map[string]string{
-			"status": "ok", "app": "zajuna-app", "version": appVersion, "runtime": runtime.GOOS,
-		})
+		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	})
 
 	mux.HandleFunc("GET /api/setup/status", func(w http.ResponseWriter, _ *http.Request) {
@@ -408,6 +430,7 @@ func newRouterWithServices(dataDir string, credentials secrets.Store, jobRuntime
 		reportStore = candidate
 	}
 	registerEvidenceRoutes(mux, evidenceStore, dataDir)
+	registerEvidenceReviewRoutes(mux, evidenceStore)
 	registerReportRoutes(mux, reportStore, jobRuntime, dataDir)
 
 	staticFS, err := fs.Sub(webFiles, "web")

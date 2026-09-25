@@ -23,7 +23,7 @@ type evidenceView struct {
 	ItemCode   string `json:"itemCode,omitempty"`
 	SlotNumber int    `json:"slotNumber"`
 	Name       string `json:"name"`
-	FilePath   string `json:"filePath"`
+	FileKey    string `json:"fileKey,omitempty"`
 	Format     string `json:"format"`
 	Source     string `json:"source"`
 	SHA256     string `json:"sha256"`
@@ -47,23 +47,31 @@ type rebuildEvidenceGroupsRequest struct {
 }
 
 func registerEvidenceRoutes(mux *http.ServeMux, store evidence.Store, dataDir string) {
+	thumbs := newThumbnailer(dataDir)
+	registerEvidenceThumbnailRoute(mux, store, dataDir, thumbs)
 	mux.HandleFunc("GET /api/evidences", func(w http.ResponseWriter, r *http.Request) {
 		if store == nil {
 			writeError(w, http.StatusServiceUnavailable, errors.New("el almacenamiento de evidencias no está disponible"))
 			return
 		}
-		limit := 50
+		fichaID := strings.TrimSpace(r.URL.Query().Get("fichaId"))
+		// The per-ficha gallery must list every evidence of the ficha; the
+		// global listing stays capped at 100.
+		limit, maxLimit := 50, 100
+		if fichaID != "" {
+			limit, maxLimit = maxFichaEvidences, maxFichaEvidences
+		}
 		if rawLimit := r.URL.Query().Get("limit"); rawLimit != "" {
 			parsed, err := strconv.Atoi(rawLimit)
-			if err != nil || parsed < 1 || parsed > 100 {
-				writeError(w, http.StatusBadRequest, errors.New("limit debe ser un número entre 1 y 100"))
+			if err != nil || parsed < 1 || parsed > maxLimit {
+				writeError(w, http.StatusBadRequest, fmt.Errorf("limit debe ser un número entre 1 y %d", maxLimit))
 				return
 			}
 			limit = parsed
 		}
 		var items []evidence.Record
 		var err error
-		if fichaID := strings.TrimSpace(r.URL.Query().Get("fichaId")); fichaID != "" {
+		if fichaID != "" {
 			groupStore, ok := store.(evidence.GroupStore)
 			if !ok {
 				writeError(w, http.StatusNotImplemented, errors.New("el filtro por ficha no está disponible"))
@@ -211,11 +219,31 @@ func registerEvidenceRoutes(mux *http.ServeMux, store evidence.Store, dataDir st
 		if format == "jpg" {
 			format = "jpeg"
 		}
+		contentHash := hex.EncodeToString(sum)
+		// The ID is scoped to the slot: the same file uploaded for two ítems
+		// must produce two rows instead of moving the first one.
+		idSum := sha256.Sum256([]byte(fichaID + "\x00" + itemCode + "\x00" + strconv.Itoa(slotNumber) + "\x00" + contentHash))
+		recordID := "evidence-manual-" + hex.EncodeToString(idSum[:8])
+		if existing, err := store.GetEvidence(r.Context(), recordID); err == nil && existing.SHA256 == contentHash {
+			if _, statErr := os.Stat(existing.FilePath); statErr == nil {
+				_ = os.Remove(outputPath)
+				if err := rebuildFichaGroups(r, store, fichaID); err != nil {
+					writeError(w, http.StatusInternalServerError, err)
+					return
+				}
+				writeJSON(w, http.StatusOK, toEvidenceView(existing))
+				return
+			}
+		}
 		metadata, _ := json.Marshal(map[string]any{"manual": true, "originalName": header.Filename})
-		record := evidence.Record{ID: "evidence-manual-" + hex.EncodeToString(sum[:8]), FichaID: fichaID, ItemCode: itemCode, SlotNumber: slotNumber, Name: name, FilePath: outputPath, Format: format, Source: "manual", SHA256: hex.EncodeToString(sum), Metadata: metadata, CapturedAt: time.Now().UTC()}
+		record := evidence.Record{ID: recordID, FichaID: fichaID, ItemCode: itemCode, SlotNumber: slotNumber, Name: name, FilePath: outputPath, Format: format, Source: "manual", SHA256: contentHash, Metadata: metadata, CapturedAt: time.Now().UTC()}
 		if err := store.CreateEvidence(r.Context(), record); err != nil {
 			_ = os.Remove(outputPath)
 			writeError(w, http.StatusBadRequest, err)
+			return
+		}
+		if err := rebuildFichaGroups(r, store, fichaID); err != nil {
+			writeError(w, http.StatusInternalServerError, err)
 			return
 		}
 		writeJSON(w, http.StatusCreated, toEvidenceView(record))
@@ -232,17 +260,24 @@ func registerEvidenceRoutes(mux *http.ServeMux, store evidence.Store, dataDir st
 			writeError(w, http.StatusNotFound, errors.New("evidencia no encontrada"))
 			return
 		}
-		if !isLocalArtifact(item.FilePath, filepath.Join(dataDir, "evidences")) {
+		// A missing file must not block retiring its row; an existing one must
+		// live inside the evidence storage before the store may remove it.
+		if _, statErr := os.Lstat(item.FilePath); statErr == nil && !isLocalArtifact(item.FilePath, filepath.Join(dataDir, "evidences")) {
 			writeError(w, http.StatusForbidden, errors.New("la evidencia está fuera del almacenamiento local permitido"))
 			return
 		}
-		if err := os.Remove(item.FilePath); err != nil && !os.IsNotExist(err) {
-			writeError(w, http.StatusInternalServerError, errors.New("no se pudo retirar el archivo local"))
-			return
-		}
+		// The store removes the file only when no other row references it:
+		// one capture may back several checklist ítems.
 		if _, err := deleteStore.DeleteEvidence(r.Context(), item.ID); err != nil {
 			writeError(w, http.StatusInternalServerError, errors.New("no se pudo retirar el registro de la evidencia"))
 			return
+		}
+		thumbs.remove(item.ID, "")
+		if item.FichaID != "" {
+			if err := rebuildFichaGroups(r, store, item.FichaID); err != nil {
+				writeError(w, http.StatusInternalServerError, err)
+				return
+			}
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"deleted": true, "id": item.ID})
 	})
@@ -267,12 +302,13 @@ func registerEvidenceRoutes(mux *http.ServeMux, store evidence.Store, dataDir st
 			writeError(w, http.StatusInternalServerError, err)
 			return
 		}
+		thumbs.prune(r.Context(), store)
 		writeJSON(w, http.StatusOK, map[string]any{
-			"cleared": true,
-			"deletedRows": deletedRows,
+			"cleared":      true,
+			"deletedRows":  deletedRows,
 			"deletedFiles": deletedFiles,
-			"fichaId": strings.TrimSpace(body.FichaID),
-			"note": "Actualizar la aplicación no borra evidencias; use este endpoint o Ajustes para reiniciarlas.",
+			"fichaId":      strings.TrimSpace(body.FichaID),
+			"note":         "Actualizar la aplicación no borra evidencias; use este endpoint o Ajustes para reiniciarlas.",
 		})
 	})
 
@@ -294,8 +330,35 @@ func registerEvidenceRoutes(mux *http.ServeMux, store evidence.Store, dataDir st
 	})
 }
 
+// maxFichaEvidences matches the ceiling of the SQLite per-ficha listing.
+const maxFichaEvidences = 10000
+
+// rebuildFichaGroups keeps the persisted evidence groups in sync after a
+// manual change so the gallery and grouped reports see it immediately.
+func rebuildFichaGroups(r *http.Request, store evidence.Store, fichaID string) error {
+	groupStore, ok := store.(evidence.GroupStore)
+	if !ok {
+		return nil
+	}
+	if _, err := groupStore.RebuildEvidenceGroups(r.Context(), fichaID); err != nil {
+		return errors.New("el cambio se aplicó, pero no se pudo actualizar la agrupación; usa «Revisar agrupación»")
+	}
+	return nil
+}
+
 func toEvidenceView(item evidence.Record) evidenceView {
-	return evidenceView{ID: item.ID, FichaID: item.FichaID, ItemCode: item.ItemCode, SlotNumber: item.SlotNumber, Name: item.Name, FilePath: item.FilePath, Format: item.Format, Source: item.Source, SHA256: item.SHA256, CapturedAt: item.CapturedAt.Format("2006-01-02T15:04:05.999Z07:00")}
+	return evidenceView{ID: item.ID, FichaID: item.FichaID, ItemCode: item.ItemCode, SlotNumber: item.SlotNumber, Name: item.Name, FileKey: evidenceFileKey(item.FilePath), Format: item.Format, Source: item.Source, SHA256: item.SHA256, CapturedAt: item.CapturedAt.Format("2006-01-02T15:04:05.999Z07:00")}
+}
+
+// evidenceFileKey lets clients tell whether two rows share a file without
+// learning the absolute path, which reveals the OS user name.
+func evidenceFileKey(path string) string {
+	path = strings.TrimSpace(path)
+	if path == "" {
+		return ""
+	}
+	sum := sha256.Sum256([]byte(strings.ToLower(filepath.ToSlash(filepath.Clean(path)))))
+	return hex.EncodeToString(sum[:12])
 }
 
 func toEvidenceGroupView(group evidence.Group) evidenceGroupView {

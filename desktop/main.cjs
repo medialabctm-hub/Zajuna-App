@@ -43,6 +43,11 @@ let coreLogWrite = Promise.resolve();
 let quitting = false;
 
 const CORE_LOG_LIMIT = 1024 * 1024;
+// Shared only with the core it spawns (via its environment, which the core
+// clears at startup). It is the only way to mint the single-use URLs that
+// start a browser session, so no other local process can obtain one.
+const launcherSecret = crypto.randomBytes(32).toString('base64url');
+const SESSION_START_PREFIX = '/api/session/start?';
 
 function redactCoreLog(value) {
   return String(value)
@@ -89,6 +94,37 @@ async function openExternalBrowser(url) {
     // alive so the user can still open the endpoint from the diagnostic log.
     await appendCoreLog(`[shell] No se pudo abrir el navegador externo: ${error.message}\n`);
   }
+}
+
+async function sessionStartUrl(endpoint) {
+  const response = await fetch(endpoint.url + '/api/session/bootstrap', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${launcherSecret}` },
+  });
+  if (!response.ok) {
+    throw new Error(`El núcleo rechazó el inicio de sesión local (HTTP ${response.status}).`);
+  }
+  const body = await response.json();
+  if (!body || typeof body.path !== 'string' || !body.path.startsWith(SESSION_START_PREFIX)) {
+    throw new Error('El núcleo devolvió un enlace de inicio de sesión inválido.');
+  }
+  return endpoint.url + body.path;
+}
+
+// Every launch (first, second instance, recovery) mints a new single-use URL.
+async function openAppInBrowser(endpoint) {
+  let url;
+  try {
+    url = await sessionStartUrl(endpoint);
+  } catch (error) {
+    await appendCoreLog(`[launcher] No se pudo preparar la sesión local: ${error.message}\n`);
+    return;
+  }
+  if (skipExternalOpen) {
+    await appendCoreLog('[launcher] Sesión local preparada; apertura del navegador omitida.\n');
+    return;
+  }
+  await openExternalBrowser(url);
 }
 
 function coreBinaryPath() {
@@ -160,7 +196,7 @@ async function startCoreOnce() {
     cwd: path.dirname(binary),
     // Tells the core a supervisor will restart it: after a staged data reset
     // it exits cleanly and recoverCore() starts it again and reopens the UI.
-    env: { ...process.env, ZAJUNA_SUPERVISED: '1' },
+    env: { ...process.env, ZAJUNA_SUPERVISED: '1', ZAJUNA_LAUNCHER_SECRET: launcherSecret },
     stdio: ['ignore', 'ignore', 'pipe'],
     windowsHide: true,
     // On POSIX, detached makes the core the leader of its own process group
@@ -260,7 +296,7 @@ async function recoverCore(reason) {
       app.quit();
       return;
     }
-    await openExternalBrowser(endpoint.url);
+    await openAppInBrowser(endpoint);
   })().finally(() => {
     coreRecoveryPromise = undefined;
   });
@@ -344,13 +380,21 @@ function setupAutoUpdater() {
   autoUpdater.on('update-not-available', (info) => {
     void appendCoreLog(`[updater] Sin actualizaciones (actual ${info.version}).\n`);
   });
-  autoUpdater.on('error', (error) => {
-    void appendCoreLog(
-      `[updater] Error al actualizar: ${error.message}. ` +
-        'En Windows sin firma Authenticode SmartScreen puede bloquear la descarga/aplicación; ' +
-        'CSC_LINK sigue siendo opcional.\n',
-    );
-  });
+  // electron-updater emits 'error' and also rejects checkForUpdates() with the
+  // same error, whose message carries every HTTP header: log it once, on one
+  // line, in plain words.
+  let lastUpdaterError = '';
+  const logUpdaterError = (error) => {
+    const message = String((error && error.message) || error || '');
+    if (message === lastUpdaterError) return;
+    lastUpdaterError = message;
+    const firstLine = message.split('\n')[0].slice(0, 300);
+    const detail = /latest(-linux)?\.yml/.test(message) && /404/.test(message)
+      ? 'la publicación más reciente de GitHub no incluye latest.yml; no hay actualización automática disponible.'
+      : `${firstLine}. En Windows sin firma Authenticode SmartScreen puede bloquear la descarga/aplicación.`;
+    void appendCoreLog(`[updater] Error al actualizar: ${detail}\n`);
+  };
+  autoUpdater.on('error', logUpdaterError);
   autoUpdater.on('download-progress', (progress) => {
     const pct = Number.isFinite(progress.percent) ? progress.percent.toFixed(1) : '?';
     void appendCoreLog(`[updater] Descarga ${pct}%\n`);
@@ -362,9 +406,7 @@ function setupAutoUpdater() {
     );
   });
 
-  void autoUpdater.checkForUpdates().catch((error) => {
-    void appendCoreLog(`[updater] checkForUpdates falló: ${error.message}\n`);
-  });
+  void autoUpdater.checkForUpdates().catch(logUpdaterError);
 }
 
 if (!hasSingleInstanceLock) {
@@ -373,7 +415,7 @@ if (!hasSingleInstanceLock) {
   app.on('second-instance', async () => {
     try {
       const endpoint = coreEndpoint || await startCore();
-      await openExternalBrowser(endpoint.url);
+      await openAppInBrowser(endpoint);
     } catch (error) {
       await appendCoreLog(`[launcher] No se pudo reutilizar el core existente: ${error.message}\n`);
     }
@@ -382,7 +424,7 @@ if (!hasSingleInstanceLock) {
   app.whenReady().then(async () => {
     try {
       coreEndpoint = await startCore();
-      await openExternalBrowser(coreEndpoint.url);
+      await openAppInBrowser(coreEndpoint);
       setupAutoUpdater();
     } catch (error) {
       await appendCoreLog(`[launcher] No se pudo iniciar Zajuna App: ${error.message}\n`);

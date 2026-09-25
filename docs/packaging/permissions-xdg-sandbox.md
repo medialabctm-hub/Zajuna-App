@@ -30,7 +30,9 @@ Definido en `core/cmd/zajuna-core/main.go` → `dataDirectory()`:
 | Windows (referencia) | `%LOCALAPPDATA%\ZajunaApp` |
 
 Archivos típicos: `zajuna.db`, `config.json`, `evidences/`, reportes y respaldos.
-La actualización del AppImage **no borra** esta carpeta (ver [`../evidence/update-policy.md`](../evidence/update-policy.md)).
+Desde la 0.1.3, abrir un AppImage de otra versión borra el contenido de esta
+carpeta en el primer arranque (`backup.EnforceVersion`); ver
+[`../evidence/update-policy.md`](../evidence/update-policy.md).
 
 ### Launcher Electron (logs del supervisor)
 

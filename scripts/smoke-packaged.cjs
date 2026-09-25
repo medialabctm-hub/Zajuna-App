@@ -117,8 +117,14 @@ async function main() {
     if (!scriptPath) throw new Error('El index embebido no referencia el bundle JavaScript.');
     await assertPage(new URL(scriptPath, endpoint.url).toString(), 200, 'bundle JavaScript', (body) => body.length > 1000);
     await assertPage(`${endpoint.url}/assets/missing.js`, 404, 'asset inexistente');
-    await assertPage(`${endpoint.url}/api/missing`, 404, 'ruta API inexistente');
-    console.log('Smoke OK: embed, fallback SPA, assets y 404 API/static verificados.');
+    // Sin sesión local toda ruta /api/* (salvo /api/health) responde 401 JSON
+    // antes del router: nunca el HTML de la SPA ni una cookie.
+    const anonymous = await fetch(`${endpoint.url}/api/missing`);
+    const anonymousBody = await anonymous.text();
+    if (anonymous.status !== 401 || anonymous.headers.get('set-cookie') || !anonymousBody.includes('local_session_required')) {
+      throw new Error(`ruta API sin sesión: estado ${anonymous.status}, esperaba 401 local_session_required`);
+    }
+    console.log('Smoke OK: embed, fallback SPA, assets, 404 static y API protegida sin sesión.');
 
     await stopProcess(child);
     await fs.rm(file, { force: true });

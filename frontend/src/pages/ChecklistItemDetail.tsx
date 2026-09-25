@@ -23,8 +23,8 @@ function targetLocation(target: RouteTarget) {
 function contentKey(evidence: Evidence) {
   const hash = String(evidence.sha256 || '').trim().toLowerCase()
   if (hash) return `hash:${hash}`
-  const path = String(evidence.filePath || '').trim().replace(/\\/g, '/').toLowerCase()
-  return path ? `path:${path}` : ''
+  const fileKey = String(evidence.fileKey || '').trim()
+  return fileKey ? `file:${fileKey}` : ''
 }
 
 /** Other checklist items whose evidence is the same image (same SHA-256 or file). */
@@ -211,7 +211,7 @@ export function ChecklistItemDetail() {
                   <span className={`diagnostic-icon ${event.toStatus === 'SI' ? 'ok' : event.toStatus === 'NO' ? 'error' : 'warn'}`} aria-hidden="true" />
                   <div>
                     <strong>{event.fromStatus ? `${event.fromStatus} → ${event.toStatus}` : `Estado inicial: ${event.toStatus}`}</strong>
-                    <small>{event.source === 'manual' ? 'Decisión manual' : event.source} · {formatDate(event.createdAt)}</small>
+                    <small>{event.source === 'manual' ? 'Decisión manual' : event.source === 'revision-automatica' ? 'Revisión automática' : event.source} · {formatDate(event.createdAt)}</small>
                   </div>
                 </div>
               ))}

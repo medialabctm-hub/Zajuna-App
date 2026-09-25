@@ -333,6 +333,41 @@ func TestJobTransitionsAreAtomicAndRejectInvalidStates(t *testing.T) {
 	}
 }
 
+func TestSavePartialResultOnlyTouchesFailedOrCancelledJobs(t *testing.T) {
+	store, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	ctx := context.Background()
+	now := time.Now().UTC()
+	for _, id := range []string{"job-failed", "job-running"} {
+		if err := store.CreateJob(ctx, jobs.Job{ID: id, Type: "capture-checklist", Status: jobs.StatusQueued, Input: []byte(`{}`), CreatedAt: now, UpdatedAt: now, MaxAttempts: 3}); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := store.MarkRunning(ctx, id); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := store.FailJob(ctx, "job-failed", "capture_partial_failure", "captura incompleta"); err != nil {
+		t.Fatal(err)
+	}
+	partial := []byte(`{"captured":2,"partial":true}`)
+	for _, id := range []string{"job-failed", "job-running"} {
+		if err := store.SavePartialResult(ctx, id, partial); err != nil {
+			t.Fatal(err)
+		}
+	}
+	failed, _ := store.GetJob(ctx, "job-failed")
+	running, _ := store.GetJob(ctx, "job-running")
+	if string(failed.Result) != string(partial) || failed.Status != jobs.StatusFailed {
+		t.Fatalf("failed job result = %s status=%s", failed.Result, failed.Status)
+	}
+	if len(running.Result) != 0 {
+		t.Fatalf("a running job must not receive a partial result: %s", running.Result)
+	}
+}
+
 func TestConcurrentMarkRunningAllowsASingleWinner(t *testing.T) {
 	store, err := Open(t.TempDir())
 	if err != nil {

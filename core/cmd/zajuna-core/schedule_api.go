@@ -11,12 +11,12 @@ import (
 )
 
 type createScheduleRequest struct {
-	ID             string          `json:"id"`
-	WorkerType     string          `json:"workerType"`
-	Input          json.RawMessage `json:"input"`
-	IntervalSeconds int            `json:"intervalSeconds"`
-	Enabled        *bool           `json:"enabled"`
-	NextRunAt      string          `json:"nextRunAt"`
+	ID              string          `json:"id"`
+	WorkerType      string          `json:"workerType"`
+	Input           json.RawMessage `json:"input"`
+	IntervalSeconds int             `json:"intervalSeconds"`
+	Enabled         *bool           `json:"enabled"`
+	NextRunAt       string          `json:"nextRunAt"`
 }
 
 type setScheduleEnabledRequest struct {

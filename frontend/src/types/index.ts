@@ -27,6 +27,7 @@ export interface AppSettings {
 
 export interface AppInfo {
   version: string
+  /** Environment-relative location (e.g. %LOCALAPPDATA%\ZajunaApp), never absolute. */
   dataDir: string
   supervised: boolean
   resetPending: boolean
@@ -86,7 +87,8 @@ export interface Evidence {
   itemCode?: string
   name: string
   slotNumber?: number
-  filePath?: string
+  /** Opaque identifier of the stored file; equal keys mean the same file. */
+  fileKey?: string
   format?: string
   source?: string
   sha256?: string
@@ -160,7 +162,11 @@ export interface Activity {
   title: string
   technical: boolean
   phaseName?: string
+  phaseSection?: number
   selected: boolean
+  /** false para competencias transversales: su evidencia es de otro instructor. */
+  selectable?: boolean
+  blockedReason?: string
 }
 
 export interface ActivitiesResponse {
@@ -183,6 +189,7 @@ export type JobStatus = 'queued' | 'running' | 'waiting_user' | 'retrying' | 'co
 
 export type JobType =
   | 'sync-fichas'
+  | 'test-zajuna-connection'
   | 'discover-course-maps'
   | 'capture-checklist'
   | 'capture-evidence'
@@ -311,4 +318,52 @@ export interface RouteReview {
   status: RouteReviewStatus
   manualUrl?: string
   manualSelector?: string
+}
+
+export type EvidenceReviewStatus = 'approved' | 'pending' | 'rejected'
+
+export interface EvidenceReviewReason {
+  code: string
+  message: string
+}
+
+export interface EvidenceReviewEntry {
+  evidenceId: string
+  itemCode: string
+  itemDescription?: string
+  slotNumber?: number
+  name?: string
+  status: EvidenceReviewStatus
+  source: 'auto' | 'manual' | string
+  note?: string
+  reasons: EvidenceReviewReason[]
+  width?: number
+  height?: number
+  sha256?: string
+  sharedWith?: string[]
+}
+
+export interface EvidenceReviewMissingItem {
+  itemCode: string
+  description?: string
+  reason?: string
+}
+
+export interface EvidenceReviewSummary {
+  total: number
+  approved: number
+  pending: number
+  rejected: number
+  itemsWithEvidence: number
+  itemsApproved: number
+  itemsPending: number
+  itemsMissing: number
+}
+
+export interface EvidenceReview {
+  fichaId: string
+  verifiedAt?: string
+  summary: EvidenceReviewSummary
+  evidences: EvidenceReviewEntry[]
+  missingItems: EvidenceReviewMissingItem[]
 }

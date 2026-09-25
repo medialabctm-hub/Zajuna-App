@@ -70,6 +70,47 @@ quieres conservar tus datos, descarga una copia desde
   Chromium, antes abría una por cada evidencia.
 - **Sin avisos de Moodle en las capturas**, como «No dispone de permiso…».
 
+### Guía de 5 pasos, selección de actividades y revisión automática
+
+- **Guía paso a paso siempre visible** en las páginas de operación:
+  1. Sincronizar fichas;
+  2. Buscar rutas;
+  3. Seleccionar actividades;
+  4. Preparar evidencias;
+  5. Revisar evidencias.
+
+  Cada paso muestra si está hecho, en curso o pendiente. El siguiente se
+  resalta, y sus botones llevan la insignia «Paso N». «Preparar evidencias» se
+  bloquea mientras falte un paso anterior y enlaza al que falta. Ya no se
+  puede sincronizar ni capturar dos veces seguidas.
+- **Solo se pueden seleccionar actividades técnicas.**
+  - Las transversales se muestran aparte y bloqueadas: las orienta otro
+    instructor y solo generaban evidencia errónea.
+  - El core rechaza las transversales e ignora las que hubiera guardado una
+    versión anterior.
+  - Cada actividad marcada indica si «se usa en la evidencia» (las 5 primeras
+    en orden de fase).
+- **Página Revisión (paso 5).** Al terminar cada captura, la app revisa
+  automáticamente cada evidencia:
+  - imagen inexistente o página de inicio de sesión;
+  - demasiado ancha o larga;
+  - sección vacía;
+  - casi en blanco;
+  - área genérica en lugar de la sección esperada;
+  - copia de otro ítem.
+
+  Las correctas quedan **aprobadas** y en pendientes quedan **solo las que
+  tienen problemas**, cada una con el motivo en palabras claras y los botones
+  Aprobar, Rechazar, Ver en grande y Volver a capturar este ítem. La decisión
+  manual manda, y se aplica a todos los ítems que comparten la misma imagen,
+  hasta que la evidencia se vuelva a capturar.
+- **Anuncios `11.x` filtrados por tema:** inicio de fase, inicio o cierre de
+  actividad, invitación a sesión en línea o aprendices aprobados. `11.2.3` ya
+  tiene evidencia.
+- **Subsecciones propias para 7.3.x y 7.4.x:** «Comités evaluativos»,
+  «Reuniones EEF», «Planes de Mejoramiento», «Registro de Novedades» y
+  «Llamados de atención».
+
 ## Prueba real contra Zajuna (curso 41080, 71 actividades técnicas)
 
 | Corrida | Guardadas | Omitidas (lote vacío) | Errores | Nota |
@@ -78,6 +119,7 @@ quieres conservar tus datos, descarga una copia desde
 | 2 | 57 | 6 | 11 | Con el pool de sesiones. Subsecciones invisibles dentro de secciones colapsadas. |
 | 3 | 61 | 6 | 7 | Con expansión de secciones contenedoras. Los 7 errores son ausencias reales (foro sin publicaciones del instructor en `9.1.6`/`14.1.1`, actividad sin tabla de calificación en `10.1.1`) o MDL-219 (`11.4`). |
 | 4 (dirigida) | 5 de 5 ítems | 0 | 0 | `7.1.1`, `7.3.1`, `8.1`, `12.1.1` y `13.1.2` tras ajustar la expansión: cada ítem muestra su sección (p. ej. `7.1.1` con la insignia «Ocultado a los aprendices») con tamaños normales. |
+| 5 (final) | 68 | 30 | 3 | Con la guía, la revisión, el filtro de anuncios por tema, las subsecciones propias, la preparación sin navegación accidental y sin el foro de noticias del sitio. Los 62 ítems tienen evidencia. Los 3 errores son ausencias reales: 2 foros sin publicaciones del instructor y 1 actividad sin tabla de calificación. La revisión automática aprobó 52 ítems y dejó 10 pendientes, cada uno con su motivo. |
 
 Antes de estos cambios: 105 evidencias con solo 35 imágenes distintas y 2 ítems
 sin resolver. Después: los 62 ítems resueltos, 133 evidencias con 56 imágenes
@@ -89,8 +131,6 @@ respalda varios ítems (p. ej. la tabla de calificación para `10.1.1` y
 
 - [MDL-218](https://linear.app/medialab-sena/issue/MDL-218): el calificador
   `5.1` mide ~28.000 px de ancho.
-- [MDL-219](https://linear.app/medialab-sena/issue/MDL-219): `11.4` elige un
-  foro sin acceso.
 - [MDL-220](https://linear.app/medialab-sena/issue/MDL-220): el iframe de
   Google Sheets de `1.2.x` solo muestra el área visible.
 - [MDL-221](https://linear.app/medialab-sena/issue/MDL-221): mejorar el reparto

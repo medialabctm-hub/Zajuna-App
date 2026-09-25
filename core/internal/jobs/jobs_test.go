@@ -113,6 +113,16 @@ func (s *memoryStore) MarkCancelled(_ context.Context, id string) error {
 	})
 	return err
 }
+func (s *memoryStore) SavePartialResult(_ context.Context, id string, output json.RawMessage) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	job, ok := s.jobs[id]
+	if ok && (job.Status == StatusFailed || job.Status == StatusCancelled) {
+		job.Result = output
+		s.jobs[id] = job
+	}
+	return nil
+}
 func (s *memoryStore) ReconcileInterrupted(_ context.Context) ([]Job, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -363,3 +373,38 @@ func TestRuntimeSubmitPreservesFIFOStartOrderWithConcurrency2(t *testing.T) {
 	}
 }
 
+// An abandoned submit is cancelled, not failed: a failure would raise a
+// "needs attention" notification for a job that never ran.
+func TestSubmitCancelsQueuedJobWhenContextCancels(t *testing.T) {
+	store := newMemoryStore()
+	runtime, err := NewRuntime(store, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := runtime.Register(demoWorker{}); err != nil {
+		t.Fatal(err)
+	}
+	runtime.Start(context.Background())
+	defer runtime.Close()
+
+	blocked, cancel := context.WithCancel(context.Background())
+	cancel()
+	_, err = runtime.Submit(blocked, "demo", map[string]string{"fixture": "ok"})
+	if err == nil {
+		t.Fatal("expected cancelled submit to fail")
+	}
+	store.mu.Lock()
+	defer store.mu.Unlock()
+	foundCancelled := false
+	for _, job := range store.jobs {
+		if job.Status == StatusCancelled {
+			foundCancelled = true
+		}
+		if job.Status == StatusQueued {
+			t.Fatalf("cancelled submit left a queued zombie: %#v", job)
+		}
+	}
+	if !foundCancelled {
+		t.Fatalf("expected cancelled job after cancelled enqueue, got %#v", store.jobs)
+	}
+}

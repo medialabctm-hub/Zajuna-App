@@ -82,6 +82,8 @@ func TestCaptureChecklistWorkerCapturesDirectedTargetSmoke(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// The fixture server listens on loopback, which production rejects.
+	worker.allowPrivateTargets = true
 	input, _ := json.Marshal(CaptureChecklistInput{FichaID: fichas[0].ID, Username: "fixture-user", DocumentType: "CC", ItemCodes: []string{"1.1.1"}, MaxTargets: 1})
 	result := worker.Execute(context.Background(), jobs.Job{ID: "job-checklist-capture", Input: input}, captureReporter{})
 	if result.ErrorMessage != "" {
@@ -97,5 +99,27 @@ func TestCaptureChecklistWorkerCapturesDirectedTargetSmoke(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(dataDir, "evidences", "checklist", fichas[0].ID, "1.1.1", "slot-1.png")); err != nil {
 		t.Fatalf("directed screenshot missing: %v", err)
+	}
+}
+
+func TestCaptureChecklistTargetRejectsLoopbackByDefault(t *testing.T) {
+	store, err := sqlite.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	client := fixtureAuthenticatedCaptureClient{session: zajuna.Session{Client: http.DefaultClient, BaseURL: "http://127.0.0.1:9"}}
+	worker, err := NewCaptureChecklistWorker(capture.Resolve(""), t.TempDir(), client, fakeCredentials{}, store, store, store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	base, _ := url.Parse("http://127.0.0.1:9")
+	outcome := worker.captureChecklistTarget(context.Background(), checklistTargetParams{
+		JobID:   "job-loopback",
+		Target:  checklist.CaptureTarget{ItemCode: "1.1.1", URL: "http://127.0.0.1:9/protected", SlotNumber: 1},
+		BaseURL: base,
+	})
+	if outcome.failure != "1.1.1: origen de URL no permitido" {
+		t.Fatalf("production workers must reject loopback targets, got %#v", outcome)
 	}
 }

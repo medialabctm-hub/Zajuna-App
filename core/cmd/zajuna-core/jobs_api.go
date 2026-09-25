@@ -214,7 +214,11 @@ func registerJobRoutes(mux *http.ServeMux, runtime *jobs.Runtime, listers ...job
 			return
 		}
 		if err := runtime.Cancel(r.Context(), r.PathValue("id")); err != nil {
-			writeError(w, http.StatusConflict, err)
+			if errors.Is(err, jobs.ErrJobFinished) {
+				writeError(w, http.StatusConflict, err)
+				return
+			}
+			writeError(w, http.StatusInternalServerError, errors.New("no se pudo cancelar el trabajo; inténtalo de nuevo"))
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]bool{"cancelled": true})

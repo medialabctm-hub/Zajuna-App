@@ -23,7 +23,7 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-const currentSchemaVersion = 13
+const currentSchemaVersion = 14
 
 type Store struct {
 	db      *sql.DB
@@ -275,6 +275,14 @@ func (s *Store) Migrate(ctx context.Context) error {
 			return err
 		}
 		if _, err := tx.ExecContext(ctx, `INSERT INTO schema_migrations(version, applied_at) VALUES(13, ?)`, time.Now().UTC().Format(time.RFC3339Nano)); err != nil {
+			return fmt.Errorf("record schema version: %w", err)
+		}
+	}
+	if version < 14 {
+		if err := applyV14(ctx, tx); err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, `INSERT INTO schema_migrations(version, applied_at) VALUES(14, ?)`, time.Now().UTC().Format(time.RFC3339Nano)); err != nil {
 			return fmt.Errorf("record schema version: %w", err)
 		}
 	}
@@ -1602,6 +1610,20 @@ func (s *Store) MarkCancelled(ctx context.Context, id string) error {
 		[]any{jobs.StatusCancelled, now.Format(time.RFC3339Nano), now.Format(time.RFC3339Nano)},
 		jobs.Event{JobID: id, Kind: "status", Stage: "cancelled", Message: "Trabajo cancelado", CreatedAt: now},
 	)
+}
+
+// SavePartialResult keeps the structured output of a job that ended failed
+// or cancelled. Running/completed jobs are never overwritten.
+func (s *Store) SavePartialResult(ctx context.Context, id string, output json.RawMessage) error {
+	if len(output) == 0 {
+		return nil
+	}
+	_, err := s.db.ExecContext(ctx, `UPDATE jobs SET result_json = ?, updated_at = ? WHERE id = ? AND status IN (?, ?)`,
+		string(output), time.Now().UTC().Format(time.RFC3339Nano), id, jobs.StatusFailed, jobs.StatusCancelled)
+	if err != nil {
+		return fmt.Errorf("save partial job result: %w", err)
+	}
+	return nil
 }
 
 func (s *Store) ReconcileInterrupted(ctx context.Context) ([]jobs.Job, error) {
