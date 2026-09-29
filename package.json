@@ -35,7 +35,7 @@
     "test:e2e:zajuna": "powershell -NoProfile -Command \"$env:ZAJUNA_PLAYWRIGHT_DIR=(Join-Path (Get-Location) 'core/bin/playwright'); go -C core test ./cmd/zajuna-core -run TestAuthenticatedZajunaE2E -v\""
   },
   "devDependencies": {
-    "electron": "44.4.3",
+    "electron": "44.4.5",
     "electron-builder": "^26.0.0"
   },
   "build": {
