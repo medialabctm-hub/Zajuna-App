@@ -1,4 +1,4 @@
-﻿name: Native installers
+name: Native installers
 
 # Manual only. Automatic packaging on tags lives in packaging.yml.
 
@@ -61,7 +61,7 @@ jobs:
           $signature = Get-AuthenticodeSignature $installer.FullName
           if ($signature.Status -ne 'Valid') { throw "Firma inválida: $($signature.Status)" }
       - name: Upload release evidence
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: zajuna-${{ matrix.name }}-native
           if-no-files-found: error
