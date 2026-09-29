@@ -1,4 +1,4 @@
-# Zajuna App
+# Zajuna Sync
 
 Aplicación de escritorio local para sincronizar Zajuna, revisar el checklist,
 capturar evidencias y generar reportes.

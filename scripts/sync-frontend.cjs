@@ -8,7 +8,7 @@ const embeddedWeb = path.resolve(projectRoot, 'core', 'cmd', 'zajuna-core', 'web
 function assertInsideProject(target, label) {
   const relative = path.relative(projectRoot, target);
   if (!relative || relative.startsWith('..') || path.isAbsolute(relative)) {
-    throw new Error(label + ' está fuera del proyecto Zajuna.App: ' + target);
+    throw new Error(label + ' está fuera del proyecto Zajuna Sync: ' + target);
   }
 }
 
@@ -23,7 +23,7 @@ if (!fs.existsSync(indexPath)) {
 }
 const indexContents = fs.readFileSync(indexPath, 'utf8');
 if (!indexContents.includes('id="root"')) {
-  throw new Error('El build encontrado no parece ser la aplicación React de Zajuna.App.');
+  throw new Error('El build encontrado no parece ser la aplicación React de Zajuna Sync.');
 }
 
 fs.rmSync(embeddedWeb, { recursive: true, force: true });

@@ -135,8 +135,8 @@ export function explainJobFailure(job: Pick<Job, 'type' | 'status' | 'errorCode'
     case 'browser_not_installed':
       return withTech({
         title: 'Falta el navegador interno de capturas',
-        cause: 'La instalación de Zajuna App está incompleta: no se encontró el componente que toma las capturas.',
-        next: 'Descarga e instala de nuevo la última versión de Zajuna App. Ten en cuenta que instalar una versión nueva empieza desde cero: genera antes el reporte PDF si lo necesitas.',
+        cause: 'La instalación de Zajuna Sync está incompleta: no se encontró el componente que toma las capturas.',
+        next: 'Descarga e instala de nuevo la última versión de Zajuna Sync. Ten en cuenta que instalar una versión nueva empieza desde cero: genera antes el reporte PDF si lo necesitas.',
         actions: [DIAGNOSTICS],
       })
     case 'credential_unavailable':
@@ -254,7 +254,7 @@ export function explainJobFailure(job: Pick<Job, 'type' | 'status' | 'errorCode'
     return withTech({
       title: 'No pudimos guardar el resultado en este equipo',
       cause: 'La base de datos local estaba ocupada o sin espacio cuando el proceso intentó guardar.',
-      next: 'Cierra y vuelve a abrir Zajuna App y repite el proceso. Si se repite, revisa el espacio libre en disco y el Diagnóstico.',
+      next: 'Cierra y vuelve a abrir Zajuna Sync y repite el proceso. Si se repite, revisa el espacio libre en disco y el Diagnóstico.',
       actions: [RETRY, DIAGNOSTICS],
     })
   }

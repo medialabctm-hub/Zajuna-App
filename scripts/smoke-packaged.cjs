@@ -6,7 +6,7 @@ const path = require('node:path');
 const projectRoot = path.resolve(__dirname, '..');
 
 function defaultExecutable() {
-  if (process.platform === 'win32') return path.join(projectRoot, 'dist', 'win-unpacked', 'Zajuna App.exe');
+  if (process.platform === 'win32') return path.join(projectRoot, 'dist', 'win-unpacked', 'Zajuna Sync.exe');
   return path.join(projectRoot, 'dist', 'linux-unpacked', 'zajuna-app');
 }
 

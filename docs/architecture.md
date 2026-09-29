@@ -1,4 +1,4 @@
-# Arquitectura de Zajuna App Desktop
+# Arquitectura de Zajuna Sync Desktop
 
 La arquitectura vigente está descrita en detalle en
 [`desktop-migration.md`](desktop-migration.md). Este documento resume los

@@ -1,7 +1,7 @@
 {
   "name": "zajuna-app",
   "version": "0.1.6",
-  "author": "Zajuna App",
+  "author": "Zajuna Sync",
   "description": "Aplicación de escritorio multiplataforma para Zajuna",
   "private": true,
   "main": "desktop/main.cjs",
@@ -31,7 +31,7 @@
     "test:core": "go -C core test ./...",
     "test:e2e:core": "go -C core test ./cmd/zajuna-core -run TestLocalE2ESetupCaptureReportBackup -v",
     "test:visual:core": "powershell -NoProfile -Command \"$env:ZAJUNA_PLAYWRIGHT_DIR=(Join-Path (Get-Location) 'core/bin/playwright'); $env:ZAJUNA_RUN_BROWSER_SMOKE='1'; go -C core test ./cmd/zajuna-core -run TestDashboardBrowserSmoke -v\"",
-    "test:browser:core": "powershell -NoProfile -Command \"$env:ZAJUNA_PLAYWRIGHT_DIR=(Join-Path (Get-Location) 'core/bin/playwright'); $env:ZAJUNA_RUN_BROWSER_SMOKE='1'; go -C core test ./... -run 'TestDashboardBrowserSmoke|TestEvidenciasBrowserSmoke|TestCriticalPagesBrowserSmoke|TestLocalE2ESetupCaptureReportBackup|TestCaptureBrowserWorkerPersistsPNGSmoke|TestCaptureBrowserWorkerTransfersEphemeralSessionToChromium' -v\"",
+    "test:browser:core": "powershell -NoProfile -Command \"$env:ZAJUNA_PLAYWRIGHT_DIR=(Join-Path (Get-Location) 'core/bin/playwright'); $env:ZAJUNA_RUN_BROWSER_SMOKE='1'; go -C core test ./... -run 'TestDashboardBrowserSmoke|TestEvidenciasBrowserSmoke|TestCriticalPagesBrowserSmoke|TestFirstRunBrowserSmoke|TestLocalE2ESetupCaptureReportBackup|TestCaptureBrowserWorkerPersistsPNGSmoke|TestCaptureBrowserWorkerTransfersEphemeralSessionToChromium' -v\"",
     "test:e2e:zajuna": "powershell -NoProfile -Command \"$env:ZAJUNA_PLAYWRIGHT_DIR=(Join-Path (Get-Location) 'core/bin/playwright'); go -C core test ./cmd/zajuna-core -run TestAuthenticatedZajunaE2E -v\""
   },
   "devDependencies": {
@@ -40,8 +40,8 @@
   },
   "build": {
     "appId": "com.zajuna.app",
-    "productName": "Zajuna App",
-    "artifactName": "Zajuna.App-${version}.${ext}",
+    "productName": "Zajuna Sync",
+    "artifactName": "Zajuna.Sync-${version}.${ext}",
     "directories": {
       "buildResources": "build",
       "output": "dist"
@@ -69,7 +69,7 @@
       "icon": "build/icon.ico"
     },
     "nsis": {
-      "artifactName": "Zajuna.App.Setup-${version}.${ext}",
+      "artifactName": "Zajuna.Sync.Setup-${version}.${ext}",
       "include": "build/installer.nsh"
     },
     "linux": {

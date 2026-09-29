@@ -46,7 +46,7 @@
     pageLinks,
     jump,
   };
-  console.log('Zajuna App · enlaces y títulos del curso', summary);
+  console.log('Zajuna Sync · enlaces y títulos del curso', summary);
   if (typeof copy === 'function') copy(summary);
   return summary;
 })();

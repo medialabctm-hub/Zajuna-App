@@ -1,6 +1,6 @@
 # AGENTS.md — Contrato de colaboración multiagente
 
-Este documento es el **contrato común** del repositorio Zajuna App para el
+Este documento es el **contrato común** del repositorio Zajuna Sync para el
 entorno de desarrollo multiagente. Lo usan Orca al coordinar y todos los
 agentes al trabajar dentro de sus Worktrees.
 

@@ -1,4 +1,4 @@
-# Guía de instalación de Zajuna App
+# Guía de instalación de Zajuna Sync
 
 Esta guía acompaña **cada pantalla** desde la descarga hasta el primer uso.
 Está pensada para un instructor o usuario final en **Windows 10/11 de 64 bits**.
@@ -14,7 +14,7 @@ tanto, **no desactives** Windows Defender ni SmartScreen de forma permanente.
 Descargar → (opcional) SHA256 → Ejecutar .exe
     → ¿SmartScreen? → Más información → continuar
     → Asistente / barra de instalación
-    → Abrir Zajuna App → Setup (documento + contraseña)
+    → Abrir Zajuna Sync → Setup (documento + contraseña)
     → Resumen en el navegador
 ```
 
@@ -69,9 +69,9 @@ Get-FileHash -Algorithm SHA256 ".\Zajuna.App.Setup-0.1.0.exe"
 
 1. En el Explorador de archivos, ve a Descargas (o la carpeta donde lo
    guardaste).
-2. Doble clic en `Zajuna.App.Setup-….exe`.
+2. Doble clic en `Zajuna.Sync.Setup-….exe`.
 3. Windows puede pedir permiso de administrador (**Control de cuentas de
-   usuario**). Si el diálogo muestra *Zajuna App*, pulsa **Sí**.
+   usuario**). Si el diálogo muestra *Zajuna Sync*, pulsa **Sí**.
 
 Si en vez del instalador aparece una pantalla azul/amarilla de Windows, ve al
 paso 4. Si el asistente arranca de una vez, salta al paso 5.
@@ -95,7 +95,7 @@ reconocida*. El botón grande suele ser **No ejecutar**.
 1. **Más información** (abajo a la izquierda; en inglés: *More info*).
    Hasta que no pulses eso, no aparece la opción de continuar.
 2. Revisa que el nombre del archivo sea el instalador oficial
-   (`Zajuna.App.Setup-….exe`).
+   (`Zajuna.Sync.Setup-….exe`).
 3. **Ejecutar de todas formas** (en inglés: *Run anyway*).
 4. Si pide administrador, **Sí**.
 
@@ -123,24 +123,24 @@ instalador de **un clic** o una barra de progreso corta:
 1. Acepta el Control de cuentas de usuario si aún no lo hiciste.
 2. Espera a que copie los archivos (puede tardar uno o dos minutos: lleva
    Chromium para las capturas).
-3. Al terminar, deja marcada la opción de **ejecutar Zajuna App** si aparece,
+3. Al terminar, deja marcada la opción de **ejecutar Zajuna Sync** si aparece,
    o pulsa **Finalizar**.
 
-Windows crea un acceso en el menú Inicio llamado **Zajuna App**. En muchos
+Windows crea un acceso en el menú Inicio llamado **Zajuna Sync**. En muchos
 equipos también hay acceso en el escritorio.
 
 Si el asistente muestra *Siguiente* / *Elegir carpeta* / *Instalar*, deja la
-ruta por defecto (`Archivos de programa\Zajuna App`) salvo que te hayan
+ruta por defecto (`Archivos de programa\Zajuna Sync`) salvo que te hayan
 indicado otra.
 
 ---
 
 ## 6. Primer arranque (Setup)
 
-Zajuna App **no abre una ventana propia**. Electron arranca en segundo plano,
+Zajuna Sync **no abre una ventana propia**. Electron arranca en segundo plano,
 enciende el core en `127.0.0.1` y abre tu **navegador predeterminado**.
 
-1. Si el instalador no la lanzó, abre **Zajuna App** desde el menú Inicio.
+1. Si el instalador no la lanzó, abre **Zajuna Sync** desde el menú Inicio.
 2. Espera a que el navegador muestre la app. La dirección será algo como
    `http://127.0.0.1:#####/` (el puerto cambia).
 3. En el primer uso verás **Conecta tu cuenta de Zajuna** (título *Tu espacio
@@ -166,7 +166,7 @@ indica que la resuelvas en el navegador. No hace falta “saltar” ese paso.
 
 ## 7. Cómo saber que quedó bien
 
-- El navegador muestra **Zajuna App · Operación local** y la vista **Resumen**.
+- El navegador muestra **Zajuna Sync · Operación local** y la vista **Resumen**.
 - En el menú lateral puedes abrir Fichas, Checklist, Actividades, Evidencias,
   Reportes, Configuración y Diagnóstico.
 - Si cierras **solo la pestaña**, la app **sigue corriendo**. Volver a pulsar
@@ -175,7 +175,7 @@ indica que la resuelvas en el navegador. No hace falta “saltar” ese paso.
 **Cómo salir de verdad.** Cerrar Chrome/Edge no apaga el core. En Windows:
 
 1. Abre el Administrador de tareas (`Ctrl` + `Mayús` + `Esc`).
-2. Busca **Zajuna App**.
+2. Busca **Zajuna Sync**.
 3. Finaliza esa tarea.
 
 La próxima vez que uses el acceso directo, volverá a arrancar limpio.
@@ -190,8 +190,8 @@ La próxima vez que uses el acceso directo, volverá a arrancar limpio.
 | «No hay espacio suficiente» | Libera al menos 2 GiB en `C:` y vuelve a ejecutar el Setup. |
 | El antivirus pone el `.exe` en cuarentena | Restaura el archivo desde la cuarentena **solo** si viene del canal oficial. No añadas exclusiones globales. |
 | El instalador se corta a medias | Desinstala (paso 9), borra la carpeta a medias en Archivos de programa si quedó, y reintenta. |
-| El navegador no abre | Abre **Zajuna App** otra vez. Si sigue igual, revisa Diagnóstico cuando logres entrar, o el log en `%APPDATA%\zajuna-app\logs\zajuna-core.log`. |
-| La página queda en blanco / no carga | Confirma que no cerraste el proceso de Zajuna App. Prueba de nuevo el acceso directo. |
+| El navegador no abre | Abre **Zajuna Sync** otra vez. Si sigue igual, revisa Diagnóstico cuando logres entrar, o el log en `%APPDATA%\zajuna-app\logs\zajuna-core.log`. |
+| La página queda en blanco / no carga | Confirma que no cerraste el proceso de Zajuna Sync. Prueba de nuevo el acceso directo. |
 | Error al guardar la cuenta | Revisa documento y contraseña de Zajuna, y que haya internet. El Setup no sustituye el login de la plataforma. |
 | «Ya hay una instancia» / no pasa nada | La app ya está corriendo: mira las pestañas del navegador o el Administrador de tareas. |
 
@@ -200,12 +200,12 @@ La próxima vez que uses el acceso directo, volverá a arrancar limpio.
 ## 9. Desinstalar y volver a intentar
 
 1. Configuración de Windows → **Aplicaciones** → **Aplicaciones instaladas**.
-2. Busca **Zajuna App** → **Desinstalar**.
+2. Busca **Zajuna Sync** → **Desinstalar**.
 3. Confirma el desinstalador.
 4. Vuelve al paso 3 con el mismo `.exe` oficial (o uno nuevo que te pasen).
 
 Desde la versión **0.1.3**, desinstalar borra también los datos locales de
-Zajuna App: el avance del checklist, las evidencias, las actividades
+Zajuna Sync: el avance del checklist, las evidencias, las actividades
 seleccionadas, los reportes, los trabajos y las copias de seguridad, que viven
 en `%LOCALAPPDATA%\ZajunaApp`. También se borran los registros de
 `%APPDATA%\zajuna-app`. La contraseña de Zajuna guardada en el Administrador
@@ -213,7 +213,7 @@ de credenciales de Windows se reemplaza la próxima vez que configures la cuenta
 
 ### Cada versión nueva empieza desde cero
 
-Instalar una versión nueva de Zajuna App **siempre** empieza con los datos
+Instalar una versión nueva de Zajuna Sync **siempre** empieza con los datos
 vacíos, sin preguntar, y lo mismo pasa con las actualizaciones automáticas. Así
 el checklist arranca en 0 % y no aparecen evidencias, actividades ni trabajos
 de una versión anterior. Antes de instalar una versión nueva:
@@ -259,7 +259,7 @@ evidencias.
 
 ### Primera ejecución
 
-El artefacto de CI se llama `Zajuna.App-<versión>.AppImage` (sin espacios; puntos en el nombre de producto).
+El artefacto de CI se llama `Zajuna.Sync-<versión>.AppImage` (sin espacios; puntos en el nombre de producto).
 
 ```bash
 cd ~/Downloads   # o ~/Descargas

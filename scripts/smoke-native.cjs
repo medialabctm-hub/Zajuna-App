@@ -86,9 +86,9 @@ function buildReport({ distRoot, env = process.env, platform = process.platform,
 }
 
 function defaultUnpackedExecutable(projectRoot) {
-  if (process.platform === 'win32') return path.join(projectRoot, 'dist', 'win-unpacked', 'Zajuna App.exe');
+  if (process.platform === 'win32') return path.join(projectRoot, 'dist', 'win-unpacked', 'Zajuna Sync.exe');
   const linuxDir = path.join(projectRoot, 'dist', 'linux-unpacked');
-  const candidates = [path.join(linuxDir, 'zajuna-app'), path.join(linuxDir, 'Zajuna App')];
+  const candidates = [path.join(linuxDir, 'zajuna-app'), path.join(linuxDir, 'Zajuna Sync')];
   return candidates.find((item) => fs.existsSync(item)) || candidates[0];
 }
 

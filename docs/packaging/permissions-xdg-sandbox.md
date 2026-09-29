@@ -57,8 +57,8 @@ Datos de producto (Go) y logs del launcher **no comparten** la misma raíz XDG.
 | Contenedor sin `/dev/fuse` | Mismo síntoma; extract-and-run como diagnóstico. |
 
 ```bash
-chmod +x Zajuna.App-*.AppImage
-./Zajuna.App-*.AppImage --appimage-extract-and-run
+chmod +x Zajuna.Sync-*.AppImage
+./Zajuna.Sync-*.AppImage --appimage-extract-and-run
 ```
 
 ## Sandbox — realidad vs aceptación
@@ -90,7 +90,7 @@ Arrancar **sin** pedir al usuario que desactive el sandbox ni use `sudo`.
 ## Checklist (usuario estándar)
 
 - [ ] Usuario no root (o root de laboratorio Kali aceptando el modelo del wrapper).
-- [ ] AppImage `chmod +x`; nombre `Zajuna.App-<ver>.AppImage`.
+- [ ] AppImage `chmod +x`; nombre `Zajuna.Sync-<ver>.AppImage`.
 - [ ] FUSE2 presente **o** `--appimage-extract-and-run`.
 - [ ] Health en `http://127.0.0.1:<puerto>/api/health`.
 - [ ] Datos bajo `~/.local/share/zajuna-app` (o `$XDG_DATA_HOME/zajuna-app`).

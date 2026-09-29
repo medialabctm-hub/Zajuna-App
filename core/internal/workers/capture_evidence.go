@@ -89,7 +89,7 @@ func (w *CaptureEvidenceWorker) Execute(ctx context.Context, job jobs.Job, repor
 	if err != nil {
 		return jobs.Result{ErrorCode: "request_failed", ErrorMessage: err.Error()}
 	}
-	request.Header.Set("User-Agent", "Zajuna App/0.1 (+local)")
+	request.Header.Set("User-Agent", "Zajuna Sync/0.1 (+local)")
 	response, err := w.client.Do(request)
 	if err != nil {
 		return jobs.Result{Retryable: true, ErrorCode: "evidence_fetch_failed", ErrorMessage: fmt.Sprintf("no se pudo descargar la evidencia: %v", err)}

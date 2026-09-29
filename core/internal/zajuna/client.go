@@ -228,15 +228,6 @@ func (c *Client) ListFichas(ctx context.Context, session Session) ([]Ficha, erro
 	return fichas, nil
 }
 
-func (c *Client) doForm(ctx context.Context, session Session, path string, form url.Values, referer string) (string, error) {
-	response, err := c.doFormResponse(ctx, session, path, form, referer)
-	if err != nil {
-		return "", err
-	}
-	defer response.Body.Close()
-	return readBody(response)
-}
-
 func (c *Client) doFormResponse(ctx context.Context, session Session, path string, form url.Values, referer string) (*http.Response, error) {
 	request, err := http.NewRequestWithContext(ctx, http.MethodPost, c.absolute(path), strings.NewReader(form.Encode()))
 	if err != nil {

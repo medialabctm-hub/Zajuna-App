@@ -68,10 +68,10 @@ function renderDownloadsPage(manifest = loadManifest()) {
 <html lang="es">
 <head>
   <meta charset="utf-8">
-  <title>Descargas de ${escapeHTML(manifest.productName || manifest.name || 'Zajuna App')}</title>
+  <title>Descargas de ${escapeHTML(manifest.productName || manifest.name || 'Zajuna Sync')}</title>
 </head>
 <body>
-  <h1>Descargas de ${escapeHTML(manifest.productName || 'Zajuna App')}</h1>
+  <h1>Descargas de ${escapeHTML(manifest.productName || 'Zajuna Sync')}</h1>
   <p>Versión ${escapeHTML(manifest.version || 'sin publicar')}. Descarga únicamente desde el canal oficial y contrasta el archivo con el manifiesto SHA256.</p>
   ${status}
   <h2>Cómo instalar de forma segura</h2>

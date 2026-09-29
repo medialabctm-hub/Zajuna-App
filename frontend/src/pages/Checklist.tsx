@@ -639,10 +639,12 @@ export function Checklist() {
   }
 
   function handleDiscover() {
+    if (!dashboard) return
     discoverCourseMaps.mutate(
       {
         username: setupQuery.data?.zajunaUsername || '',
         documentType: setupQuery.data?.zajunaDocumentType || 'CC',
+        fichaId: dashboard.activeFichaId,
       },
       {
         onSuccess: () => toast('Estamos actualizando el mapa del curso.'),

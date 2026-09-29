@@ -32,7 +32,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
       <div className="sidebar-brand">
         <span className="brand-mark">Z</span>
         <div>
-          <strong>Zajuna App</strong>
+          <strong>Zajuna Sync</strong>
           <small>Operación local</small>
         </div>
         <button className="mobile-nav-close" type="button" aria-label="Cerrar navegación" onClick={onClose}>×</button>

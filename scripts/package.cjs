@@ -70,8 +70,8 @@ const packageJson = JSON.parse(fs.readFileSync(path.join(projectRoot, 'package.j
 const build = packageJson.build || {};
 const config = {
   appId: build.appId || 'com.zajuna.app',
-  productName: build.productName || 'Zajuna App',
-  artifactName: build.artifactName || 'Zajuna.App-${version}.${ext}',
+  productName: build.productName || 'Zajuna Sync',
+  artifactName: build.artifactName || 'Zajuna.Sync-${version}.${ext}',
   files: build.files || ['desktop/**/*', 'package.json'],
   extraResources: [{ from: path.relative(projectRoot, stagingDir).replaceAll(path.sep, '/'), to: 'core' }],
   directories: {
@@ -80,7 +80,7 @@ const config = {
   },
   icon: build.icon || 'build/icon.png',
   publish: build.publish,
-  nsis: build.nsis || { artifactName: 'Zajuna.App.Setup-${version}.${ext}' },
+  nsis: build.nsis || { artifactName: 'Zajuna.Sync.Setup-${version}.${ext}' },
   win: { ...(build.win || {}), target: 'nsis' },
   linux: { ...(build.linux || {}), target: 'AppImage' },
 };

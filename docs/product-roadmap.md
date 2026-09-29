@@ -1,4 +1,4 @@
-# Roadmap vigente de Zajuna App
+# Roadmap vigente de Zajuna Sync
 
 El documento completo de migración está en [`desktop-migration.md`](desktop-migration.md).
 El cierre de la jornada 2026-08-20 está en [`hardening-2026-08-20.md`](hardening-2026-08-20.md).

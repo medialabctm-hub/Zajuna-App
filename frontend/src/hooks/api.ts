@@ -388,12 +388,26 @@ export function useCapture() {
   })
 }
 
+export function useCourseMaps() {
+  const queryClient = useQueryClient()
+  return useQuery({ queryKey: ['courseMaps'], queryFn: () => api.listCourseMaps(100), refetchInterval: activityPollInterval(queryClient) })
+}
+
+export function useCompleteFirstRun() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: api.completeFirstRun,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['setup'] }),
+  })
+}
+
 export function useDiscoverCourseMaps() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: api.discoverCourseMaps,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['jobs'] })
+      queryClient.invalidateQueries({ queryKey: ['courseMaps'] })
       queryClient.invalidateQueries({ queryKey: ['fichas'] })
       queryClient.invalidateQueries({ queryKey: ['dashboard'] })
       queryClient.invalidateQueries({ queryKey: ['activities'] })

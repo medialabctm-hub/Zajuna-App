@@ -23,11 +23,11 @@ function testClassifiesAuthenticode() {
 
 function testInventoriesArtifactsAndBlocksUnsignedRelease() {
   const distRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'zajuna-native-'));
-  fs.writeFileSync(path.join(distRoot, 'Zajuna.App.Setup-0.1.0.exe'), 'installer');
+  fs.writeFileSync(path.join(distRoot, 'Zajuna.Sync.Setup-0.1.0.exe'), 'installer');
   fs.writeFileSync(path.join(distRoot, 'release-manifest.json'), '{}');
   const artifacts = listReleaseArtifacts(distRoot);
   assert.equal(artifacts.length, 1);
-  assert.equal(artifacts[0].file, 'Zajuna.App.Setup-0.1.0.exe');
+  assert.equal(artifacts[0].file, 'Zajuna.Sync.Setup-0.1.0.exe');
   assert.match(artifacts[0].sha256, /^[a-f0-9]{64}$/);
 
   const report = buildReport({ distRoot, env: {}, platform: 'linux', unpackedExists: false });

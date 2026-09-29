@@ -208,7 +208,7 @@ func protectLocalAPI(next http.Handler, session *localSession) http.Handler {
 
 func writeLocalSessionRequired(w http.ResponseWriter) {
 	writeJSON(w, http.StatusUnauthorized, map[string]string{
-		"error": "la sesión local no es válida; vuelve a abrir Zajuna App desde su acceso directo",
+		"error": "la sesión local no es válida; vuelve a abrir Zajuna Sync desde su acceso directo",
 		"code":  localSessionErrorCode,
 	})
 }
@@ -225,7 +225,7 @@ func (s *localSession) serveStart(w http.ResponseWriter, r *http.Request) {
 	if !s.redeem(r.URL.Query().Get("token")) {
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		w.WriteHeader(http.StatusForbidden)
-		_, _ = w.Write([]byte("El enlace de inicio de Zajuna App ya se usó o expiró. Vuelve a abrir la aplicación desde su acceso directo.\n"))
+		_, _ = w.Write([]byte("El enlace de inicio de Zajuna Sync ya se usó o expiró. Vuelve a abrir la aplicación desde su acceso directo.\n"))
 		return
 	}
 	http.SetCookie(w, &http.Cookie{

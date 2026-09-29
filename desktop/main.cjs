@@ -427,7 +427,7 @@ if (!hasSingleInstanceLock) {
       await openAppInBrowser(coreEndpoint);
       setupAutoUpdater();
     } catch (error) {
-      await appendCoreLog(`[launcher] No se pudo iniciar Zajuna App: ${error.message}\n`);
+      await appendCoreLog(`[launcher] No se pudo iniciar Zajuna Sync: ${error.message}\n`);
       await stopCore();
       app.quit();
     }

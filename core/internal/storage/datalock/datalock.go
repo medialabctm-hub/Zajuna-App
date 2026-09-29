@@ -16,7 +16,7 @@ import (
 const FileName = ".core.lock"
 
 // ErrLocked means another core holds the data directory.
-var ErrLocked = errors.New("otro proceso de Zajuna App ya usa esta carpeta de datos")
+var ErrLocked = errors.New("otro proceso de Zajuna Sync ya usa esta carpeta de datos")
 
 // Lock is an exclusive OS lock on the data directory, released by Release or
 // automatically when the process exits.

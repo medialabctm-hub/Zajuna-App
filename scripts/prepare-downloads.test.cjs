@@ -7,10 +7,10 @@ const { BYPASS_PHRASES, renderDownloadsPage } = require('./prepare-downloads.cjs
 function testForbidsBypassLanguage() {
   const html = renderDownloadsPage({
     name: 'zajuna-app',
-    productName: 'Zajuna App',
+    productName: 'Zajuna Sync',
     version: '0.1.0',
     signed: false,
-    artifacts: [{ file: 'Zajuna.App.Setup-0.1.0.exe', size: 346000000, sha256: 'abc123' }],
+    artifacts: [{ file: 'Zajuna.Sync.Setup-0.1.0.exe', size: 346000000, sha256: 'abc123' }],
   });
   for (const phrase of BYPASS_PHRASES) {
     assert.equal(html.toLowerCase().includes(phrase.toLowerCase()), false, `found bypass phrase: ${phrase}`);
@@ -20,7 +20,7 @@ function testForbidsBypassLanguage() {
 
 function testExplainsUnsignedAsReleaseBlocker() {
   const html = renderDownloadsPage({
-    productName: 'Zajuna App',
+    productName: 'Zajuna Sync',
     version: '0.1.0',
     signed: false,
     artifacts: [{ file: 'Zajuna-App.AppImage', sha256: 'def456' }],
@@ -34,7 +34,7 @@ function testExplainsUnsignedAsReleaseBlocker() {
 
 function testKeepsChecksumAndOfficialChannelWhenSigned() {
   const html = renderDownloadsPage({
-    productName: 'Zajuna App',
+    productName: 'Zajuna Sync',
     version: '0.1.0',
     signed: true,
     artifacts: [{ file: 'Zajuna-App.AppImage', size: 320000000, sha256: 'fff999' }],

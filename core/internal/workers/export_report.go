@@ -2,9 +2,7 @@ package workers
 
 import (
 	"context"
-	"crypto/sha256"
 	"encoding/base64"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -364,10 +362,6 @@ func buildReportHTML(dataDir, title string, evidences []evidence.Record) string 
 	if len(evidences) == 0 {
 		rows.WriteString(`<tr><td colspan="5">No hay evidencias locales.</td></tr>`)
 	}
-	return fmt.Sprintf(`<!doctype html><html lang="es"><head><meta charset="utf-8"><title>%s</title><style>body{font-family:Arial,sans-serif;color:#172033;margin:40px}h1{color:#145d5a}p{color:#526173}.meta{font-size:11px;line-height:1.5}table{width:100%%;border-collapse:collapse;margin-top:24px}th,td{text-align:left;border-bottom:1px solid #d9e1ea;padding:10px;font-size:12px}th{background:#edf5f4}.evidence-figure{break-inside:avoid;margin:28px 0 0}.evidence-image{display:block;max-width:100%%;max-height:720px;object-fit:contain;border:1px solid #d9e1ea}</style></head><body><h1>%s</h1><p>Generado localmente por Zajuna App · %s</p><table><thead><tr><th>#</th><th>Evidencia</th><th>Formato</th><th>SHA-256</th><th>Capturada</th></tr></thead><tbody>%s</tbody></table>%s</body></html>`, html.EscapeString(title), html.EscapeString(title), time.Now().UTC().Format(time.RFC3339), rows.String(), figures.String())
+	return fmt.Sprintf(`<!doctype html><html lang="es"><head><meta charset="utf-8"><title>%s</title><style>body{font-family:Arial,sans-serif;color:#172033;margin:40px}h1{color:#145d5a}p{color:#526173}.meta{font-size:11px;line-height:1.5}table{width:100%%;border-collapse:collapse;margin-top:24px}th,td{text-align:left;border-bottom:1px solid #d9e1ea;padding:10px;font-size:12px}th{background:#edf5f4}.evidence-figure{break-inside:avoid;margin:28px 0 0}.evidence-image{display:block;max-width:100%%;max-height:720px;object-fit:contain;border:1px solid #d9e1ea}</style></head><body><h1>%s</h1><p>Generado localmente por Zajuna Sync · %s</p><table><thead><tr><th>#</th><th>Evidencia</th><th>Formato</th><th>SHA-256</th><th>Capturada</th></tr></thead><tbody>%s</tbody></table>%s</body></html>`, html.EscapeString(title), html.EscapeString(title), time.Now().UTC().Format(time.RFC3339), rows.String(), figures.String())
 }
 
-func reportHash(contents []byte) string {
-	hash := sha256.Sum256(contents)
-	return hex.EncodeToString(hash[:])
-}

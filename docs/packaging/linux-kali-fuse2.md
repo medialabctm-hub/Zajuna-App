@@ -17,20 +17,20 @@ AppImages require FUSE to run...
 No requiere instalar paquetes obsoletos:
 
 ```bash
-chmod +x Zajuna.App-*.AppImage
-./Zajuna.App-*.AppImage --appimage-extract-and-run
+chmod +x Zajuna.Sync-*.AppImage
+./Zajuna.Sync-*.AppImage --appimage-extract-and-run
 ```
 
 También puedes extraer una sola vez:
 
 ```bash
-./Zajuna.App-*.AppImage --appimage-extract
+./Zajuna.Sync-*.AppImage --appimage-extract
 ./squashfs-root/AppRun
 ```
 
 ## Nombre del artefacto
 
-El archivo publicado por CI se llama `Zajuna.App-<versión>.AppImage` (sin espacios; puntos en el nombre de producto, para que coincida con el manifiesto de electron-updater / GitHub Releases).
+El archivo publicado por CI se llama `Zajuna.Sync-<versión>.AppImage` (sin espacios; puntos en el nombre de producto, para que coincida con el manifiesto de electron-updater / GitHub Releases).
 
 ## Datos de usuario
 

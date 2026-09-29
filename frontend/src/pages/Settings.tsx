@@ -82,11 +82,11 @@ export function Settings() {
       <section className="card onboarding-card" role="status" aria-live="polite">
         <div className="card-pad">
           <div className="eyebrow">Restablecimiento en curso</div>
-          <h2 style={{ marginTop: 7 }}>Estamos dejando Zajuna App como recién instalada</h2>
+          <h2 style={{ marginTop: 7 }}>Estamos dejando Zajuna Sync como recién instalada</h2>
           <p className="helper" style={{ marginTop: 8 }}>
             {resetDone.restarting
               ? 'La aplicación se reinicia sola y abrirá una pestaña nueva en unos segundos, con el checklist en 0 y sin evidencias, actividades ni trabajos anteriores. Ya puedes cerrar esta pestaña.'
-              : 'Cierra Zajuna App y vuelve a abrirla: al iniciar se borrarán los datos anteriores y verás la aplicación como recién instalada.'}
+              : 'Cierra Zajuna Sync y vuelve a abrirla: al iniciar se borrarán los datos anteriores y verás la aplicación como recién instalada.'}
           </p>
           {resetDone.backupName ? (
             <p className="helper" style={{ marginTop: 8 }}>
@@ -258,7 +258,7 @@ export function Settings() {
           <section className="card settings-section">
             <div className="settings-section-head">
               <h3>Credenciales de Zajuna</h3>
-              <p className="helper">Zajuna App no tiene una cuenta propia. Estas credenciales solo abren la sesión contra el campus.</p>
+              <p className="helper">Zajuna Sync no tiene una cuenta propia. Estas credenciales solo abren la sesión contra el campus.</p>
             </div>
             <div className="card-pad">
               <form onSubmit={handleSubmit}>
@@ -450,14 +450,14 @@ export function Settings() {
           {appInfoQuery.data?.resetPending ? (
             <div className="activity-status warn" role="alert">
               Hay un restablecimiento pendiente que no se pudo aplicar porque otro proceso tenía abiertos los datos. Cierra
-              Zajuna App por completo (también desde la bandeja del sistema) y vuelve a abrirla.
+              Zajuna Sync por completo (también desde la bandeja del sistema) y vuelve a abrirla.
             </div>
           ) : null}
           <section className="card settings-section">
             <div className="settings-section-head">
               <h3>Restablecer la aplicación</h3>
               <p className="helper">
-                Deja Zajuna App como recién instalada: checklist en 0 %, sin evidencias, actividades, trabajos ni avisos
+                Deja Zajuna Sync como recién instalada: checklist en 0 %, sin evidencias, actividades, trabajos ni avisos
                 anteriores. Instalar una versión nueva ya lo hace automáticamente; usa esta opción para empezar de cero sin reinstalar.
               </p>
             </div>
@@ -614,7 +614,7 @@ export function Settings() {
         <div id="settings-panel-about" className="settings-grid" role="tabpanel" aria-labelledby="settings-tab-about" tabIndex={0}>
           <section className="card settings-section">
             <div className="settings-section-head">
-              <h3>Zajuna App</h3>
+              <h3>Zajuna Sync</h3>
               <p className="helper">Herramienta local para revisar fichas y preparar evidencias.</p>
             </div>
             <div className="settings-row">

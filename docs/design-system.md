@@ -1,4 +1,4 @@
-# Sistema visual de Zajuna App
+# Sistema visual de Zajuna Sync
 
 La interfaz usable vive en el frontend React y se sirve desde el mismo origen
 local que la API del core Go. El build de Vite se sincroniza en

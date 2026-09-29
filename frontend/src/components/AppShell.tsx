@@ -57,7 +57,7 @@ export function AppShell() {
         <main id="dashboard-main" className="shell app-main" aria-labelledby={navItem?.showGenericHeader ? 'page-title' : 'dashboard-title'} tabIndex={-1}>
           {!navItem?.showGenericHeader && (
             <h1 id="dashboard-title" className="sr-only">
-              {navItem?.label || 'Espacio de trabajo de Zajuna App'}
+              {navItem?.label || 'Espacio de trabajo de Zajuna Sync'}
             </h1>
           )}
           {navItem?.group === 'Operación' ? <WorkflowSteps /> : null}

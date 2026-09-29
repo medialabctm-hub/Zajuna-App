@@ -1,6 +1,6 @@
-# Zajuna App — Frontend
+# Zajuna Sync — Frontend
 
-Interfaz de Zajuna App en React 19 + TypeScript + Vite. El build se sincroniza
+Interfaz de Zajuna Sync en React 19 + TypeScript + Vite. El build se sincroniza
 con `core/cmd/zajuna-core/web/` y queda embebido en el binario Go para
 producción.
 

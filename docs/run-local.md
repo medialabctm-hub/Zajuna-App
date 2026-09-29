@@ -1,6 +1,6 @@
-# Cómo corre Zajuna App en local
+# Cómo corre Zajuna Sync en local
 
-Zajuna App **ya no es un sitio web remoto**. Es una aplicación de escritorio
+Zajuna Sync **ya no es un sitio web remoto**. Es una aplicación de escritorio
 que enciende un servidor solo en tu PC (`127.0.0.1`) y abre el navegador
 predeterminado contra esa dirección. No hay n8n, Docker, MySQL ni túnel.
 
@@ -39,7 +39,7 @@ npm run build
 .\core\bin\zajuna-core.exe
 ```
 
-El core imprime `Zajuna App local disponible en http://127.0.0.1:<puerto>` y
+El core imprime `Zajuna Sync local disponible en http://127.0.0.1:<puerto>` y
 abre el navegador. Electron solo supervisa ese proceso; no es obligatorio
 para desarrollar la interfaz.
 
@@ -53,7 +53,7 @@ Un segundo `desktop:start` no duplica el backend: reabre la URL existente.
 La guía paso a paso (requisitos, SmartScreen, asistente, Setup y fallos) está
 en [`guia-instalacion.md`](guia-instalacion.md). Resumen:
 
-1. Instala `Zajuna.App.Setup-…exe` (Windows) o el AppImage (Linux).
+1. Instala `Zajuna.Sync.Setup-…exe` (Windows) o el AppImage (Linux).
 2. El acceso directo inicia el mismo launcher: core local + navegador.
 3. En el primer arranque aparece **Setup**: documento y contraseña de Zajuna.
 4. A partir de ahí, Resumen, fichas, checklist, evidencias y reportes son

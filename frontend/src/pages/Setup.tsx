@@ -30,7 +30,7 @@ export function Setup() {
         <div className="brand">
           <span className="brand-mark">Z</span>
           <span>
-            Zajuna App
+            Zajuna Sync
             <span className="brand-subtitle">Operación local</span>
           </span>
         </div>
@@ -39,7 +39,7 @@ export function Setup() {
         <div className="setup-layout">
         <aside className="setup-summary card" aria-label="Resumen del proyecto">
           <div className="card-pad">
-            <div className="eyebrow">Zajuna App</div>
+            <div className="eyebrow">Zajuna Sync</div>
             <h2 style={{ marginTop: 8 }}>Tu espacio de trabajo local</h2>
             <p className="helper" style={{ marginTop: 8 }}>
               Guarda tus credenciales una sola vez y completa el flujo desde este equipo, sin exponer tus evidencias fuera de él.

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -11,16 +12,28 @@ import (
 
 	"github.com/zajuna-app/core/internal/coursemaps"
 	"github.com/zajuna-app/core/internal/jobs"
+	"github.com/zajuna-app/core/internal/storage/sqlite"
 	"github.com/zajuna-app/core/internal/zajuna"
 )
 
 type discoverCourseMapsRequest struct {
-	Username        string   `json:"username"`
-	DocumentType    string   `json:"documentType"`
-	CourseIDs       []string `json:"courseIds"`
-	MaxDepth        int      `json:"maxDepth"`
-	MaxPages        int      `json:"maxPages"`
-	MaxLinksPerPage int      `json:"maxLinksPerPage"`
+	Username     string   `json:"username"`
+	DocumentType string   `json:"documentType"`
+	CourseIDs    []string `json:"courseIds"`
+	// FichaID elige la ficha cuyas rutas se buscan. Sin courseIds ni fichaId se
+	// usa la ficha activa. AllFichas recorre todas las fichas locales y solo lo
+	// pide la preparación del primer arranque: ninguna acción normal lo usa.
+	FichaID         string `json:"fichaId,omitempty"`
+	AllFichas       bool   `json:"allFichas,omitempty"`
+	MaxDepth        int    `json:"maxDepth"`
+	MaxPages        int    `json:"maxPages"`
+	MaxLinksPerPage int    `json:"maxLinksPerPage"`
+}
+
+// courseMapFichaStore resuelve la ficha objetivo del descubrimiento.
+type courseMapFichaStore interface {
+	GetFicha(ctx context.Context, fichaID string) (sqlite.FichaRecord, error)
+	GetActiveFichaID(ctx context.Context) (string, error)
 }
 
 type importCourseActivitiesRequest struct {
@@ -146,24 +159,14 @@ func registerCourseMapRoutes(mux *http.ServeMux, store coursemaps.Store, fichas 
 		if request.DocumentType == "" {
 			request.DocumentType = "CC"
 		}
-		request.CourseIDs = uniqueNonEmpty(request.CourseIDs)
-		if len(request.CourseIDs) == 0 && fichas != nil {
-			items, err := fichas.ListFichas(r.Context(), 100)
-			if err != nil {
-				writeError(w, http.StatusInternalServerError, err)
-				return
-			}
-			for _, item := range items {
-				if strings.TrimSpace(item.CourseID) != "" {
-					request.CourseIDs = append(request.CourseIDs, item.CourseID)
-				}
-			}
-			request.CourseIDs = uniqueNonEmpty(request.CourseIDs)
-		}
-		if len(request.CourseIDs) == 0 {
-			writeError(w, http.StatusBadRequest, errors.New("sin cursos locales; sincroniza primero Mis cursos o envía courseIds"))
+		courseIDs, fichaID, status, err := resolveDiscoveryCourses(r.Context(), request, fichas)
+		if err != nil {
+			writeError(w, status, err)
 			return
 		}
+		// El job guarda la ficha resuelta, no la pedida: así un reintento busca
+		// las rutas de la misma ficha aunque después cambie la ficha activa.
+		request.CourseIDs, request.FichaID = courseIDs, fichaID
 		if request.MaxDepth < 0 || request.MaxDepth > 6 || request.MaxPages < 0 || request.MaxPages > 500 || request.MaxLinksPerPage < 0 || request.MaxLinksPerPage > 1000 {
 			writeError(w, http.StatusBadRequest, errors.New("los límites de descubrimiento están fuera de rango"))
 			return
@@ -175,6 +178,58 @@ func registerCourseMapRoutes(mux *http.ServeMux, store coursemaps.Store, fichas 
 		}
 		writeJSON(w, http.StatusAccepted, toJobView(job))
 	})
+}
+
+// resolveDiscoveryCourses decide qué cursos se descubren. Buscar rutas es una
+// acción sobre una ficha: courseIds explícitos, si no la ficha indicada y, si
+// tampoco, la ficha activa. Recorrer todas las fichas exige allFichas.
+func resolveDiscoveryCourses(ctx context.Context, request discoverCourseMapsRequest, fichas fichaLister) ([]string, string, int, error) {
+	if courseIDs := uniqueNonEmpty(request.CourseIDs); len(courseIDs) > 0 {
+		return courseIDs, strings.TrimSpace(request.FichaID), http.StatusOK, nil
+	}
+	if request.AllFichas {
+		if fichas == nil {
+			return nil, "", http.StatusServiceUnavailable, errors.New("el almacenamiento de fichas no está disponible")
+		}
+		items, err := fichas.ListFichas(ctx, 100)
+		if err != nil {
+			return nil, "", http.StatusInternalServerError, err
+		}
+		courseIDs := make([]string, 0, len(items))
+		for _, item := range items {
+			courseIDs = append(courseIDs, item.CourseID)
+		}
+		if courseIDs = uniqueNonEmpty(courseIDs); len(courseIDs) == 0 {
+			return nil, "", http.StatusBadRequest, errors.New("sin cursos locales; sincroniza primero Mis cursos")
+		}
+		return courseIDs, "", http.StatusOK, nil
+	}
+	store, ok := fichas.(courseMapFichaStore)
+	if !ok {
+		return nil, "", http.StatusServiceUnavailable, errors.New("el almacenamiento de fichas no está disponible")
+	}
+	fichaID := strings.TrimSpace(request.FichaID)
+	if fichaID == "" {
+		active, err := store.GetActiveFichaID(ctx)
+		if err != nil {
+			return nil, "", http.StatusInternalServerError, err
+		}
+		if fichaID = strings.TrimSpace(active); fichaID == "" {
+			return nil, "", http.StatusBadRequest, errors.New("selecciona una ficha antes de buscar rutas")
+		}
+	}
+	ficha, err := store.GetFicha(ctx, fichaID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, "", http.StatusNotFound, errors.New("la ficha seleccionada no existe")
+		}
+		return nil, "", http.StatusInternalServerError, err
+	}
+	courseID := strings.TrimSpace(ficha.CourseID)
+	if courseID == "" {
+		return nil, "", http.StatusBadRequest, errors.New("la ficha no tiene un curso asociado; sincroniza tus fichas otra vez")
+	}
+	return []string{courseID}, ficha.ID, http.StatusOK, nil
 }
 
 func uniqueNonEmpty(values []string) []string {

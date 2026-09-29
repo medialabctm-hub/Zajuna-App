@@ -62,6 +62,11 @@ type appConfig struct {
 	ZajunaUsername     string `json:"zajunaUsername,omitempty"`
 	ZajunaDocumentType string `json:"zajunaDocumentType,omitempty"`
 	CredentialsStored  bool   `json:"credentialsStored"`
+	// FirstRunPending está activo desde que se completa el Setup por primera
+	// vez hasta que la interfaz termina de preparar las fichas y sus rutas
+	// (o el usuario la omite). Solo mientras dura, se muestra la pantalla de
+	// carga del primer arranque.
+	FirstRunPending bool `json:"firstRunPending,omitempty"`
 }
 
 type setupRequest struct {
@@ -237,7 +242,7 @@ func main() {
 		MaxHeaderBytes:    1 << 20,
 	}
 	url := "http://" + listener.Addr().String()
-	log.Printf("Zajuna App local disponible en %s", url)
+	log.Printf("Zajuna Sync local disponible en %s", url)
 	if *endpointFile != "" {
 		if err := writeEndpointFile(*endpointFile, endpointInfo{URL: url, Port: listener.Addr().(*net.TCPAddr).Port}); err != nil {
 			log.Fatalf("no se pudo publicar el endpoint local: %v", err)
@@ -324,6 +329,7 @@ func newRouterWithServices(dataDir string, credentials secrets.Store, jobRuntime
 			"setupComplete": config.SetupComplete, "zajunaUsername": config.ZajunaUsername,
 			"zajunaDocumentType": documentType,
 			"hasZajunaPassword":  config.CredentialsStored,
+			"firstRunPending":    config.FirstRunPending,
 		}
 		if profileStore != nil {
 			if profileName, profileErr := profileStore.GetAppSetting(context.Background(), "profile_name"); profileErr == nil && strings.TrimSpace(profileName) != "" {
@@ -332,6 +338,22 @@ func newRouterWithServices(dataDir string, credentials secrets.Store, jobRuntime
 			}
 		}
 		writeJSON(w, http.StatusOK, response)
+	})
+
+	mux.HandleFunc("POST /api/setup/first-run/complete", func(w http.ResponseWriter, _ *http.Request) {
+		config, err := readConfig(dataDir)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err)
+			return
+		}
+		if config.FirstRunPending {
+			config.FirstRunPending = false
+			if err := writeConfig(dataDir, config); err != nil {
+				writeError(w, http.StatusInternalServerError, err)
+				return
+			}
+		}
+		writeJSON(w, http.StatusOK, map[string]bool{"firstRunPending": false})
 	})
 
 	mux.HandleFunc("POST /api/setup", func(w http.ResponseWriter, r *http.Request) {
@@ -358,11 +380,14 @@ func newRouterWithServices(dataDir string, credentials secrets.Store, jobRuntime
 			return
 		}
 
+		// Cambiar las credenciales más adelante no repite el primer arranque.
+		previous, _ := readConfig(dataDir)
 		if err := writeConfig(dataDir, appConfig{
 			SetupComplete:      true,
 			ZajunaUsername:     request.ZajunaUsername,
 			ZajunaDocumentType: request.ZajunaDocumentType,
 			CredentialsStored:  true,
+			FirstRunPending:    previous.FirstRunPending || !previous.SetupComplete,
 		}); err != nil {
 			writeError(w, http.StatusInternalServerError, err)
 			return

@@ -1,6 +1,6 @@
 # Firma y smoke de instaladores
 
-Zajuna App distribuye instaladores únicamente para Windows y Linux. macOS no es
+Zajuna Sync distribuye instaladores únicamente para Windows y Linux. macOS no es
 una plataforma soportada.
 
 ## Windows

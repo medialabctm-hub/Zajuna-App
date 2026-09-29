@@ -1,4 +1,4 @@
-# API local de Zajuna App
+# API local de Zajuna Sync
 
 La API se sirve desde el core Go en el mismo origen que la interfaz y escucha
 exclusivamente en `127.0.0.1`. No usa JWT, login propio ni CORS abierto para la

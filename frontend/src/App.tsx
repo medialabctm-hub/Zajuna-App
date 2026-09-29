@@ -3,6 +3,7 @@ import { useSetupStatus } from './hooks/api'
 import { ApiError, LOCAL_SESSION_REQUIRED } from './api/client'
 import { Setup } from './pages/Setup'
 import { AppShell } from './components/AppShell'
+import { FirstRunGate } from './components/FirstRunGate'
 import { PageSkeleton, PageError } from './components/AsyncState'
 import {
   Activities,
@@ -28,7 +29,7 @@ function App() {
   }
 
   if (error instanceof ApiError && error.status === LOCAL_SESSION_REQUIRED) {
-    return <PageError message="Esta pestaña no tiene una sesión local válida. Vuelve a abrir Zajuna App desde su acceso directo para continuar." />
+    return <PageError message="Esta pestaña no tiene una sesión local válida. Vuelve a abrir Zajuna Sync desde su acceso directo para continuar." />
   }
 
   if (isError) {
@@ -40,6 +41,7 @@ function App() {
   }
 
   return (
+    <FirstRunGate>
     <Routes>
       <Route element={<AppShell />}>
         <Route index element={<Navigate to="/resumen" replace />} />
@@ -59,6 +61,7 @@ function App() {
         <Route path="*" element={<Navigate to="/resumen" replace />} />
       </Route>
     </Routes>
+    </FirstRunGate>
   )
 }
 

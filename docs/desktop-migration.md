@@ -1,4 +1,4 @@
-# Migración de Zajuna Sync a Zajuna App Desktop
+# Migración de Zajuna Sync a Zajuna Sync Desktop
 
 **Estado del documento:** consolidado después de la auditoría OWASP y del
 hardening M0/M1 (2026-08-20).  
@@ -13,7 +13,7 @@ ejecuta, modifica ni se distribuye con la aplicación.
 
 ## 1. Objetivo y límites
 
-Zajuna App es una aplicación de escritorio instalable para Windows y Linux.
+Zajuna Sync es una aplicación de escritorio instalable para Windows y Linux.
 macOS no es una plataforma soportada: no se cuenta con certificado Apple
 Developer ID para firmar y notarizar un instalador, y no hay plan para
 conseguirlo. Todo el procesamiento principal ocurre localmente:
@@ -26,7 +26,7 @@ conseguirlo. Todo el procesamiento principal ocurre localmente:
 - Credential Manager o Secret Service guardan la contraseña de Zajuna.
 
 No forman parte del runtime final n8n, Docker, MySQL, ngrok, JWT, un login
-propio, un servidor remoto ni una cuenta de Zajuna App. Zajuna sigue siendo la
+propio, un servidor remoto ni una cuenta de Zajuna Sync. Zajuna sigue siendo la
 dependencia HTTPS externa necesaria para sincronizar y capturar información.
 
 ## 2. Qué se migró

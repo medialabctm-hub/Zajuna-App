@@ -217,8 +217,14 @@ export const api = {
   capture: (input: { fichaId: string; username: string; documentType: string; itemCodes?: string[] }) =>
     request<Job>('/api/checklist/capture', json(input)),
 
-  discoverCourseMaps: (input: { username: string; documentType: string }) =>
+  // Buscar rutas es por ficha: sin fichaId el core usa la ficha activa. allFichas
+  // solo lo usa la preparación del primer arranque.
+  discoverCourseMaps: (input: { username: string; documentType: string; fichaId?: string; allFichas?: boolean }) =>
     request<Job>('/api/course-maps/discover', json(input)),
+
+  completeFirstRun: () => request<{ firstRunPending: boolean }>('/api/setup/first-run/complete', { method: 'POST' }),
+
+  listCourseMaps: (limit = 100) => request<Array<{ courseId: string }>>(`/api/course-maps?limit=${limit}`),
 
   getEvidenceGroups: (fichaId: string) =>
     request<EvidenceGroup[]>(`/api/evidences/groups?fichaId=${encodeURIComponent(fichaId)}`),

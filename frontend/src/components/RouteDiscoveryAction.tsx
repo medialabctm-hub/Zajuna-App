@@ -44,11 +44,12 @@ export function RouteDiscoveryAction({
   const classes = ['button', isCurrent('routes') ? 'primary is-next-step' : routesDone ? 'ghost' : variant, compact ? 'small' : '', className].filter(Boolean).join(' ')
 
   function handleDiscover() {
-    if (active || discover.isPending) return
+    if (active || discover.isPending || !dashboard?.activeFichaId) return
     discover.mutate(
       {
         username: setup?.zajunaUsername || '',
         documentType: setup?.zajunaDocumentType || 'CC',
+        fichaId: dashboard.activeFichaId,
       },
       {
         onSuccess: () => toast('Buscaremos las rutas del curso. Puedes seguir trabajando mientras avanza.'),

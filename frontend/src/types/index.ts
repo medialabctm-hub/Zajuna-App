@@ -3,6 +3,8 @@ export interface SetupStatus {
   zajunaUsername?: string
   zajunaDocumentType?: 'CC' | 'TI' | 'CE'
   hasZajunaPassword?: boolean
+  /** Verdadero desde el primer Setup hasta que se preparan fichas y rutas (o se omite). */
+  firstRunPending?: boolean
   /** Optional profile metadata returned after the first successful Zajuna session. */
   profile?: {
     fullName?: string
