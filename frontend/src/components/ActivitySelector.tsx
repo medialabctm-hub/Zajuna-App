@@ -131,7 +131,7 @@ export function ActivitySelector({ data, fichaId }: { data: ActivitiesResponse; 
       <div className="card-pad">
         <div className="side-title">
           <div>
-            <div className="eyebrow">Paso 3 · Seleccionar actividades</div>
+            <div className="eyebrow">Paso 1 · Seleccionar actividades</div>
             <h3 style={{ marginTop: 7 }}>¿Qué actividades técnicas orientas tú en esta ficha?</h3>
           </div>
           <span className="badge">{draft.size} de {technical.length} marcadas</span>
@@ -205,7 +205,7 @@ export function ActivitySelector({ data, fichaId }: { data: ActivitiesResponse; 
         <div className="activity-list">
           {!all.length ? (
             <div className="empty">
-              El curso no tiene actividades detectadas. Vuelve al paso 2 y pulsa “Buscar rutas” para leer el contenido del curso.
+              El curso no tiene actividades detectadas. Abre <Link to="/fichas">Fichas</Link> y pulsa “Buscar rutas” para volver a leer el contenido del curso.
             </div>
           ) : !technical.length ? (
             <div className="empty">Este curso no tiene actividades técnicas detectadas, así que no hay nada que seleccionar.</div>
@@ -278,7 +278,7 @@ export function ActivitySelector({ data, fichaId }: { data: ActivitiesResponse; 
           <div className="inline">
             {(justSaved || hasSavedSelection) && !dirty ? (
               <Link className="button ghost small" to="/resumen">
-                Siguiente: paso 4, preparar evidencias →
+                Siguiente: paso 2, preparar evidencias →
               </Link>
             ) : null}
             <button

@@ -134,6 +134,9 @@ type ReviewEntry struct {
 	Height          int            `json:"height"`
 	SHA256          string         `json:"sha256"`
 	SharedWith      []string       `json:"sharedWith"`
+	// Superseded: an approved upload of the instructor replaced this capture
+	// in the same item and slot, so it no longer blocks the item.
+	Superseded bool `json:"superseded,omitempty"`
 }
 
 type MissingItem struct {
@@ -582,11 +585,21 @@ func BuildReviewReport(fichaID string, records []Record, reviews map[string]Revi
 	})
 
 	report := ReviewReport{FichaID: fichaID, Evidences: make([]ReviewEntry, 0, len(sorted)), MissingItems: []MissingItem{}}
+	slots := make([]SlotEvidence, 0, len(sorted))
+	for _, record := range sorted {
+		status := reviews[record.ID].Status
+		if status == "" {
+			status = ReviewPending
+		}
+		slots = append(slots, SlotEvidence{ID: record.ID, ItemCode: record.ItemCode, Slot: record.SlotNumber, Manual: IsManualSource(record.Source), Status: status})
+	}
+	superseded := SupersededEvidence(slots)
 	var latest time.Time
 	itemState := map[string]string{}
 	for _, record := range sorted {
 		review := reviews[record.ID]
 		entry := BuildReviewEntry(record, review, records)
+		entry.Superseded = superseded[record.ID]
 		report.Evidences = append(report.Evidences, entry)
 		if review.UpdatedAt.After(latest) {
 			latest = review.UpdatedAt
@@ -600,7 +613,7 @@ func BuildReviewReport(fichaID string, records []Record, reviews map[string]Revi
 		default:
 			report.Summary.Pending++
 		}
-		if record.ItemCode == "" {
+		if record.ItemCode == "" || entry.Superseded {
 			continue
 		}
 		if entry.Status != ReviewApproved {

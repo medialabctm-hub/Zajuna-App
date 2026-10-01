@@ -3,7 +3,10 @@ export type WorkflowStepState = 'done' | 'current' | 'running' | 'pending'
 
 export interface WorkflowStep {
   key: WorkflowStepKey
+  /** Número visible (1..3); 0 en los pasos automáticos, que no se numeran. */
   number: number
+  /** Se hace solo en el primer arranque (sincronizar fichas, buscar rutas). */
+  automatic: boolean
   label: string
   hint: string
   to: string
@@ -32,12 +35,13 @@ export interface WorkflowInput {
  * overwritten by "Marcar como cumplidos").
  */
 export function approvedItemsNotMarked(
-  evidences: ReadonlyArray<{ itemCode?: string; status: string }>,
+  evidences: ReadonlyArray<{ itemCode?: string; status: string; superseded?: boolean }>,
   items: ReadonlyArray<{ itemCode: string; status?: string }>,
 ): string[] {
   const byItem = new Map<string, boolean>()
   for (const entry of evidences) {
-    if (!entry.itemCode) continue
+    // A capture replaced by an approved upload of the instructor no longer counts.
+    if (!entry.itemCode || entry.superseded) continue
     byItem.set(entry.itemCode, (byItem.get(entry.itemCode) ?? true) && entry.status === 'approved')
   }
   const marked = new Set(items.filter((item) => item.status === 'SI' || item.status === 'NO').map((item) => item.itemCode))
@@ -47,7 +51,8 @@ export function approvedItemsNotMarked(
 /**
  * The instructor's flow, in order. A step is "current" when every previous
  * step is done; later steps stay "pending" so the UI can point to exactly
- * one next action.
+ * one next action. Sync and routes run by themselves on first start: they
+ * still gate the flow but are not numbered nor shown as steps.
  */
 export function computeWorkflow(input: WorkflowInput): WorkflowStep[] {
   const done: Record<WorkflowStepKey, boolean> = {
@@ -66,7 +71,7 @@ export function computeWorkflow(input: WorkflowInput): WorkflowStep[] {
     capture: input.captureRunning,
     review: false,
   }
-  const definitions: Array<Omit<WorkflowStep, 'state' | 'number'>> = [
+  const definitions: Array<Omit<WorkflowStep, 'state' | 'number' | 'automatic'>> = [
     {
       key: 'sync',
       label: 'Sincronizar fichas',
@@ -88,7 +93,9 @@ export function computeWorkflow(input: WorkflowInput): WorkflowStep[] {
     },
   ]
   let currentAssigned = false
-  return definitions.map((definition, index) => {
+  let visibleNumber = 0
+  return definitions.map((definition) => {
+    const automatic = AUTOMATIC_STEPS.includes(definition.key)
     let state: WorkflowStepState
     if (running[definition.key]) {
       state = 'running'
@@ -101,8 +108,24 @@ export function computeWorkflow(input: WorkflowInput): WorkflowStep[] {
     } else {
       state = done[definition.key] ? 'done' : 'pending'
     }
-    return { ...definition, number: index + 1, state }
+    return { ...definition, automatic, number: automatic ? 0 : ++visibleNumber, state }
   })
+}
+
+const AUTOMATIC_STEPS: WorkflowStepKey[] = ['sync', 'routes']
+
+/** Steps the person acts on (numbered 1..3); automatic ones are hidden. */
+export function visibleWorkflowSteps(steps: WorkflowStep[]) {
+  return steps.filter((step) => !step.automatic)
+}
+
+/**
+ * Automatic step still pending (no ficha chosen or no course routes yet), or
+ * undefined when the visible flow can start. The UI shows it as a one-line
+ * notice instead of a numbered step.
+ */
+export function pendingAutomaticStep(steps: WorkflowStep[]) {
+  return steps.find((step) => step.automatic && step.state !== 'done')
 }
 
 export function currentWorkflowStep(steps: WorkflowStep[]) {

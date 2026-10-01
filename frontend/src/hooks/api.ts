@@ -200,6 +200,7 @@ export function useJobs() {
     queryClient.invalidateQueries({ queryKey: ['reviews'] })
     queryClient.invalidateQueries({ queryKey: ['reports'] })
     queryClient.invalidateQueries({ queryKey: ['evidenceReview'] })
+    queryClient.invalidateQueries({ queryKey: ['checklistGuides'] })
     // Finished jobs create notifications and a ficha sync rewrites the list.
     queryClient.invalidateQueries({ queryKey: ['notifications'] })
     queryClient.invalidateQueries({ queryKey: ['fichas'] })
@@ -366,6 +367,7 @@ export function useSetItemStatus() {
       api.setItemStatus(itemCode, input),
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+      queryClient.invalidateQueries({ queryKey: ['checklistGuides'] })
       queryClient.invalidateQueries({ queryKey: ['checklistItemDetail', variables.fichaId, variables.itemCode] })
     },
   })
@@ -452,6 +454,10 @@ export function useUploadEvidence() {
       queryClient.invalidateQueries({ queryKey: ['dashboard'] })
       queryClient.invalidateQueries({ queryKey: ['evidenceGroups'] })
       queryClient.invalidateQueries({ queryKey: ['evidences', fichaId] })
+      // An upload with itemCode is reviewed and can complete the item.
+      queryClient.invalidateQueries({ queryKey: ['evidenceReview'] })
+      queryClient.invalidateQueries({ queryKey: ['checklistItemDetail'] })
+      queryClient.invalidateQueries({ queryKey: ['checklistGuides'] })
     },
   })
 }
@@ -506,6 +512,17 @@ export function useCreateBackup() {
   })
 }
 
+/** Guías para los ítems que dependen del instructor (contenido que falta en Zajuna). */
+export function useChecklistGuides(fichaId?: string) {
+  return useQuery({
+    queryKey: ['checklistGuides', fichaId],
+    queryFn: () => api.getChecklistGuides(fichaId as string),
+    enabled: !!fichaId,
+    retry: retryTransient,
+    refetchOnWindowFocus: true,
+  })
+}
+
 export function useEvidenceReview(fichaId?: string) {
   return useQuery({
     queryKey: ['evidenceReview', fichaId],
@@ -523,6 +540,7 @@ export function useVerifyEvidences() {
     onSuccess: (data, fichaId) => {
       queryClient.setQueryData(['evidenceReview', fichaId], data)
       queryClient.invalidateQueries({ queryKey: ['evidenceReview'] })
+      queryClient.invalidateQueries({ queryKey: ['checklistGuides'] })
       // Verifying marks fully approved items as fulfilled in the checklist.
       queryClient.invalidateQueries({ queryKey: ['dashboard'] })
     },
@@ -535,6 +553,7 @@ export function useSetEvidenceReview() {
     mutationFn: ({ evidenceId, ...input }: { evidenceId: string; status: 'approved' | 'pending' | 'rejected'; note?: string }) =>
       api.setEvidenceReview(evidenceId, input),
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['checklistGuides'] })
       queryClient.invalidateQueries({ queryKey: ['evidenceReview'] })
       // A decision can mark (or withdraw) the item in the checklist.
       queryClient.invalidateQueries({ queryKey: ['dashboard'] })

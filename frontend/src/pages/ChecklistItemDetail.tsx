@@ -1,9 +1,12 @@
-import { Link, useParams } from 'react-router-dom'
+import { useEffect } from 'react'
+import { Link, useLocation, useParams } from 'react-router-dom'
 import { MissingActiveFicha, PageError, PageSkeleton } from '../components/AsyncState'
 import { evidenceDownloadUrl } from '../api/client'
 import {
   useCapture,
+  useChecklistGuides,
   useChecklistItemDetail,
+  useEvidenceReview,
   useDashboard,
   useReviews,
   useSetItemStatus,
@@ -14,6 +17,8 @@ import {
 import { useToast } from '../hooks/useToast'
 import { friendlyError } from '../lib/friendlyError'
 import { confidenceFor, formatDate, routeStatusClass, routeStatusLabel } from '../lib/format'
+import { GuideCard } from '../components/ChecklistGuide'
+import { itemReviewState } from '../lib/evidenceGroupState'
 import type { DashboardItem, Evidence, ItemStatus, RouteTarget } from '../types'
 
 function targetLocation(target: RouteTarget) {
@@ -49,6 +54,16 @@ export function ChecklistItemDetail() {
   const setupQuery = useSetupStatus()
   const setStatus = useSetItemStatus()
   const capture = useCapture()
+  const guidesQuery = useChecklistGuides(dashboard?.activeFichaId)
+  const reviewQuery = useEvidenceReview(dashboard?.activeFichaId)
+  const guide = guidesQuery.data?.guides.find((entry) => entry.itemCode === decodedCode)
+  const location = useLocation()
+
+  // «Ver guía» llega con #guia: se lleva la vista a la guía cuando ya cargó.
+  useEffect(() => {
+    if (location.hash !== '#guia' || !guide) return
+    document.getElementById('guia')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }, [location.hash, guide])
 
   if (dashboardQuery.isLoading) return <PageSkeleton label="Cargando detalle de tarea" />
   if (dashboardQuery.isError && isNotFound(dashboardQuery.error)) {
@@ -76,7 +91,9 @@ export function ChecklistItemDetail() {
     return Boolean(target.coveredItemCodes?.includes(task.itemCode))
   })
   const reviews = reviewsQuery.data || []
-  const confidence = confidenceFor(task)
+  // La etiqueta sigue a Revisión; sin revisión, la confianza de la captura.
+  const reviewState = itemReviewState(task.itemCode, reviewQuery.data?.evidences ?? [])
+  const confidence = reviewState ? { ...reviewState, detail: 'Estado en Revisión' } : confidenceFor(task)
   const maxEvidences = Math.max(1, Number(task.maxEvidences) || 1)
   const evidenceCount = Number(task.evidenceCount) || 0
   const events = detailQuery.data?.events || []
@@ -146,13 +163,15 @@ export function ChecklistItemDetail() {
           </div>
 
           <div className="task-detail-actions">
-            <button className="button primary" onClick={handleCapture} disabled={capture.isPending || targetsQuery.isLoading || !targets.length}>
+            <button className={`button ${guide ? 'ghost' : 'primary'}`} onClick={handleCapture} disabled={capture.isPending || targetsQuery.isLoading || !targets.length}>
               {capture.isPending ? 'Preparando…' : 'Preparar evidencia'}
             </button>
             <Link className="button ghost" to="/evidencias">Ver galería de evidencias</Link>
           </div>
         </div>
       </section>
+
+      {guide ? <GuideCard guide={guide} fichaId={activeFichaId} canRecapture={targets.length > 0} /> : null}
 
       <div className="task-detail-columns">
         <section className="card">

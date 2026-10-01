@@ -1,4 +1,4 @@
-import type { ChangeEvent, CSSProperties } from 'react'
+import type { ChangeEvent } from 'react'
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import {
@@ -17,12 +17,12 @@ import {
   useTargets,
   useDismissJobs,
   useEvidenceReview,
+  useChecklistGuides,
   isNotFound,
 } from '../hooks/api'
 import { explainJobFailure, unresolvedFailedJobs } from '../lib/jobFailure'
 import { FailureGuide } from '../components/FailureGuide'
 import {
-  confidenceFor,
   formatDate,
   friendlyJobMessage,
   friendlyJobStatus,
@@ -36,12 +36,10 @@ import { useToast } from '../hooks/useToast'
 import { friendlyError } from '../lib/friendlyError'
 import { reportDownloadUrl } from '../api/client'
 import type { DashboardCategory, EvidenceGroup, Job, Report, Schedule } from '../types'
-import { RouteDiscoveryAction } from '../components/RouteDiscoveryAction'
 import { CaptureAction, SyncFichasAction } from '../components/WorkflowActions'
 import { StepBadge } from '../components/WorkflowSteps'
 import { useWorkflow } from '../hooks/workflow'
-
-type BarStyle = CSSProperties & { '--bar-height'?: string }
+import { groupState, type ReviewStatusById } from '../lib/evidenceGroupState'
 
 function clamp(value: number, min: number, max: number) {
   return Math.max(min, Math.min(max, value))
@@ -75,12 +73,9 @@ function JobEntry({ job }: { job: Job }) {
   )
 }
 
-function EvidenceGroupCard({ group }: { group: EvidenceGroup }) {
-  const confidence = confidenceFor({
-    captureConfidence: undefined,
-    confidence: group.confidence,
-    evidenceCount: group.evidences?.length ?? 0,
-  })
+function EvidenceGroupCard({ group, reviews }: { group: EvidenceGroup; reviews: ReviewStatusById }) {
+  // Same source of truth as the gallery: the Revisión state, not the old capture confidence.
+  const confidence = groupState(group, reviews)
   const title =
     group.title || (group.itemCodes?.length ? `Ítems ${group.itemCodes.join(', ')}` : 'Grupo de evidencias')
   return (
@@ -155,7 +150,10 @@ export function Overview() {
   const setScheduleEnabled = useSetScheduleEnabled()
   const dismissJobs = useDismissJobs()
   const workflow = useWorkflow()
-  const reviewSummary = useEvidenceReview(dashboardQuery.data?.activeFichaId).data?.summary
+  const reviewQuery = useEvidenceReview(dashboardQuery.data?.activeFichaId)
+  const reviewSummary = reviewQuery.data?.summary
+  const reviewStatusById: ReviewStatusById = new Map((reviewQuery.data?.evidences ?? []).map((entry) => [entry.evidenceId, entry.status]))
+  const guideCount = useChecklistGuides(dashboardQuery.data?.activeFichaId).data?.guides.length || 0
 
   const dashboard = dashboardQuery.data
   const fichas = fichasQuery.data || []
@@ -183,7 +181,7 @@ export function Overview() {
           <div className="card-pad">
             <div className="eyebrow">Siguiente paso</div>
             <h2 style={{ marginTop: 7 }}>Elige una ficha para comenzar</h2>
-            <p className="helper" style={{ marginTop: 8 }}>La cuenta está lista. Selecciona una ficha sincronizada y después busca las rutas del curso.</p>
+            <p className="helper" style={{ marginTop: 8 }}>La cuenta está lista. Selecciona una ficha sincronizada; las rutas de su curso se preparan solas.</p>
             <Link className="button primary" to="/fichas" style={{ marginTop: 18 }}>Ver mis fichas</Link>
           </div>
         </section>
@@ -196,14 +194,13 @@ export function Overview() {
             <div className="eyebrow">Primeros pasos</div>
             <h2 style={{ marginTop: 7 }}>Tu cuenta ya está guardada</h2>
             <p className="helper" style={{ marginTop: 8 }}>
-              Ahora sincroniza tus fichas para elegir un curso. Después podrás buscar sus rutas y preparar evidencias sin volver a esta pantalla de configuración.
+              Al abrir la aplicación traemos tus fichas y las rutas de cada curso automáticamente. Si todavía no aparecen, sincronízalas ahora.
             </p>
             <div className="onboarding-steps" aria-label="Flujo recomendado">
-              <span className="onboarding-step active"><b>1</b><strong>Sincronizar fichas</strong><small>Traer tus cursos de Zajuna</small></span>
-              <span className="onboarding-step"><b>2</b><strong>Buscar rutas</strong><small>Encontrar las secciones del curso</small></span>
-              <span className="onboarding-step"><b>3</b><strong>Seleccionar actividades</strong><small>Marcar tus actividades técnicas</small></span>
-              <span className="onboarding-step"><b>4</b><strong>Preparar evidencias</strong><small>Capturar en Zajuna</small></span>
-              <span className="onboarding-step"><b>5</b><strong>Revisar evidencias</strong><small>Aprobar y corregir</small></span>
+              <span className="onboarding-step active"><b aria-hidden="true">↻</b><strong>Fichas y rutas</strong><small>Automático al abrir la aplicación</small></span>
+              <span className="onboarding-step"><b>1</b><strong>Seleccionar actividades</strong><small>Marcar tus actividades técnicas</small></span>
+              <span className="onboarding-step"><b>2</b><strong>Preparar evidencias</strong><small>Capturar en Zajuna</small></span>
+              <span className="onboarding-step"><b>3</b><strong>Revisar evidencias</strong><small>Aprobar y corregir</small></span>
             </div>
             <SyncFichasAction />
             {jobs.some((job) => job.type === 'sync-fichas' && ['queued', 'running', 'retrying'].includes(job.status)) ? <p className="helper" style={{ marginTop: 10 }}>La sincronización está en curso. Puedes abrir Trabajos para ver el avance.</p> : null}
@@ -220,7 +217,7 @@ export function Overview() {
         <div className="card-pad">
           <div className="eyebrow">Siguiente paso</div>
           <h2 style={{ marginTop: 7 }}>Elige una ficha para comenzar</h2>
-          <p className="helper" style={{ marginTop: 8 }}>La cuenta está lista. Selecciona una ficha sincronizada y después busca las rutas del curso.</p>
+          <p className="helper" style={{ marginTop: 8 }}>La cuenta está lista. Selecciona una ficha sincronizada; las rutas de su curso se preparan solas.</p>
           <Link className="button primary" to="/fichas" style={{ marginTop: 18 }}>Ver mis fichas</Link>
         </div>
       </section>
@@ -238,7 +235,9 @@ export function Overview() {
   const progressTotal = Math.max(total, 1)
   const progress = clamp(Number(summary.percentage) || 0, 0, 100)
   const evidenceCount = items.reduce((sum, item) => sum + (Number(item.evidenceCount) || 0), 0)
-  const routeCount = Number(targetsQuery.data?.summary?.slotCount || targetsQuery.data?.targets?.length || 0)
+  const itemsWithEvidence = items.filter((item) => (Number(item.evidenceCount) || 0) > 0).length
+  const evidenceCoverage = total ? clamp(Math.round((itemsWithEvidence / total) * 100), 0, 100) : 0
+  const routesReady = targetsQuery.data?.mapReady === true
   const selectedActivityCount = activitiesQuery.data?.selectedCount || 0
 
   const jobProgress = currentJob ? clamp(Number(currentJob.progress) || 0, 0, 100) : 0
@@ -249,7 +248,8 @@ export function Overview() {
   // proceso o descartados por el usuario ya no piden atención.
   const openFailures = unresolvedFailedJobs(jobs)
   const attentionJobs = openFailures.slice(0, 3)
-  const attentionTotal = noItems.length + openFailures.length
+  // Los ítems con guía cuentan como un solo asunto: una fila que lleva a las guías.
+  const attentionTotal = noItems.length + openFailures.length + (guideCount > 0 ? 1 : 0)
 
   function handleDismissAll() {
     dismissJobs.mutate(openFailures.map((job) => job.id).slice(0, 100), {
@@ -335,7 +335,6 @@ export function Overview() {
               ))}
             </select>
           </div>
-          <SyncFichasAction />
         </div>
       </div>
 
@@ -352,7 +351,7 @@ export function Overview() {
           <div className="metric-note">
             {total ? `${done} de ${total} ítems marcados como cumplidos` : 'Aún no hay ítems en esta ficha'}
           </div>
-          {reviewSummary && total > 0 ? (
+          {reviewSummary && total > 0 && (Number(reviewSummary.itemsApproved) || 0) > done ? (
             <div className="metric-note">
               Evidencia aprobada: {reviewSummary.itemsApproved || 0} de {total} ítems ·{' '}
               <Link to="/revision">márcalos como cumplidos en Revisión</Link>
@@ -366,16 +365,12 @@ export function Overview() {
             <strong className="metric-value">{evidenceCount}</strong>
             {evidenceCount > 0 && <span className="metric-pill">guardadas</span>}
           </div>
-          <div className="mini-bars">
-            <i style={{ height: '35%' }} />
-            <i style={{ height: '55%' }} />
-            <i style={{ height: '42%' }} />
-            <i style={{ height: '70%' }} />
-            <i style={{ height: '60%' }} />
-            <i style={{ height: '88%' }} />
-            <i style={{ height: '100%' }} />
+          <div className="metric-progress" aria-hidden="true">
+            <i style={{ width: `${evidenceCoverage}%` }} />
           </div>
-          <div className="metric-note">Archivos relacionados con esta ficha</div>
+          <div className="metric-note">
+            {total ? `${itemsWithEvidence} de ${total} ítems con evidencia` : 'Archivos relacionados con esta ficha'}
+          </div>
         </article>
 
         <article className="metric-card">
@@ -385,17 +380,13 @@ export function Overview() {
             <span className="metric-pill">a mi cargo</span>
           </div>
           <div className="metric-tags">
-            <span className="metric-tag">Seleccion del profesor</span>
-            <span className="metric-tag">{routeCount > 0 ? 'Mapa disponible' : 'Mapa pendiente'}</span>
+            <span className="metric-tag">{routesReady ? 'Rutas del curso listas' : 'Preparando rutas del curso'}</span>
           </div>
-          <div className="metric-note">Alcance de trabajo · curso {dashboard.ficha.courseId || 'local'}</div>
+          <div className="metric-note">Curso {dashboard.ficha.courseId || 'local'}</div>
         </article>
 
-        <article className="metric-card focused">
-          <div className="metric-label-row">
-            <div className="metric-label">Trabajo en curso</div>
-            <span className="metric-focused-badge">Tarjeta enfocada</span>
-          </div>
+        <article className="metric-card">
+          <div className="metric-label">Trabajo en curso</div>
           <div className="metric-value-row">
             <strong className="metric-value">{currentJob ? '1' : '0'}</strong>
             <span className="metric-note" style={{ margin: 0 }}>
@@ -410,33 +401,6 @@ export function Overview() {
           </div>
         </article>
       </div>
-
-      {currentJob && (
-        <section className="card active-work-card" aria-live="polite">
-          <div className="active-work-copy">
-            <div className="eyebrow">Proceso en ejecución</div>
-            <h3>{friendlyJobType(currentJob.type)}</h3>
-            <p className="helper">La aplicación está trabajando en segundo plano. Puedes continuar revisando la ficha mientras termina.</p>
-            <JobEntry job={currentJob} />
-          </div>
-          <div className="active-work-events">
-            <div className="side-title">
-              <strong>Últimos avances</strong>
-              <Link className="button ghost small" to={`/trabajos/${encodeURIComponent(currentJob.id)}`}>Ver detalles</Link>
-            </div>
-            {currentJobEventsQuery.data?.length ? (
-              <ol className="mini-job-timeline">
-                {currentJobEventsQuery.data.slice(-3).map((event, index) => (
-                  <li key={`${event.createdAt}-${index}`}>
-                    <span aria-hidden="true" />
-                    <div><strong>{friendlyJobStage(event.stage)}</strong><small>{friendlyJobMessage(event.message)}</small></div>
-                  </li>
-                ))}
-              </ol>
-            ) : <p className="helper">Esperando el primer avance del proceso.</p>}
-          </div>
-        </section>
-      )}
 
       <div className="overview-columns">
         <div className="overview-main">
@@ -457,7 +421,7 @@ export function Overview() {
             </div>
             <div className="legend-row">
               <span>
-                <i style={{ background: 'var(--brand)' }} />
+                <i style={{ background: 'var(--brand-action)' }} />
                 Cumplidas {done}
               </span>
               <span>
@@ -465,32 +429,13 @@ export function Overview() {
                 No cumplidas {failed}
               </span>
               <span>
-                <i style={{ background: '#f0c77e' }} />
+                <i style={{ background: 'var(--pending-bar)' }} />
                 Pendientes {pending}
               </span>
             </div>
             <div className="category-summary">
               <div className="category-summary-title">Cumplimiento por categoría</div>
-              <div className="category-bars legacy-category-bars" aria-hidden="true">
-                {bars.length ? (
-                  bars.map((bar) => (
-                    <span key={bar.code} title={`${bar.label}: ${bar.yes} de ${bar.total} (${bar.value}%)`}>
-                      <i role="img" aria-label={`${bar.label}: ${bar.yes} de ${bar.total}, ${bar.value}%`}>
-                      <b className="grow-in" style={{ '--bar-height': `${bar.value}%` } as BarStyle} />
-                      </i>
-                      <small>{String(bar.code || '').replace(/^0+/, '') || '0'}</small>
-                    </span>
-                  ))
-                ) : (
-                  <span>
-                    <i>
-                      <b style={{ '--bar-height': '8%' } as BarStyle} />
-                    </i>
-                    <small>—</small>
-                  </span>
-                )}
-              </div>
-            <div className="category-grid" aria-label="Estado de cumplimiento por categoría">
+              <div className="category-grid" aria-label="Estado de cumplimiento por categoría">
                 {bars.length ? bars.map((bar) => {
                   const status = bar.yes === bar.total ? 'Completa' : bar.no > 0 ? 'Requiere revisión' : 'Pendiente'
                   const statusClass = bar.yes === bar.total ? 'complete' : bar.no > 0 ? 'attention' : 'pending'
@@ -503,7 +448,7 @@ export function Overview() {
                       onClick={() => navigate(`/checklist?category=${encodeURIComponent(bar.code)}`)}
                     >
                       <span className="category-card-head">
-                        <strong>{bar.code}</strong>
+                        <span className="sr-only">{bar.code}</span>
                         <span className="category-card-status">{status}</span>
                       </span>
                       <span className="category-card-label">{bar.label}</span>
@@ -515,9 +460,6 @@ export function Overview() {
                   )
                 }) : <div className="empty">Todavía no hay categorías disponibles.</div>}
               </div>
-              <div className="category-legend legacy-category-legend" aria-hidden="true">
-                {categories.map((category) => category.label || category.code || '').join(' · ')}
-              </div>
             </div>
           </section>
 
@@ -528,14 +470,30 @@ export function Overview() {
                   <div>
                     <h3>Requiere tu atención</h3>
                     <p className="helper" style={{ marginTop: 5 }}>
-                      Ítems que marcaste como no cumplidos y procesos que fallaron y aún no se han resuelto. Cada aviso te dice qué hacer.
+                      Ítems no cumplidos, contenido que solo tú puedes publicar en Zajuna y procesos que fallaron. Cada aviso te dice qué hacer.
                     </p>
                   </div>
-                  <span className="badge alert">
+                  <span className={`badge${noItems.length + openFailures.length > 0 ? ' alert' : ''}`}>
                     {attentionTotal} asunto{attentionTotal === 1 ? '' : 's'}
                   </span>
                 </div>
                 <div className="attention-list">
+                  {guideCount > 0 ? (
+                    <div className="attention-row">
+                      <span className="attention-icon guide">
+                        <Icon name="help" size={14} />
+                      </span>
+                      <div className="attention-copy">
+                        <strong>
+                          {guideCount === 1 ? '1 ítem depende de ti en Zajuna' : `${guideCount} ítems dependen de ti en Zajuna`}
+                        </strong>
+                        <span>No podemos publicar ese contenido por ti. Cada uno tiene una guía paso a paso.</span>
+                      </div>
+                      <button className="button ghost small" onClick={() => navigate('/checklist?category=guia')}>
+                        Ver guías
+                      </button>
+                    </div>
+                  ) : null}
                   {attentionItems.map((entry) => (
                     <div className="attention-row" key={entry.itemCode}>
                       <span className="attention-icon no">
@@ -594,7 +552,7 @@ export function Overview() {
               ) : evidenceGroupsQuery.data && evidenceGroupsQuery.data.length ? (
                 <div className="evidence-gallery-grid">
                   {evidenceGroupsQuery.data.slice(0, 6).map((group, index) => (
-                    <EvidenceGroupCard key={group.id ?? index} group={group} />
+                    <EvidenceGroupCard key={group.id ?? index} group={group} reviews={reviewStatusById} />
                   ))}
                 </div>
               ) : (
@@ -655,11 +613,10 @@ export function Overview() {
               ) : (
                 <>
                   <strong>{workflow.current ? `Siguiente: paso ${workflow.current.number}, ${workflow.current.label.toLowerCase()}` : 'Todo revisado'}</strong>
-                  <small>{workflow.current ? workflow.current.hint : 'Ya puedes generar el reporte PDF.'}</small>
+                  <small>{workflow.current ? workflow.current.hint : guideCount > 0 ? `Quedan ${guideCount} ítem${guideCount === 1 ? '' : 's'} que dependen de ti en Zajuna; el reporte PDF ya se puede generar.` : 'Ya puedes generar el reporte PDF.'}</small>
                 </>
               )}
             </div>
-            <RouteDiscoveryAction compact variant="primary" label="Buscar rutas" />
             <div style={{ marginTop: 16 }}>
               <CaptureAction fullWidth />
             </div>

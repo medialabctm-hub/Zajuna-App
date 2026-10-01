@@ -44,7 +44,7 @@ describe('findNavItem', () => {
   it('ubica Revisión justo después de Evidencias en Operación', () => {
     const paths = OPERATION_ITEMS.map((item) => item.path)
     expect(paths.indexOf('/revision')).toBe(paths.indexOf('/evidencias') + 1)
-    expect(findNavItem('/revision')).toMatchObject({ eyebrow: 'Paso 5 · Revisión', showGenericHeader: true })
+    expect(findNavItem('/revision')).toMatchObject({ eyebrow: 'Paso 3 · Revisión', showGenericHeader: true })
   })
 
   it('no inventa entradas para rutas desconocidas', () => {

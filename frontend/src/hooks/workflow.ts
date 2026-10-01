@@ -1,9 +1,9 @@
 import { useActivities, useDashboard, useEvidenceReview, useFichas, useJobs, useTargets } from './api'
-import { approvedItemsNotMarked, computeWorkflow, currentWorkflowStep, type WorkflowStep, type WorkflowStepKey } from '../lib/workflow'
+import { approvedItemsNotMarked, computeWorkflow, currentWorkflowStep, pendingAutomaticStep, visibleWorkflowSteps, type WorkflowStep, type WorkflowStepKey } from '../lib/workflow'
 
 const ACTIVE = ['queued', 'running', 'waiting_user', 'retrying']
 
-/** Estado del flujo guiado (1 sincronizar → 5 revisar) con datos reales. */
+/** Estado del flujo guiado con datos reales: 2 pasos automáticos y 3 visibles (actividades → revisar). */
 export function useWorkflow() {
   const fichasQuery = useFichas()
   const dashboardQuery = useDashboard()
@@ -33,5 +33,5 @@ export function useWorkflow() {
   const step = (key: WorkflowStepKey) => steps.find((entry) => entry.key === key) as WorkflowStep
   // Mientras cargan los datos no se sabe qué paso falta: no mostrar bloqueos.
   const isLoading = dashboardQuery.isLoading || (!!activeFichaId && (targetsQuery.isLoading || activitiesQuery.isLoading))
-  return { steps, current, step, isLoading, isCurrent: (key: WorkflowStepKey) => current?.key === key }
+  return { steps, visible: visibleWorkflowSteps(steps), automaticPending: pendingAutomaticStep(steps), current, step, isLoading, isCurrent: (key: WorkflowStepKey) => current?.key === key }
 }

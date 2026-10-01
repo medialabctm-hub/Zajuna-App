@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { EvidenceGroup } from '../types'
-import { groupState } from '../lib/evidenceGroupState'
+import { groupState, itemReviewState } from '../lib/evidenceGroupState'
 
 const group = (ids: string[], confidence = 'suggested') => ({ id: 'g', confidence, evidences: ids.map((id) => ({ id })) }) as unknown as EvidenceGroup
 
@@ -15,5 +15,20 @@ describe('estado de un grupo en la galería', () => {
   it('sin revisión usa la confianza de la captura', () => {
     expect(groupState(group(['x'], 'manual'), new Map()).label).toBe('Agregada por ti')
     expect(groupState(group(['x']), new Map()).label).toBe('Por revisar')
+  })
+})
+
+describe('itemReviewState', () => {
+  it('sigue a Revisión e ignora las capturas reemplazadas', () => {
+    const entries = [
+      { itemCode: '13.1.3', status: 'pending', superseded: true },
+      { itemCode: '13.1.3', status: 'approved' },
+      { itemCode: '9.1.5', status: 'pending' },
+      { itemCode: '4.1', status: 'rejected' },
+    ]
+    expect(itemReviewState('13.1.3', entries)?.label).toBe('Aprobada')
+    expect(itemReviewState('9.1.5', entries)?.label).toBe('Por revisar')
+    expect(itemReviewState('4.1', entries)?.label).toBe('Rechazada')
+    expect(itemReviewState('1.1.1', entries)).toBeNull()
   })
 })

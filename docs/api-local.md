@@ -777,6 +777,41 @@ historial del ítem con `source: "revision-automatica"`. Los ítems sin
 evidencia de `missingItems` explican la ausencia de la última captura
 («Sin contenido en Zajuna: …») cuando la hubo.
 
+### Guías para ítems que dependen del instructor
+
+`GET /api/checklist/guides?fichaId=<id>` devuelve `{fichaId, mapReady, guides[]}`.
+Vale para cualquier ficha: las guías salen del estado vivo de la ficha
+(`checklist.DetectGuides`), no de una lista fija. Un ítem recibe guía cuando no
+está en «SI», no tiene toda su evidencia aprobada y la causa solo la puede
+resolver el instructor en Zajuna:
+
+| `kind` | Cuándo |
+|---|---|
+| `empty-section` | Una evidencia con `empty_section`, o una ausencia «la sección no tiene actividades ni archivos». |
+| `content-absent` | Sin evidencia y la última captura informó «sin contenido en Zajuna» (foro sin respuestas del instructor, sin conclusión, sin fechas…). |
+| `route-missing` | Con mapa de rutas, ningún target cubre el ítem. No aplica a 6.1 ni 10.1.x, que esperan la selección de actividades. |
+
+Los fallos técnicos (captura rota, imagen demasiado ancha) no generan guía:
+son trabajo de la app y se resuelven volviendo a capturar. Cada guía trae
+`headline`, `why`, `detected`, `steps[]`, `handoff` (qué entrega el
+instructor), `actions[]` (`recapture`, `upload`, `rediscover`), `template`
+opcional (texto para copiar, p. ej. la conclusión del foro), `zajunaUrl` y
+`zajunaLabel` (la página exacta del curso) y `missingSlots[]`. El contenido
+está escrito por ítem para los casos frecuentes, por grupo como respaldo y,
+para el resto, se arma con la descripción del ítem.
+
+Para terminar el ítem, el instructor publica en Zajuna y pulsa «Ya lo hice,
+verificar» (`POST /api/checklist/capture` con `itemCodes: [código]`) o sube su
+evidencia (`POST /api/evidences/upload` con `itemCode` y `slotNumber`). Una
+subida con `itemCode` se revisa al momento y sincroniza el checklist.
+
+**Subida del instructor frente a captura.** Una subida (`source: manual`)
+aprobada reemplaza en su ítem y slot a la captura automática
+(`evidence.SupersededEvidence`): la captura se conserva, pero ya no bloquea el
+ítem, y la revisión la marca con `superseded: true`. El límite de evidencias
+por ítem conserva primero las subidas del instructor, así que una recaptura
+automática nunca las expulsa.
+
 ### `POST /api/reports`
 
 Encola la generación de un reporte mediante `export-report`.

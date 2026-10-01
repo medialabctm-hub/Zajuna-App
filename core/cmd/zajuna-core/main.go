@@ -432,6 +432,11 @@ func newRouterWithServices(dataDir string, credentials secrets.Store, jobRuntime
 		captureStore = candidate
 	}
 	registerChecklistCaptureRoutes(mux, captureStore, jobRuntime, dataDir)
+	var guideStore checklistGuideStore
+	if candidate, ok := scheduleStore.(checklistGuideStore); ok {
+		guideStore = candidate
+	}
+	registerChecklistGuideRoutes(mux, guideStore)
 	registerScheduleRoutes(mux, scheduleStore)
 	var settingsStore appSettingsStore
 	if candidate, ok := scheduleStore.(appSettingsStore); ok {

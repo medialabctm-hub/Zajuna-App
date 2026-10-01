@@ -1,4 +1,5 @@
 import type {
+  ChecklistGuidesResponse,
   ActivitiesResponse,
   Dashboard,
   ChecklistItemDetail,
@@ -207,6 +208,9 @@ export const api = {
 
   saveReview: (input: { fichaId: string; routeKey: string; status: string; manualUrl: string; manualSelector: string }) =>
     request<RouteReview[]>('/api/checklist/reviews', { ...json(input), method: 'PUT' }),
+
+  getChecklistGuides: (fichaId: string) =>
+    request<ChecklistGuidesResponse>(`/api/checklist/guides?fichaId=${encodeURIComponent(fichaId)}`),
 
   getTargets: (fichaId: string) =>
     request<TargetsResponse>(`/api/checklist/targets?fichaId=${encodeURIComponent(fichaId)}`),
