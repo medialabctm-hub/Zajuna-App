@@ -811,7 +811,7 @@ export function Checklist() {
               </button>
               {guides.length ? (
                 <Link className="checklist-filter-tab" to="/guias">
-                  Dependen de ti {guides.length} →
+                  Dependen de ti {guideCodes.size} →
                 </Link>
               ) : null}
             </div>

@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import { useChecklistGuides, useDashboard } from '../hooks/api'
 import { useWorkflow } from '../hooks/workflow'
+import { guidedItemCodes } from '../lib/guideVerification'
 import type { WorkflowStep, WorkflowStepKey } from '../lib/workflow'
 
 const STATE_LABEL = { done: 'Hecho', current: 'Siguiente paso', running: 'En curso', pending: 'Pendiente' } as const
@@ -84,7 +85,7 @@ export function StepBadge({ step }: { step: WorkflowStepKey }) {
  */
 function ReviewedNotice() {
   const { data: dashboard } = useDashboard()
-  const guides = useChecklistGuides(dashboard?.activeFichaId).data?.guides.length || 0
+  const guides = guidedItemCodes(useChecklistGuides(dashboard?.activeFichaId).data?.guides ?? []).size
   return (
     <p className="workflow-next" role="status">
       <b>¡Todo revisado!</b>{' '}

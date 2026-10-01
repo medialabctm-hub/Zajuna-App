@@ -1,5 +1,6 @@
 import { NavLink } from 'react-router-dom'
 import { Icon } from './Icon'
+import { guidedItemCodes } from '../lib/guideVerification'
 import { OPERATION_ITEMS, SYSTEM_ITEMS } from '../lib/nav'
 import { useChecklistGuides, useDashboard, useDiagnostics, useFichas, useJobs } from '../hooks/api'
 
@@ -12,7 +13,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
   const { data: fichas } = useFichas()
   const { data: jobs } = useJobs()
   const { data: dashboard } = useDashboard()
-  const guideCount = useChecklistGuides(dashboard?.activeFichaId).data?.guides.length || 0
+  const guideCount = guidedItemCodes(useChecklistGuides(dashboard?.activeFichaId).data?.guides ?? []).size
   const diagnostics = useDiagnostics()
   const hasActiveJob = (jobs || []).some((job) => ['queued', 'running', 'waiting_user', 'retrying'].includes(job.status))
   const checks = diagnostics.data?.checks || []

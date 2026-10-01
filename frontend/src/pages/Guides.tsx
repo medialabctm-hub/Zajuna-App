@@ -12,6 +12,7 @@ import {
   resolvedGuideCodes,
   updateSeenGuides,
   findGuideForItem,
+  guidedItemCodes,
 } from '../lib/guideVerification'
 import type { ChecklistGuide, DashboardItem, Job } from '../types'
 
@@ -74,6 +75,7 @@ export function Guides() {
   const reviewQuery = useEvidenceReview(fichaId || undefined)
   const { data: jobs } = useJobs()
   const guides = guidesQuery.data?.guides ?? []
+  const pendingItems = guidedItemCodes(guides).size
   const items = dashboardQuery.data?.items ?? []
   const codes = guides.map((guide) => guide.itemCode)
   const codesKey = codes.join('|')
@@ -114,7 +116,7 @@ export function Guides() {
         <div className="card-pad">
           <div className="side-title">
             <div>
-              <h3>{guides.length ? (guides.length === 1 ? '1 ítem pendiente' : `${guides.length} ítems pendientes`) : 'Nada pendiente'}</h3>
+              <h3>{pendingItems ? (pendingItems === 1 ? '1 ítem pendiente' : `${pendingItems} ítems pendientes`) : 'Nada pendiente'}</h3>
               <p className="helper" style={{ marginTop: 5 }}>Ficha {dashboardQuery.data?.ficha?.externalId}</p>
             </div>
           </div>

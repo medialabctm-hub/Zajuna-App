@@ -155,7 +155,7 @@ export function Overview() {
   const reviewQuery = useEvidenceReview(dashboardQuery.data?.activeFichaId)
   const reviewStatusById: ReviewStatusById = new Map((reviewQuery.data?.evidences ?? []).map((entry) => [entry.evidenceId, entry.status]))
   const guidesData = useChecklistGuides(dashboardQuery.data?.activeFichaId).data
-  const guideCount = guidesData?.guides.length || 0
+  const guideCount = guidedItemCodes(guidesData?.guides ?? []).size
   // Approved items that can really be marked: never those with a guide.
   const markable = approvedItemsNotMarked(reviewQuery.data?.evidences ?? [], dashboardQuery.data?.items ?? [], guidedItemCodes(guidesData?.guides ?? [])).length
 

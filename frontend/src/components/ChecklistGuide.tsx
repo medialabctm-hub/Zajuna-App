@@ -5,7 +5,7 @@ import { useToast } from '../hooks/useToast'
 import { friendlyError } from '../lib/friendlyError'
 import { friendlyJobMessage, friendlyJobStage } from '../lib/format'
 import { explainJobFailure } from '../lib/jobFailure'
-import { GUIDE_KIND_LABEL, guideVerification, latestItemCaptureJob, relativeTime, type GuideVerification } from '../lib/guideVerification'
+import { GUIDE_KIND_LABEL, guideVerification, latestItemCaptureJob, relativeTime, type GuideVerification, guidedItemCodes } from '../lib/guideVerification'
 import { Icon } from './Icon'
 import type { ChecklistGuide as Guide } from '../types'
 
@@ -34,7 +34,7 @@ export function GuideSummary({ guides }: { guides: Guide[] }) {
         </span>
         <span className="guide-summary-copy">
           <strong>
-            {guides.length === 1 ? '1 ítem depende de ti en Zajuna' : `${guides.length} ítems dependen de ti en Zajuna`}
+            {guidedItemCodes(guides).size === 1 ? '1 ítem depende de ti en Zajuna' : `${guidedItemCodes(guides).size} ítems dependen de ti en Zajuna`}
           </strong>
           <small>No podemos publicar contenido en tu curso. Te decimos qué hacer y nosotros terminamos el resto.</small>
         </span>
