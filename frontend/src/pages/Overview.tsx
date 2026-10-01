@@ -612,8 +612,19 @@ export function Overview() {
                 </>
               ) : (
                 <>
-                  <strong>{workflow.current ? `Siguiente: paso ${workflow.current.number}, ${workflow.current.label.toLowerCase()}` : 'Todo revisado'}</strong>
-                  <small>{workflow.current ? workflow.current.hint : guideCount > 0 ? `Quedan ${guideCount} ítem${guideCount === 1 ? '' : 's'} que dependen de ti en Zajuna; el reporte PDF ya se puede generar.` : 'Ya puedes generar el reporte PDF.'}</small>
+                  {/* Sync and routes are automatic and unnumbered: never «paso 0». */}
+                  <strong>
+                    {workflow.current?.automatic
+                      ? workflow.current.state === 'running'
+                        ? `Preparando: ${workflow.current.label.toLowerCase()}`
+                        : workflow.current.key === 'routes'
+                          ? 'Faltan las rutas del curso'
+                          : 'Faltan tus fichas'
+                      : workflow.current
+                        ? `Siguiente: paso ${workflow.current.number}, ${workflow.current.label.toLowerCase()}`
+                        : 'Todo revisado'}
+                  </strong>
+                  <small>{workflow.current?.automatic ? 'Se hace solo; si no avanza, búscalas desde Fichas.' : workflow.current ? workflow.current.hint : guideCount > 0 ? `Quedan ${guideCount} ítem${guideCount === 1 ? '' : 's'} que dependen de ti en Zajuna; el reporte PDF ya se puede generar.` : 'Ya puedes generar el reporte PDF.'}</small>
                 </>
               )}
             </div>
