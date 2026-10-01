@@ -40,6 +40,8 @@ import { CaptureAction, SyncFichasAction } from '../components/WorkflowActions'
 import { StepBadge } from '../components/WorkflowSteps'
 import { useWorkflow } from '../hooks/workflow'
 import { groupState, type ReviewStatusById } from '../lib/evidenceGroupState'
+import { approvedItemsNotMarked } from '../lib/workflow'
+import { guidedItemCodes } from '../lib/guideVerification'
 
 function clamp(value: number, min: number, max: number) {
   return Math.max(min, Math.min(max, value))
@@ -151,9 +153,11 @@ export function Overview() {
   const dismissJobs = useDismissJobs()
   const workflow = useWorkflow()
   const reviewQuery = useEvidenceReview(dashboardQuery.data?.activeFichaId)
-  const reviewSummary = reviewQuery.data?.summary
   const reviewStatusById: ReviewStatusById = new Map((reviewQuery.data?.evidences ?? []).map((entry) => [entry.evidenceId, entry.status]))
-  const guideCount = useChecklistGuides(dashboardQuery.data?.activeFichaId).data?.guides.length || 0
+  const guidesData = useChecklistGuides(dashboardQuery.data?.activeFichaId).data
+  const guideCount = guidesData?.guides.length || 0
+  // Approved items that can really be marked: never those with a guide.
+  const markable = approvedItemsNotMarked(reviewQuery.data?.evidences ?? [], dashboardQuery.data?.items ?? [], guidedItemCodes(guidesData?.guides ?? [])).length
 
   const dashboard = dashboardQuery.data
   const fichas = fichasQuery.data || []
@@ -352,9 +356,9 @@ export function Overview() {
           <div className="metric-note">
             {total ? `${done} de ${total} ítems marcados como cumplidos` : 'Aún no hay ítems en esta ficha'}
           </div>
-          {reviewSummary && total > 0 && (Number(reviewSummary.itemsApproved) || 0) > done ? (
+          {markable > 0 ? (
             <div className="metric-note">
-              Evidencia aprobada: {reviewSummary.itemsApproved || 0} de {total} ítems ·{' '}
+              {markable === 1 ? '1 ítem aprobado sin marcar' : `${markable} ítems aprobados sin marcar`} ·{' '}
               <Link to="/revision">márcalos como cumplidos en Revisión</Link>
             </div>
           ) : null}

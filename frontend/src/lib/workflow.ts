@@ -37,6 +37,8 @@ export interface WorkflowInput {
 export function approvedItemsNotMarked(
   evidences: ReadonlyArray<{ itemCode?: string; status: string; superseded?: boolean }>,
   items: ReadonlyArray<{ itemCode: string; status?: string }>,
+  /** Ítems con algo pendiente en Zajuna (tienen guía): nunca se ofrecen. */
+  excluded: ReadonlySet<string> = new Set(),
 ): string[] {
   const byItem = new Map<string, boolean>()
   for (const entry of evidences) {
@@ -45,7 +47,7 @@ export function approvedItemsNotMarked(
     byItem.set(entry.itemCode, (byItem.get(entry.itemCode) ?? true) && entry.status === 'approved')
   }
   const marked = new Set(items.filter((item) => item.status === 'SI' || item.status === 'NO').map((item) => item.itemCode))
-  return [...byItem.entries()].filter(([code, ok]) => ok && !marked.has(code)).map(([code]) => code)
+  return [...byItem.entries()].filter(([code, ok]) => ok && !marked.has(code) && !excluded.has(code)).map(([code]) => code)
 }
 
 /**
@@ -130,4 +132,22 @@ export function pendingAutomaticStep(steps: WorkflowStep[]) {
 
 export function currentWorkflowStep(steps: WorkflowStep[]) {
   return steps.find((step) => step.state === 'current' || step.state === 'running')
+}
+
+/** Motivos que no se resuelven en Revisión sino en Zajuna (los atiende una guía). */
+const ZAJUNA_REASONS = new Set(['sheet_errors', 'empty_section'])
+
+/**
+ * Evidencias que de verdad esperan una decisión en Revisión: las pendientes o
+ * rechazadas cuyo problema no es contenido que el instructor debe arreglar
+ * en Zajuna (esas no se aprueban: se corrigen allá y se vuelven a verificar).
+ */
+export function reviewableOpenEvidences(
+  evidences: ReadonlyArray<{ status: string; superseded?: boolean; reasons?: ReadonlyArray<{ code: string }> }>,
+): number {
+  return evidences.filter((entry) => {
+    if (entry.superseded || (entry.status !== 'pending' && entry.status !== 'rejected')) return false
+    const codes = (entry.reasons ?? []).map((reason) => reason.code)
+    return !(codes.length > 0 && codes.every((code) => ZAJUNA_REASONS.has(code)))
+  }).length
 }

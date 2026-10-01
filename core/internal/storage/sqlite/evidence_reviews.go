@@ -287,6 +287,13 @@ func (s *Store) SetEvidenceReview(ctx context.Context, evidenceID, status, note 
 	} else {
 		review = evidence.VerifyRecord(s.dataDir, record, records, now)
 	}
+	if status == evidence.ReviewApproved {
+		for _, reason := range review.Reasons {
+			if reason.Code == evidence.ReasonSheetErrors {
+				return evidence.ReviewEntry{}, fmt.Errorf("%w: %s Corrige la hoja en Google Sheets y vuelve a verificar el ítem", ErrItemNotFulfillable, reason.Message)
+			}
+		}
+	}
 	if status != evidence.ReviewPending {
 		review.Status = status
 		review.Source = evidence.ReviewSourceManual

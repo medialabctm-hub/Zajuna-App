@@ -3,10 +3,15 @@ package sqlite
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
 )
+
+// ErrItemNotFulfillable: an item with a gap or with evidence showing known
+// errors cannot be marked fulfilled.
+var ErrItemNotFulfillable = errors.New("este ítem no se puede marcar como cumplido")
 
 // CaptureGap is an element of a checklist item that the last capture of that
 // item could not verify: a slot without the content the item asks for in
@@ -77,4 +82,27 @@ func (s *Store) RecordCaptureGaps(ctx context.Context, fichaID string, scope []s
 		return fmt.Errorf("encode capture gaps: %w", err)
 	}
 	return s.SetAppSetting(ctx, captureGapsKey(fichaID), string(encoded))
+}
+
+// itemBlocker explains why an item cannot be fulfilled: a gap of its last
+// capture or an evidence whose review reports content errors (a schedule
+// with #REF!).
+func (s *Store) itemBlocker(ctx context.Context, fichaID, itemCode string) (string, bool, error) {
+	gaps, err := s.CaptureGaps(ctx, fichaID)
+	if err != nil {
+		return "", false, err
+	}
+	if gap, ok := gaps[strings.TrimSpace(itemCode)]; ok {
+		return "le falta un elemento en Zajuna: " + gap.Detail, true, nil
+	}
+	var count int
+	if err := s.db.QueryRowContext(ctx, `
+		SELECT COUNT(*) FROM evidences e JOIN evidence_reviews r ON r.evidence_id = e.id
+		WHERE e.ficha_id = ? AND e.item_code = ? AND r.reasons_json LIKE '%"sheet_errors"%'`, fichaID, itemCode).Scan(&count); err != nil {
+		return "", false, fmt.Errorf("check item content errors: %w", err)
+	}
+	if count > 0 {
+		return "su evidencia muestra errores en el contenido de Zajuna (celdas con error en el cronograma)", true, nil
+	}
+	return "", false, nil
 }

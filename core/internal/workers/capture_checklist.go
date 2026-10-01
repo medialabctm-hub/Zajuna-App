@@ -411,7 +411,7 @@ func absentContent(failure string) bool {
 
 // gradingTableMarker tags the plain-words absence of a grading table (10.1.x)
 // so the tally still counts it as an absence.
-const gradingTableMarker = "tabla sin entregas calificadas"
+const gradingTableMarker = "no tiene entregas calificadas en su tabla de calificación"
 
 // tallyTargetOutcomes aggregates fan-out results. Skipped slots (empty row
 // batches) are neither captured nor failed.

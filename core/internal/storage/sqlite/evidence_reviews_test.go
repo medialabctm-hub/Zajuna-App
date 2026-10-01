@@ -2,6 +2,7 @@ package sqlite
 
 import (
 	"context"
+	"errors"
 	"image"
 	"image/color"
 	"image/png"
@@ -436,5 +437,47 @@ func TestAnItemWithAMissingElementIsNeverFulfilled(t *testing.T) {
 	gaps, _ := store.CaptureGaps(ctx, fichaID)
 	if gaps["9.1.3"].Kind != CaptureGapFailed {
 		t.Fatalf("gaps = %#v", gaps)
+	}
+}
+
+func TestItemsWithGapsOrErrorsCannotBeMarkedByHand(t *testing.T) {
+	dataDir := t.TempDir()
+	store, err := Open(dataDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	ctx := context.Background()
+	if _, err := store.UpsertFichas(ctx, []zajuna.Ficha{{ExternalID: "500", Name: "Ficha", CourseID: "c6"}}); err != nil {
+		t.Fatal(err)
+	}
+	fichas, _ := store.ListFichas(ctx, 10)
+	fichaID := fichas[0].ID
+	if err := store.RecordCaptureGaps(ctx, fichaID, []string{"9.1.3"}, []string{"9.1.3: sin contenido en Zajuna: el foro no tiene fechas"}, nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.SetChecklistItemStatus(ctx, fichaID, "9.1.3", "SI"); !errors.Is(err, ErrItemNotFulfillable) {
+		t.Fatalf("a manual «SI» with a gap must be refused, got %v", err)
+	}
+	if err := store.SetChecklistItemStatus(ctx, fichaID, "9.1.3", "NO"); err != nil {
+		t.Fatalf("«No» stays free: %v", err)
+	}
+	// An evidence that shows #REF! cannot be approved by hand.
+	path := filepath.Join(dataDir, "evidences", "sheet.png")
+	writeReviewPNG(t, path, 800, 600, true)
+	if err := store.CreateEvidence(ctx, evidence.Record{ID: "s1", FichaID: fichaID, ItemCode: "1.2.1", SlotNumber: 1, Name: "Cronograma", FilePath: path, Format: "png", Source: "capture-checklist", SHA256: "sha-s1", Metadata: []byte(`{"sheetIssues":["la columna «Fecha fin fase» del cronograma tiene 1 celda con el error #REF!"]}`)}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.VerifyEvidenceReviews(ctx, fichaID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.SetEvidenceReview(ctx, "s1", evidence.ReviewApproved, ""); !errors.Is(err, ErrItemNotFulfillable) {
+		t.Fatalf("approving an evidence with known errors must be refused, got %v", err)
+	}
+	if err := store.SetChecklistItemStatus(ctx, fichaID, "1.2.1", "SI"); !errors.Is(err, ErrItemNotFulfillable) {
+		t.Fatalf("a manual «SI» over known errors must be refused, got %v", err)
+	}
+	if err := store.SetChecklistItemStatus(ctx, fichaID, "4.1", "SI"); err != nil {
+		t.Fatalf("an item without gaps or errors can still be marked: %v", err)
 	}
 }

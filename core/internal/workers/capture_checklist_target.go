@@ -228,7 +228,7 @@ func (w *CaptureChecklistWorker) captureChecklistTarget(ctx context.Context, par
 				} else {
 					name = "«" + name + "»"
 				}
-				failure = target.ItemCode + ": sin contenido en Zajuna: " + name + " no tiene entregas calificadas en su tabla de calificación (" + gradingTableMarker + ")"
+				failure = target.ItemCode + ": sin contenido en Zajuna: " + name + " " + gradingTableMarker
 			}
 			failure += w.absenceInsight(ctx, params)
 		}

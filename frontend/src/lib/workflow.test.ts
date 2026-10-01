@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { approvedItemsNotMarked, computeWorkflow, currentWorkflowStep, pendingAutomaticStep, visibleWorkflowSteps } from './workflow'
+import { approvedItemsNotMarked, reviewableOpenEvidences, computeWorkflow, currentWorkflowStep, pendingAutomaticStep, visibleWorkflowSteps } from './workflow'
 
 const base = { fichasCount: 0, hasActiveFicha: false, syncRunning: false, mapReady: false, discoverRunning: false, selectedActivities: 0, evidenceCount: 0, captureRunning: false }
 
@@ -72,5 +72,23 @@ describe('revisión y checklist', () => {
       { itemCode: '7.3.2', status: 'approved' },
     ]
     expect(approvedItemsNotMarked(evidences, [{ itemCode: '7.3.2', status: 'PENDIENTE' }])).toEqual(['7.3.2'])
+  })
+})
+
+describe('regla estricta en el flujo', () => {
+  it('no ofrece marcar ítems con algo pendiente en Zajuna', () => {
+    const evidences = [{ itemCode: '9.1.3', status: 'approved' }, { itemCode: '4.1', status: 'approved' }]
+    const items = [{ itemCode: '9.1.3', status: 'PENDIENTE' }, { itemCode: '4.1', status: 'PENDIENTE' }]
+    expect(approvedItemsNotMarked(evidences, items, new Set(['9.1.3']))).toEqual(['4.1'])
+  })
+  it('las evidencias que se corrigen en Zajuna no esperan revisión', () => {
+    const evidences = [
+      { status: 'pending', reasons: [{ code: 'sheet_errors' }] },
+      { status: 'pending', reasons: [{ code: 'empty_section' }] },
+      { status: 'pending', reasons: [{ code: 'too_wide' }] },
+      { status: 'rejected', reasons: [] },
+      { status: 'approved', reasons: [] },
+    ]
+    expect(reviewableOpenEvidences(evidences)).toBe(2)
   })
 })
