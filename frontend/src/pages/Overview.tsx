@@ -20,7 +20,7 @@ import {
   useChecklistGuides,
   isNotFound,
 } from '../hooks/api'
-import { explainJobFailure, unresolvedFailedJobs } from '../lib/jobFailure'
+import { explainJobFailure, jobsForFicha, unresolvedFailedJobs } from '../lib/jobFailure'
 import { FailureGuide } from '../components/FailureGuide'
 import {
   formatDate,
@@ -157,7 +157,8 @@ export function Overview() {
 
   const dashboard = dashboardQuery.data
   const fichas = fichasQuery.data || []
-  const jobs = jobsQuery.data || []
+  // Solo los trabajos de la ficha activa (y los generales): nunca los de otra ficha.
+  const jobs = jobsForFicha(jobsQuery.data || [], dashboardQuery.data?.activeFichaId)
   const currentJob = jobs.find((job) => ['queued', 'running', 'waiting_user', 'retrying'].includes(job.status))
   const currentJobEventsQuery = useJobEvents(currentJob?.id)
   const schedules = schedulesQuery.data || []

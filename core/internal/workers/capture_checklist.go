@@ -405,8 +405,13 @@ func absentContent(failure string) bool {
 	return strings.Contains(failure, "no tiene publicaciones del instructor") ||
 		strings.Contains(failure, "no tiene respuestas del instructor") ||
 		strings.Contains(failure, semanticAbsenceMarker) ||
-		strings.Contains(failure, "table.generaltable (candidatos=0)")
+		strings.Contains(failure, "table.generaltable (candidatos=0)") ||
+		strings.Contains(failure, gradingTableMarker)
 }
+
+// gradingTableMarker tags the plain-words absence of a grading table (10.1.x)
+// so the tally still counts it as an absence.
+const gradingTableMarker = "tabla sin entregas calificadas"
 
 // tallyTargetOutcomes aggregates fan-out results. Skipped slots (empty row
 // batches) are neither captured nor failed.

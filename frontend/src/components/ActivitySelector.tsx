@@ -62,7 +62,6 @@ export function ActivitySelector({ data, fichaId, fichaCode }: { data: Activitie
 
   const all = data.activities || []
   const technical = all.filter(isSelectable)
-  const transversal = all.filter((activity) => !isSelectable(activity))
   const technicalIds = technical.map((activity) => activity.id)
   const slotsPerItem = Number(data.slotsPerItem) || DEFAULT_SLOTS_PER_ITEM
   const used = activitiesUsedForEvidence(technical, draft, slotsPerItem)
@@ -150,13 +149,6 @@ export function ActivitySelector({ data, fichaId, fichaCode }: { data: Activitie
           </li>
           <li>
             <b>2</b>
-            <span>
-              <strong>Las transversales no se pueden marcar.</strong> Las orienta otro instructor, así que sus fechas y
-              calificaciones no son evidencia tuya y solo generaban evidencia errónea.
-            </span>
-          </li>
-          <li>
-            <b>3</b>
             <span>
               <strong>Guarda la selección.</strong> Por cada ítem se usan las {slotsPerItem} primeras en orden de fase:
               aparecen marcadas con «Se usa en la evidencia».
@@ -256,23 +248,6 @@ export function ActivitySelector({ data, fichaId, fichaCode }: { data: Activitie
             <div className="empty">Ninguna actividad coincide con la búsqueda o el filtro.</div>
           )}
         </div>
-
-        {transversal.length ? (
-          <details className="activity-blocked">
-            <summary>
-              {transversal.length} actividades transversales no seleccionables (las orienta otro instructor)
-            </summary>
-            <p className="helper">{transversal[0].blockedReason || 'Competencia transversal: su evidencia corresponde a otro instructor.'}</p>
-            <ul>
-              {transversal.map((activity) => (
-                <li key={activity.id}>
-                  <span className="activity-title">{activity.title || 'Actividad sin título'}</span>
-                  <span className="activity-meta">{activity.phaseName || 'Sin fase identificada'} · Referencia {activity.id}</span>
-                </li>
-              ))}
-            </ul>
-          </details>
-        ) : null}
 
         <div className="activity-actions">
           <span className="helper">

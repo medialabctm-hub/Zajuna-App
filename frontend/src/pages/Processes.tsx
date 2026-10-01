@@ -1,9 +1,9 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { PageError, PageSkeleton } from '../components/AsyncState'
-import { useJobs } from '../hooks/api'
+import { useDashboard, useJobs } from '../hooks/api'
 import { friendlyJobMessage, friendlyJobStatus, friendlyJobType, jobStatusClass } from '../lib/format'
-import { explainJobFailure } from '../lib/jobFailure'
+import { explainJobFailure, jobsForFicha } from '../lib/jobFailure'
 import type { Job, JobStatus } from '../types'
 
 type JobFilterValue = 'all' | 'running' | 'queued' | 'waiting_user' | 'retrying' | 'completed' | 'failed' | 'cancelled'
@@ -55,7 +55,9 @@ function JobRow({ job }: { job: Job }) {
 
 export function Processes() {
   const jobsQuery = useJobs()
-  const jobs = jobsQuery.data ?? []
+  const { data: dashboard } = useDashboard()
+  // Solo los trabajos de la ficha activa (y los generales).
+  const jobs = jobsForFicha(jobsQuery.data ?? [], dashboard?.activeFichaId)
   const [jobFilter, setJobFilter] = useState<JobFilterValue>('all')
 
   if (jobsQuery.isLoading) return <PageSkeleton label="Cargando trabajos locales" />

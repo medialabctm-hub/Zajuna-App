@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { explainJobFailure, partialCaptureFailures, unresolvedFailedJobs } from './jobFailure'
+import { explainJobFailure, jobsForFicha, partialCaptureFailures, unresolvedFailedJobs } from './jobFailure'
 import type { Job, JobEvent } from '../types'
 
 function job(overrides: Partial<Job>): Job {
@@ -81,5 +81,13 @@ describe('unresolvedFailedJobs', () => {
       job({ id: 'dismissed', type: 'export-report', dismissed: true }),
     ]
     expect(unresolvedFailedJobs(jobs).map((entry) => entry.id)).toEqual(['sync-fail'])
+  })
+})
+
+describe('jobsForFicha', () => {
+  it('muestra solo los trabajos de la ficha activa y los generales', () => {
+    const jobs = [{ id: 'a', fichaId: 'f1' }, { id: 'b', fichaId: 'f2' }, { id: 'c' }]
+    expect(jobsForFicha(jobs, 'f1').map((job) => job.id)).toEqual(['a', 'c'])
+    expect(jobsForFicha(jobs, undefined).length).toBe(3)
   })
 })

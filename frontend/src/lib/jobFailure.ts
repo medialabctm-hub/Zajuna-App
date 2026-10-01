@@ -344,3 +344,12 @@ export function unresolvedFailedJobs(jobs: Job[]) {
     )
   })
 }
+
+/**
+ * Trabajos que corresponden a la ficha activa: los suyos y los generales
+ * (sincronizar fichas, buscar rutas de todas), nunca los de otra ficha.
+ */
+export function jobsForFicha<T extends Pick<Job, 'fichaId'>>(jobs: ReadonlyArray<T>, fichaId?: string): T[] {
+  if (!fichaId) return [...jobs]
+  return jobs.filter((job) => !job.fichaId || job.fichaId === fichaId)
+}

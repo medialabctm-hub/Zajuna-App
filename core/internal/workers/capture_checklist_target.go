@@ -218,8 +218,18 @@ func (w *CaptureChecklistWorker) captureChecklistTarget(ctx context.Context, par
 		}
 		failure := target.ItemCode + ": " + captureErr.Error()
 		// 10.1.x reports a missing grading table as an absence by its message
-		// (absentContent); it gets the same explanation as typed absences.
+		// (absentContent); it gets the same explanation as typed absences, in
+		// words the instructor can act on.
 		if absentContent(failure) {
+			if checklist.GradingInsightItem(target.ItemCode) {
+				name := strings.TrimSpace(target.ActivityTitle)
+				if name == "" {
+					name = "una de las actividades seleccionadas"
+				} else {
+					name = "«" + name + "»"
+				}
+				failure = target.ItemCode + ": sin contenido en Zajuna: " + name + " no tiene entregas calificadas en su tabla de calificación (" + gradingTableMarker + ")"
+			}
 			failure += w.absenceInsight(ctx, params)
 		}
 		return targetOutcome{failure: failure}
