@@ -96,7 +96,7 @@ Todas se validaron con la cuenta real (`zajuna-probe -feature …`):
 | Historial de calificaciones | `GET /grade/report/history/index.php?id=<curso>&showreport=1&download=csv` | 16 025 eventos; 3835 con calificación y 1521 con retroalimentación | 10.1.x: calificaciones y retroalimentaciones registradas para la actividad. |
 | Entregas por calificar | `core_calendar_get_action_events_by_course` | 5 entregas en 2 actividades | 10.1.x: «Zajuna indica N entregas por calificar». |
 | Árbol de calificaciones | `core_grades_get_grade_tree` | 136 ítems | 5.1: un calificador sin ítems es «ausente». |
-| Cronogramas (Google Sheets publicados) | `…/d/e/<id>/pub?gid=…&single=true&output=csv` de la pestaña incrustada en la página de la actividad | Fase Planear y Fase Hacer tienen una celda `#REF!`. El Cronograma General responde 400 con su `gid` y no se revisa: leer otra pestaña daría errores ajenos | 1.x: aviso `sheet_errors` en Revisión, sin bloquear (la evidencia y el ítem siguen cumplidos), y una recomendación en Guías: una sola para todos los 1.2.x, que comparten la captura, con cada hoja con error y su enlace. |
+| Cronogramas (Google Sheets publicados) | `…/d/e/<id>/pub?gid=…&single=true&output=csv` de la pestaña incrustada en la página de la actividad | Fase Planear y Fase Hacer tienen una celda `#REF!`. El Cronograma General responde 400 con su `gid` y no se revisa: leer otra pestaña daría errores ajenos | 1.x: motivo `sheet_errors` en Revisión. La evidencia queda pendiente porque una evidencia con errores conocidos nunca se aprueba. Además hay una guía «Hay que corregir el contenido»: una sola para todos los 1.2.x, que comparten la captura, con la columna de cada error y su enlace. |
 
 Reglas comunes:
 

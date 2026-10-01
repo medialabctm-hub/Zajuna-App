@@ -247,11 +247,7 @@ export function GuideCard({ guide, fichaId, itemStatus, canRecapture }: GuideCar
   // El trabajo que devuelve el botón cuenta al instante, antes de que la
   // lista se refresque.
   const knownJobs = capture.data ? [...(jobs ?? []), capture.data] : jobs ?? []
-  const rawVerification = guideVerification(latestItemCaptureJob(knownJobs, fichaId, guide.itemCode), itemStatus)
-  // A recommendation's item is fulfilled already: while the recommendation
-  // exists, the content still has errors, so a finished check is «sigue con
-  // errores», never «¡Listo!».
-  const verification = guide.advisory && rawVerification.kind === 'fulfilled' ? { kind: 'pending' as const, job: rawVerification.job } : rawVerification
+  const verification = guideVerification(latestItemCaptureJob(knownJobs, fichaId, guide.itemCode), itemStatus)
   const verifying = capture.isPending || verification.kind === 'running'
   const [, setTick] = useState(0)
   // Vuelve a pintar cuando termina el margen tras subir (ver UPLOAD_SETTLE_MS).
@@ -320,8 +316,6 @@ export function GuideCard({ guide, fichaId, itemStatus, canRecapture }: GuideCar
   }
 
   const actions = new Set(guide.actions)
-  // A recommendation's item is already fulfilled: only re-checking makes sense.
-  if (guide.advisory) actions.delete('upload')
   return (
     <section className="card guide-card" id="guia" aria-labelledby="guide-title">
       <div className="card-pad">

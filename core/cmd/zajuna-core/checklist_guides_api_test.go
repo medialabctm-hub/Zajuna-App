@@ -40,9 +40,7 @@ func TestChecklistGuidesAPIGuidesItemsOutOfTheAppsReach(t *testing.T) {
 		t.Fatal(err)
 	}
 	// 14.1.1: the last capture found the forum without a conclusion.
-	if _, err := store.DB().ExecContext(ctx, `INSERT INTO jobs(id, type, status, input_json, result_json, created_at, updated_at)
-		VALUES('job-1', 'capture-checklist', 'completed', ?, ?, '2026-09-24T10:00:00Z', '2026-09-24T10:00:00Z')`,
-		`{"fichaId":"`+fichaID+`"}`, `{"absences":["14.1.1: selector not found (sin contenido en Zajuna): la lista no tiene publicaciones del instructor autenticado sobre «conclusión»"]}`); err != nil {
+	if err := store.RecordCaptureGaps(ctx, fichaID, []string{"14.1.1"}, []string{"14.1.1: selector not found (sin contenido en Zajuna): la lista no tiene publicaciones del instructor autenticado sobre «conclusion»"}, nil); err != nil {
 		t.Fatal(err)
 	}
 

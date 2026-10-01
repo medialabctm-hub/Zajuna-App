@@ -67,7 +67,7 @@ func gradeItemsAbsence(ctx context.Context, client any, session zajuna.Session, 
 
 // scheduleSheetIssues reads the published Google Sheets of a schedule page
 // (1.x) and returns what is wrong with them (#REF! cells, an empty sheet).
-func scheduleSheetIssues(ctx context.Context, client any, session zajuna.Session, target checklist.CaptureTarget) []string {
+func scheduleSheetIssues(ctx context.Context, client any, session zajuna.Session, target checklist.CaptureTarget) []zajuna.SheetIssue {
 	pages, ok := client.(pageClient)
 	if !ok || !checklist.IsScheduleItem(target.ItemCode) {
 		return nil
@@ -78,18 +78,18 @@ func scheduleSheetIssues(ctx context.Context, client any, session zajuna.Session
 	if err != nil || !strings.Contains(strings.ToLower(parsed.Path), "/mod/") {
 		return nil
 	}
-	issues, _ := cachedAJAX(&checklistAJAXCache, &checklistAJAXCache.sheets, session.Sesskey+"|"+target.URL, func() ([]string, error) {
+	issues, _ := cachedAJAX(&checklistAJAXCache, &checklistAJAXCache.sheets, session.Sesskey+"|"+target.URL, func() ([]zajuna.SheetIssue, error) {
 		body, pageErr := pages.GetPage(ctx, session, parsed.RequestURI())
 		if pageErr != nil {
 			return nil, pageErr
 		}
-		found := []string{}
+		found := []zajuna.SheetIssue{}
 		for _, csvURL := range zajuna.PublishedSheetCSVURLs(body) {
 			rows, sheetErr := fetchSheet(ctx, csvURL)
 			if sheetErr != nil {
 				continue
 			}
-			found = append(found, zajuna.SheetIssues(rows)...)
+			found = append(found, zajuna.AnalyzeSheet(rows)...)
 		}
 		return found, nil
 	})
@@ -245,4 +245,12 @@ func (w *CaptureChecklistWorker) forumIDFromIndex(ctx context.Context, params ch
 		}
 	}
 	return match
+}
+
+func sheetIssueMessages(issues []zajuna.SheetIssue) []string {
+	messages := make([]string, 0, len(issues))
+	for _, issue := range issues {
+		messages = append(messages, issue.Message())
+	}
+	return messages
 }

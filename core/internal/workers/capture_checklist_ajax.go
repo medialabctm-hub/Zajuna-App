@@ -41,7 +41,7 @@ type ajaxContentCache struct {
 	exports  map[string]*ajaxEntry[[]zajuna.ForumPostRecord]
 	forumIDs map[string]*ajaxEntry[int]
 	items    map[string]*ajaxEntry[int]
-	sheets   map[string]*ajaxEntry[[]string]
+	sheets   map[string]*ajaxEntry[[]zajuna.SheetIssue]
 }
 
 type ajaxEntry[T any] struct {

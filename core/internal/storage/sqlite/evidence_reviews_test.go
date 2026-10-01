@@ -377,3 +377,64 @@ func TestInstructorUploadSupersedesTheEmptySlotOfAMultiEvidenceItem(t *testing.T
 		t.Fatalf("12.1.1 must be completed, got %s", status)
 	}
 }
+
+func TestAnItemWithAMissingElementIsNeverFulfilled(t *testing.T) {
+	dataDir := t.TempDir()
+	store, err := Open(dataDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	ctx := context.Background()
+	if _, err := store.UpsertFichas(ctx, []zajuna.Ficha{{ExternalID: "400", Name: "Ficha", CourseID: "c5"}}); err != nil {
+		t.Fatal(err)
+	}
+	fichas, _ := store.ListFichas(ctx, 10)
+	fichaID := fichas[0].ID
+	path := filepath.Join(dataDir, "evidences", "forum.png")
+	writeReviewPNG(t, path, 800, 600, true)
+	// 9.1.3: one forum captured with its dates, the other forum has none.
+	if err := store.CreateEvidence(ctx, evidence.Record{ID: "f1", FichaID: fichaID, ItemCode: "9.1.3", SlotNumber: 1, Name: "Foro con fechas", FilePath: path, Format: "png", Source: "capture-checklist", SHA256: "sha-f1", Metadata: []byte(`{"semanticCheck":"forum-dates"}`)}); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.RecordCaptureGaps(ctx, fichaID, []string{"9.1.3"}, []string{"9.1.3: sin contenido en Zajuna: el foro no tiene fechas de apertura ni de cierre configuradas"}, nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.VerifyEvidenceReviews(ctx, fichaID); err != nil {
+		t.Fatal(err)
+	}
+	status := func() string {
+		var value string
+		if err := store.DB().QueryRowContext(ctx, `SELECT status FROM checklist_items WHERE ficha_id = ? AND item_code = '9.1.3'`, fichaID).Scan(&value); err != nil {
+			t.Fatal(err)
+		}
+		return value
+	}
+	if status() != "PENDIENTE" {
+		t.Fatalf("approved evidence plus a missing forum must stay pending, got %s", status())
+	}
+	// A later capture of the item finds both forums: fulfilled.
+	if err := store.RecordCaptureGaps(ctx, fichaID, []string{"9.1.3"}, nil, nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.SyncApprovedChecklistItems(ctx, fichaID); err != nil {
+		t.Fatal(err)
+	}
+	if status() != "SI" {
+		t.Fatalf("without gaps the item is fulfilled, got %s", status())
+	}
+	// And an automatic «Sí» goes back to pending when a new gap appears.
+	if err := store.RecordCaptureGaps(ctx, fichaID, []string{"9.1.3"}, nil, []string{"9.1.3: navegación fallida"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.SyncApprovedChecklistItems(ctx, fichaID); err != nil {
+		t.Fatal(err)
+	}
+	if status() != "PENDIENTE" {
+		t.Fatalf("a failed slot leaves the item unverified, got %s", status())
+	}
+	gaps, _ := store.CaptureGaps(ctx, fichaID)
+	if gaps["9.1.3"].Kind != CaptureGapFailed {
+		t.Fatalf("gaps = %#v", gaps)
+	}
+}

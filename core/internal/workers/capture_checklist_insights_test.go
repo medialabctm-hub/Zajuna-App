@@ -90,7 +90,7 @@ func TestScheduleSheetIssuesComeFromThePublishedSheet(t *testing.T) {
 	client := &fullFakeClient{page: `<iframe src="https://docs.google.com/spreadsheets/d/e/2PACX-x/pubhtml?gid=1"></iframe>`}
 	target := checklist.CaptureTarget{ItemCode: "1.2.1", URL: "https://zajuna.sena.edu.co/zajuna/mod/page/view.php?id=4268113"}
 	issues := scheduleSheetIssues(context.Background(), client, zajuna.Session{Sesskey: "sheet-1"}, target)
-	if len(issues) != 1 || !strings.Contains(issues[0], "#¡REF!") {
+	if len(issues) != 1 || issues[0].Code != "#¡REF!" || issues[0].Column != "Fecha fin fase" {
 		t.Fatalf("issues = %#v", issues)
 	}
 	target.ItemCode = "4.1"

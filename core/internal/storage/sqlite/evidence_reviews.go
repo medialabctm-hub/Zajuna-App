@@ -160,9 +160,11 @@ func (s *Store) ReviewNewEvidenceAndSync(ctx context.Context, fichaID string) (e
 const AutoReviewSource = "revision-automatica"
 
 // SyncApprovedChecklistItems marks as fulfilled ("SI") every pending item of
-// the ficha whose evidences are all approved, and returns to pending an item
-// it marked earlier whose evidence is no longer all approved. A status the
-// person set by hand is never changed. It returns how many items changed.
+// the ficha whose evidences are all approved AND whose last capture left no
+// gap (no slot without content in Zajuna, no failed slot): an item is correct
+// or it is not. It returns to pending an item it marked earlier that no
+// longer qualifies. A status the person set by hand is never changed. It
+// returns how many items changed.
 func (s *Store) SyncApprovedChecklistItems(ctx context.Context, fichaID string) (int, error) {
 	fichaID = strings.TrimSpace(fichaID)
 	if fichaID == "" {
@@ -196,6 +198,10 @@ func (s *Store) SyncApprovedChecklistItems(ctx context.Context, fichaID string) 
 	// An approved upload of the instructor replaces the capture of its slot
 	// (see evidence.SupersededEvidence).
 	approved := evidence.ItemApprovals(slots)
+	gaps, err := s.CaptureGaps(ctx, fichaID)
+	if err != nil {
+		return 0, err
+	}
 	transaction, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return 0, fmt.Errorf("begin checklist auto review: %w", err)
@@ -217,10 +223,12 @@ func (s *Store) SyncApprovedChecklistItems(ctx context.Context, fichaID string) 
 			return 0, fmt.Errorf("scan checklist item for auto review: %w", err)
 		}
 		switch {
-		case status == string(checklist.StatusPending) && approved[code]:
-			changes = append(changes, change{code, status, string(checklist.StatusYes), "Todas sus evidencias quedaron aprobadas en Revisión."})
+		case status == string(checklist.StatusPending) && approved[code] && gaps[code].Kind == "":
+			changes = append(changes, change{code, status, string(checklist.StatusYes), "Todas sus evidencias quedaron aprobadas en Revisión y la captura no encontró faltantes."})
 		case status == string(checklist.StatusYes) && lastSource == AutoReviewSource && !approved[code]:
 			changes = append(changes, change{code, status, string(checklist.StatusPending), "Una de sus evidencias ya no está aprobada."})
+		case status == string(checklist.StatusYes) && lastSource == AutoReviewSource && gaps[code].Kind != "":
+			changes = append(changes, change{code, status, string(checklist.StatusPending), "Le falta un elemento: " + gaps[code].Detail})
 		}
 	}
 	items.Close()

@@ -248,7 +248,7 @@ func (w *CaptureChecklistWorker) captureChecklistTarget(ctx context.Context, par
 		"rowsTotal": captureResult.RowsTotal, "rowStart": captureResult.RowStart, "contentItems": captureResult.ContentItems,
 		"rowMatch": target.RowMatch, "rowRequireReply": target.RowRequireReply, "semanticCheck": target.SemanticCheck, "courseLayout": target.CourseLayout,
 		"maxCaptureWidth": target.MaxCaptureWidth, "columnBatch": target.ColumnBatch, "columnWindows": captureResult.ColumnWindows,
-		"sheetIssues": sheetIssues,
+		"sheetIssues": sheetIssueMessages(sheetIssues),
 	})
 	capturedAt := time.Now().UTC()
 	evidenceRecords := 0

@@ -22,7 +22,7 @@ func TestDetectGuidesFindsItemsOutOfTheAppsReach(t *testing.T) {
 			// A technical problem is the app's job: no guide.
 			{ItemCode: "3.1", Slot: 1},
 		},
-		Absences: map[string]string{"9.1.6": "la lista no tiene respuestas del instructor", "1.1.1": "obsoleta"},
+		Absences: map[string]string{"9.1.6": "la lista no tiene respuestas del instructor"},
 	}
 	codes := guideCodes(DetectGuides(input))
 	if codes["9.1.6"] != GuideContentAbsent || codes["7.3.2"] != GuideEmptySection {
@@ -213,17 +213,14 @@ func TestDetectGuidesAsksToFixAScheduleWithErrors(t *testing.T) {
 	}
 }
 
-func TestScheduleErrorsAreAdviceNotPendingGuides(t *testing.T) {
+func TestScheduleErrorsArePendingGuides(t *testing.T) {
 	input := GuideInput{
-		Items:     []GuideItemState{{ItemCode: "1.2.1", Status: "SI"}, {ItemCode: "1.2.2", Status: "SI"}},
-		Evidences: []GuideEvidence{{ItemCode: "1.2.1", Slot: 1, Approved: true, ContentError: "la hoja del cronograma tiene 1 celda con el error #REF!"}, {ItemCode: "1.2.2", Slot: 1, Approved: true, ContentError: "la hoja del cronograma tiene 1 celda con el error #REF!"}},
+		Items:     []GuideItemState{{ItemCode: "1.2.1", Status: "PENDIENTE"}, {ItemCode: "1.2.2", Status: "PENDIENTE"}},
+		Evidences: []GuideEvidence{{ItemCode: "1.2.1", Slot: 1, ContentError: "la columna «Fecha fin fase» del cronograma tiene 1 celda con el error #REF!"}, {ItemCode: "1.2.2", Slot: 1, ContentError: "la columna «Fecha fin fase» del cronograma tiene 1 celda con el error #REF!"}},
 	}
-	if guides := DetectGuides(input); len(guides) != 0 {
-		t.Fatalf("fulfilled schedules are not pending guides: %#v", guideCodes(guides))
-	}
-	advice := DetectAdvice(input)
-	if len(advice) != 1 || !advice[0].Advisory || advice[0].ItemCode != "1.2.1" || strings.Join(advice[0].AlsoItems, ",") != "1.2.2" {
-		t.Fatalf("advice = %#v", advice)
+	guides := DetectGuides(input)
+	if len(guides) != 1 || guides[0].Kind != GuideContentError || strings.Join(guides[0].AlsoItems, ",") != "1.2.2" {
+		t.Fatalf("an evidence with known errors is a pending guide: %#v", guides)
 	}
 }
 
@@ -243,5 +240,16 @@ func TestScheduleErrorsShareOneGuide(t *testing.T) {
 	}
 	if !strings.Contains(guides[0].Detected, "#REF!") || !strings.Contains(guides[0].Detected, "#N/A") || len(guides[0].MissingSlots) != 2 {
 		t.Fatalf("every faulty sheet must be listed: %#v", guides[0])
+	}
+}
+
+func TestAMissingElementGetsAGuideEvenWithApprovedEvidence(t *testing.T) {
+	guides := DetectGuides(GuideInput{
+		Items:     []GuideItemState{{ItemCode: "9.1.3", Status: "PENDIENTE"}},
+		Evidences: []GuideEvidence{{ItemCode: "9.1.3", Slot: 1, Approved: true}},
+		Absences:  map[string]string{"9.1.3": "el foro no tiene fechas de apertura ni de cierre configuradas"},
+	})
+	if len(guides) != 1 || guides[0].ItemCode != "9.1.3" || guides[0].Kind != GuideContentAbsent {
+		t.Fatalf("guides = %#v", guideCodes(guides))
 	}
 }

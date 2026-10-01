@@ -339,6 +339,11 @@ func (w *CaptureChecklistWorker) Execute(ctx context.Context, job jobs.Job, repo
 	if ctx.Err() != nil {
 		return jobs.Result{ErrorCode: "capture_cancelled", ErrorMessage: ctx.Err().Error(), Output: output}
 	}
+	// What this capture could not verify (absent or failed slots) keeps its
+	// items from being fulfilled until a later capture finds them.
+	if gapStore, ok := w.evidence.(captureGapStore); ok {
+		_ = gapStore.RecordCaptureGaps(ctx, input.FichaID, captureGapScope(input.ItemCodes, targetItemCodes), tally.absences, failures)
+	}
 	// Best effort: prepare the review screen. A verification error never fails
 	// the capture.
 	if verifier, ok := w.evidence.(evidence.ReviewVerifier); ok {
@@ -575,4 +580,37 @@ func safePathPart(value string) string {
 	}
 	value = strings.NewReplacer("\\", "_", "/", "_", ":", "_", "..", "_").Replace(value)
 	return value
+}
+
+// captureGapStore records what a capture could not verify per item.
+type captureGapStore interface {
+	RecordCaptureGaps(ctx context.Context, fichaID string, scope []string, absences, failures []string) error
+}
+
+// captureGapScope lists the items a capture verified: every catalog item for
+// a whole-ficha capture, or the requested items plus those their targets
+// cover («Ya lo hice» on 9.1.6 also verifies 9.1.7).
+func captureGapScope(requested []string, targetItemCodes map[string]bool) []string {
+	if len(requested) == 0 {
+		scope := []string{}
+		for _, item := range checklist.Items() {
+			scope = append(scope, item.ItemCode)
+		}
+		return scope
+	}
+	seen := map[string]bool{}
+	scope := []string{}
+	for _, code := range requested {
+		if code = strings.TrimSpace(code); code != "" && !seen[code] {
+			seen[code] = true
+			scope = append(scope, code)
+		}
+	}
+	for code := range targetItemCodes {
+		if !seen[code] {
+			seen[code] = true
+			scope = append(scope, code)
+		}
+	}
+	return scope
 }

@@ -724,7 +724,7 @@ técnicos: `file_missing` y `login_page` (rechazada); `too_wide` (> 4000 px),
 `too_tall` (> 9000 px), `too_small` (< 200×120 px, solo en secciones del
 curso), `mostly_blank` (≥ 99,5 % casi blanco), `empty_section` (sección sin
 actividades ni archivos), `generic_selector`, `duplicate_content`,
-`outdated_rule` (pendiente). `sheet_errors` (cronograma publicado con celdas de error) es solo un aviso: la evidencia sigue aprobada. Una decisión manual se respeta mientras el
+`outdated_rule` y `sheet_errors` (pendiente). `sheet_errors` aparece cuando el cronograma publicado tiene celdas con error, y el mensaje nombra la columna: una evidencia con errores conocidos nunca se aprueba. Una decisión manual se respeta mientras el
 `sha256` no cambie; al recapturar se vuelve a verificar. `capture-checklist`
 ejecuta la verificación al terminar (sin hacer fallar la captura).
 
@@ -769,10 +769,17 @@ corría. «pending» retira la decisión manual de forma explícita.
   automática). Devuelve la evidencia actualizada.
 
 `POST /api/evidences/verify`, `PUT /api/evidences/{id}/review` y la revisión
-automática al terminar `capture-checklist` sincronizan el checklist: un ítem
-«PENDIENTE» cuyas evidencias están todas aprobadas pasa a «SI», y un «SI»
-puesto por esta sincronización vuelve a «PENDIENTE» si una evidencia deja de
-estar aprobada. Un «SI» o «NO» manual nunca se cambia. Cada cambio queda en el
+automática al terminar `capture-checklist` sincronizan el checklist con una
+regla estricta (correcto o no). Un ítem «PENDIENTE» pasa a «SI» solo si se
+cumplen dos condiciones: todas sus evidencias están aprobadas y la última
+captura del ítem no dejó ningún faltante, es decir, ningún slot sin contenido
+en Zajuna ni ningún slot fallido (`capture_gaps:<ficha>` en `app_settings`,
+que escribe `capture-checklist` antes de verificar).
+
+Así ocurrió en la ficha 3135429: 9.1.3 tenía un foro con fechas aprobado y
+otro sin fechas, y no queda cumplido. Si a un «SI» automático le aparece un
+faltante, vuelve a «PENDIENTE», y lo mismo si una evidencia deja de estar
+aprobada. Un «SI» o «NO» manual nunca se cambia. Cada cambio queda en el
 historial del ítem con `source: "revision-automatica"`. Los ítems sin
 evidencia de `missingItems` explican la ausencia de la última captura
 («Sin contenido en Zajuna: …») cuando la hubo.
@@ -790,7 +797,7 @@ resolver el instructor en Zajuna:
 | `empty-section` | Una evidencia con `empty_section`, o una ausencia «la sección no tiene actividades ni archivos». |
 | `content-absent` | Sin evidencia y la última captura informó «sin contenido en Zajuna» (foro sin respuestas del instructor, sin conclusión, sin fechas…). |
 | `route-missing` | Con mapa de rutas, ningún target cubre el ítem. No aplica a 6.1 ni 10.1.x, que esperan la selección de actividades. |
-| `content-error` | El contenido de Zajuna tiene errores que solo el instructor puede corregir. Hoy es el caso de un cronograma publicado con celdas `#REF!` (motivo `sheet_errors`). Como el ítem sigue cumplido, no va en `guides`: va en `advice` (recomendaciones, `advisory: true`), que no cuentan como pendientes. Los ítems que comparten la captura van en una sola recomendación con `alsoItems`. |
+| `content-error` | El contenido de Zajuna tiene errores que solo el instructor puede corregir. Hoy es el caso de un cronograma publicado con celdas `#REF!` (motivo `sheet_errors`, evidencia pendiente). Los ítems que comparten la captura van en una sola guía con `alsoItems`. |
 
 Los fallos técnicos (captura rota, imagen demasiado ancha) no generan guía:
 son trabajo de la app y se resuelven volviendo a capturar. Cada guía trae

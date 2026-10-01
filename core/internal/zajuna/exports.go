@@ -447,39 +447,90 @@ func FetchPublishedSheet(ctx context.Context, csvURL string) ([][]string, error)
 
 var sheetErrorPattern = regexp.MustCompile(`#(¡?REF!|N/A|¡?VALOR!|VALUE!|DIV/0!|¿?NOMBRE\?|NAME\?|NUM!|NULL!|ERROR!)`)
 
-// SheetIssues describes, in plain words, what is wrong with a schedule:
-// formula errors in cells or an empty sheet.
-func SheetIssues(rows [][]string) []string {
+// SheetIssue is a formula error found in a schedule sheet: the header of the
+// column it is in (the closest label above the cell; empty when unknown or
+// for an empty sheet), the error code and how many cells show it.
+type SheetIssue struct {
+	Column string
+	Code   string
+	Count  int
+}
+
+// Message describes the issue in plain words.
+func (issue SheetIssue) Message() string {
+	if issue.Code == "" {
+		return "la hoja del cronograma está vacía"
+	}
+	plural := "celda"
+	if issue.Count != 1 {
+		plural = "celdas"
+	}
+	if issue.Column != "" {
+		return fmt.Sprintf("la columna «%s» del cronograma tiene %d %s con el error %s", issue.Column, issue.Count, plural, issue.Code)
+	}
+	return fmt.Sprintf("la hoja del cronograma tiene %d %s con el error %s", issue.Count, plural, issue.Code)
+}
+
+var digitPattern = regexp.MustCompile(`\d`)
+
+// AnalyzeSheet finds the formula errors of a schedule sheet and the column
+// each one is in, or reports an empty sheet.
+func AnalyzeSheet(rows [][]string) []SheetIssue {
 	filled := 0
-	errorCells := map[string]int{}
-	for _, row := range rows {
-		for _, cell := range row {
+	type key struct{ column, code string }
+	counts := map[key]int{}
+	for r, row := range rows {
+		for c, cell := range row {
 			cell = strings.TrimSpace(cell)
 			if cell == "" {
 				continue
 			}
 			filled++
-			if match := sheetErrorPattern.FindString(cell); match != "" {
-				errorCells[match]++
+			code := sheetErrorPattern.FindString(cell)
+			if code == "" {
+				continue
 			}
+			counts[key{sheetColumnHeader(rows, r, c), code}]++
 		}
 	}
-	issues := []string{}
 	if filled == 0 {
-		return []string{"la hoja del cronograma está vacía"}
+		return []SheetIssue{{}}
 	}
-	codes := make([]string, 0, len(errorCells))
-	for code := range errorCells {
-		codes = append(codes, code)
+	issues := make([]SheetIssue, 0, len(counts))
+	for k, count := range counts {
+		issues = append(issues, SheetIssue{Column: k.column, Code: k.code, Count: count})
 	}
-	sort.Strings(codes)
-	for _, code := range codes {
-		count := errorCells[code]
-		plural := "celda"
-		if count != 1 {
-			plural = "celdas"
+	sort.Slice(issues, func(i, j int) bool {
+		if issues[i].Column != issues[j].Column {
+			return issues[i].Column < issues[j].Column
 		}
-		issues = append(issues, fmt.Sprintf("la hoja del cronograma tiene %d %s con el error %s", count, plural, code))
-	}
+		return issues[i].Code < issues[j].Code
+	})
 	return issues
+}
+
+// sheetColumnHeader is the closest cell above (r, c) that reads like a label:
+// text without digits and without an error.
+func sheetColumnHeader(rows [][]string, r, c int) string {
+	for up := r - 1; up >= 0; up-- {
+		if c >= len(rows[up]) {
+			continue
+		}
+		cell := strings.TrimSpace(rows[up][c])
+		if cell == "" || sheetErrorPattern.MatchString(cell) || digitPattern.MatchString(cell) {
+			continue
+		}
+		return strings.Join(strings.Fields(cell), " ")
+	}
+	return ""
+}
+
+// SheetIssues describes the issues of a sheet in plain words.
+func SheetIssues(rows [][]string) []string {
+	issues := AnalyzeSheet(rows)
+	messages := make([]string, 0, len(issues))
+	for _, issue := range issues {
+		messages = append(messages, issue.Message())
+	}
+	return messages
 }

@@ -3,6 +3,7 @@ package evidence
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"image"
 	"image/color"
 	"image/png"
@@ -328,10 +329,13 @@ func hasReason(reasons []ReviewReason, code string) bool {
 func TestVerifyFlagsScheduleSheetErrors(t *testing.T) {
 	dataDir := t.TempDir()
 	path := writeTestPNG(t, dataDir, "schedule.png", 1600, 2600, 0.3)
-	broken := VerifyRecord(dataDir, testRecord("c1", "1.2.1", path, "a", map[string]any{"selector": "iframe", "sheetIssues": []string{"la hoja del cronograma tiene 1 celda con el error #¡REF!"}}), nil, time.Now())
-	// Advisory: the reason is reported, the evidence stays approved.
-	if broken.Status != ReviewApproved || broken.Reasons[len(broken.Reasons)-1].Code != ReasonSheetErrors {
-		t.Fatalf("a schedule with #REF! keeps its evidence approved with an advisory reason: %#v", broken)
+	meta := map[string]any{"selector": "iframe", "sheetIssues": []string{"la columna «Fecha fin fase» del cronograma tiene 1 celda con el error #¡REF!"}}
+	// An evidence that shows a known error is never ready, whatever the item.
+	for index, item := range []string{"1.2.1", "1.2.5"} {
+		review := VerifyRecord(dataDir, testRecord(fmt.Sprintf("c%d", index), item, path, fmt.Sprintf("h%d", index), meta), nil, time.Now())
+		if review.Status != ReviewPending || review.Reasons[len(review.Reasons)-1].Code != ReasonSheetErrors {
+			t.Fatalf("%s with #REF! in its sheet must be pending: %#v", item, review)
+		}
 	}
 	clean := VerifyRecord(dataDir, testRecord("c2", "1.2.2", path, "b", map[string]any{"selector": "iframe", "sheetIssues": []string{}}), nil, time.Now())
 	for _, reason := range clean.Reasons {

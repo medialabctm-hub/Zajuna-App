@@ -23,12 +23,14 @@ type checklistGuideStore interface {
 	CaptureAbsenceReasons(context.Context, string) (map[string]string, error)
 }
 
+type captureGapReader interface {
+	CaptureGaps(context.Context, string) (map[string]sqlite.CaptureGap, error)
+}
+
 type checklistGuidesView struct {
 	FichaID  string            `json:"fichaId"`
 	MapReady bool              `json:"mapReady"`
 	Guides   []checklist.Guide `json:"guides"`
-	// Advice: recommendations (content with errors) that are not pending.
-	Advice []checklist.Guide `json:"advice"`
 }
 
 // registerChecklistGuideRoutes exposes the guides for the items the app
@@ -90,7 +92,20 @@ func buildChecklistGuides(ctx context.Context, store checklistGuideStore, fichaI
 			Superseded: entry.Superseded, EmptySection: empty, ContentError: contentError,
 		})
 	}
-	if input.Absences, err = store.CaptureAbsenceReasons(ctx, ficha.ID); err != nil {
+	// The gaps of each item's last capture are the current truth; the older
+	// absence log is only a fallback for a store without them.
+	if gapStore, ok := store.(captureGapReader); ok {
+		gaps, gapErr := gapStore.CaptureGaps(ctx, ficha.ID)
+		if gapErr != nil {
+			return checklistGuidesView{}, gapErr
+		}
+		input.Absences = map[string]string{}
+		for code, gap := range gaps {
+			if gap.Kind == sqlite.CaptureGapAbsent {
+				input.Absences[code] = gap.Detail
+			}
+		}
+	} else if input.Absences, err = store.CaptureAbsenceReasons(ctx, ficha.ID); err != nil {
 		return checklistGuidesView{}, err
 	}
 	record, err := store.GetCourseMap(ctx, ficha.CourseID)
@@ -119,5 +134,5 @@ func buildChecklistGuides(ctx context.Context, store checklistGuideStore, fichaI
 		}
 		input.Targets = checklist.ApplyRouteReviews(targets, reviews)
 	}
-	return checklistGuidesView{FichaID: ficha.ID, MapReady: input.MapReady, Guides: checklist.DetectGuides(input), Advice: checklist.DetectAdvice(input)}, nil
+	return checklistGuidesView{FichaID: ficha.ID, MapReady: input.MapReady, Guides: checklist.DetectGuides(input)}, nil
 }
