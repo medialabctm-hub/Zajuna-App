@@ -62,9 +62,10 @@ forma de cada respuesta: claves, tipos y cantidades.
 | `mod_forum_get_discussion_posts_by_userid` | Disponible. Una llamada por foro devuelve los mensajes del instructor y a qué mensaje responde cada uno. |
 | `mod_forum_get_discussion_posts` | Disponible (autor, `parentid`, asunto y fecha por mensaje). |
 | `core_course_get_module` | Disponible. Para «Foro temático. AA2-EV01» devuelve «Vencimiento: …»; para «Foro Temático», ninguna fecha. |
-| `core_calendar_get_action_events_by_course` | Disponible (14 eventos con `action.itemcount`). Sin usar todavía. |
-| `core_calendar_get_calendar_monthly_view` | Disponible. Sin usar todavía. |
-| `core_grades_get_grade_tree` | Disponible (39 ítems de calificación). Sin usar todavía. |
+| `core_calendar_get_action_events_by_course` | Disponible: 2 actividades con 5 entregas por calificar. |
+| `core_calendar_get_calendar_monthly_view` | Disponible. Sin usar. |
+| `core_grades_get_grade_tree` | Disponible: 136 ítems de calificación. |
+| `core_user_get_users_by_field` | Disponible. Confirma el id del instructor a partir de los candidatos de la página. |
 | `core_webservice_get_site_info` | No disponible por AJAX (`servicenotavailable`), como se esperaba. |
 
 Corrida real con «Ya lo hice, verificar» sobre 7.3.2, 13.1.1, 14.1.1 y 9.1.6.
@@ -81,17 +82,40 @@ Una revisión independiente pidió dos cosas, ya incorporadas:
   las mismas etiquetas de fecha y el marcador `activity-dates`.
 - El `sesskey` no aparece en ningún texto de error.
 
-## Pendiente (validado, sin integrar)
+## Otras fuentes que solo necesitan la sesión
 
-- `core_calendar_get_action_events_by_course`: entregas por calificar
-  (10.1.x).
-- `core_calendar_get_calendar_monthly_view`: fechas límite (6.1).
-- `core_grades_get_grade_tree`: asociación en Calificaciones (5.1).
-- `/mod/<tipo>/index.php?id=<curso>`: inventario de actividades para el
-  descubrimiento de rutas.
-- CSV público de los Google Sheets de los cronogramas
-  (`…/pub?gid=…&single=true&output=csv`).
-- Exportación de foros (`mod/forum/export.php`, `format=json`), si el rol del
-  instructor la permite.
-- Historial de calificaciones en CSV (`grade/report/history`), para medir el
-  plazo de 3 días hábiles de 10.1.2.
+Ninguna depende del SENA, de tokens ni de plugins: son funciones de Moodle que
+cualquier instructor tiene, más las hojas de Google que ya están publicadas.
+Todas se validaron con la cuenta real (`zajuna-probe -feature …`):
+
+| Fuente | Endpoint | Validación (curso 41080) | Uso en la app |
+|---|---|---|---|
+| Índice de foros | `GET /mod/forum/index.php?id=<curso>` | 14 foros, cada uno con su número de debates | Respaldo para encontrar el id de un foro por su nombre cuando la página del foro no lo expone. |
+| Id de foro | `data-forumid` en `mod/forum/view.php?id=<cmid>` | Encontrado | Id que necesita la exportación. |
+| Exportación de foros | `POST /mod/forum/export.php` (`format=json`) | 35 y 87 mensajes, con autor y respuesta a la que contesta | 9.1.5–9.1.7: «hay N aportes de aprendices sin respuesta tuya, el más antiguo del …». |
+| Historial de calificaciones | `GET /grade/report/history/index.php?id=<curso>&showreport=1&download=csv` | 16 025 eventos; 3835 con calificación y 1521 con retroalimentación | 10.1.x: calificaciones y retroalimentaciones registradas para la actividad. |
+| Entregas por calificar | `core_calendar_get_action_events_by_course` | 5 entregas en 2 actividades | 10.1.x: «Zajuna indica N entregas por calificar». |
+| Árbol de calificaciones | `core_grades_get_grade_tree` | 136 ítems | 5.1: un calificador sin ítems es «ausente». |
+| Cronogramas (Google Sheets publicados) | `…/d/e/<id>/pub?gid=…&single=true&output=csv` de la pestaña incrustada en la página de la actividad | Fase Planear y Fase Hacer tienen una celda `#REF!`. El Cronograma General responde 400 con su `gid` y no se revisa: leer otra pestaña daría errores ajenos | 1.x: motivo `sheet_errors` en Revisión y guía «Hay que corregir el contenido». Es una sola guía para todos los 1.2.x, que comparten la captura, con cada hoja con error y su enlace. |
+
+Reglas comunes:
+
+- Ninguna fuente puede hacer fallar una captura.
+- La de verificación (5.1) solo decide «ausente» si la respuesta es
+  inequívoca: un árbol sin lista de ítems es «no disponible», no vacío.
+- 6.1 (fechas límite) no se decide por AJAX: la tarjeta del curso solo
+  muestra fechas si el curso activa «Mostrar fechas de actividad», así que su
+  ausencia no prueba nada.
+- Las de contexto (foros, calificaciones) solo completan el motivo que ve el
+  instructor; nunca cambian la decisión.
+- De la exportación de foros y del historial solo quedan ids, fechas y
+  conteos: nombres, correos y textos se descartan al leerlos.
+- El CSV de las hojas se pide solo a `docs.google.com` por HTTPS, sin cookies.
+
+## Fuera de alcance sin el SENA
+
+- REST con token: requiere que el administrador active un servicio externo.
+- plugNmeet (sesiones en línea), Microsoft Graph (Teams) y un plugin propio
+  en Zajuna: requieren credenciales o aprobación institucional.
+- RSS de foros: desactivado en Zajuna.
+- iCal: el token de exportación es un secreto por usuario.

@@ -201,6 +201,7 @@ export function useJobs() {
     queryClient.invalidateQueries({ queryKey: ['reports'] })
     queryClient.invalidateQueries({ queryKey: ['evidenceReview'] })
     queryClient.invalidateQueries({ queryKey: ['checklistGuides'] })
+    queryClient.invalidateQueries({ queryKey: ['checklistItemDetail'] })
     // Finished jobs create notifications and a ficha sync rewrites the list.
     queryClient.invalidateQueries({ queryKey: ['notifications'] })
     queryClient.invalidateQueries({ queryKey: ['fichas'] })

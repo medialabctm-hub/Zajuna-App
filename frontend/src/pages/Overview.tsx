@@ -489,7 +489,7 @@ export function Overview() {
                         </strong>
                         <span>No podemos publicar ese contenido por ti. Cada uno tiene una guía paso a paso.</span>
                       </div>
-                      <button className="button ghost small" onClick={() => navigate('/checklist?category=guia')}>
+                      <button className="button ghost small" onClick={() => navigate('/guias')}>
                         Ver guías
                       </button>
                     </div>

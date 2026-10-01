@@ -91,7 +91,7 @@ function ReviewedNotice() {
       {guides > 0 ? (
         <>
           {guides === 1 ? 'Queda 1 ítem' : `Quedan ${guides} ítems`} que dependen de ti:{' '}
-          <Link to="/checklist?category=guia">ver guías</Link> o <Link to="/reportes">generar el reporte PDF</Link>.
+          <Link to="/guias">ver guías</Link> o <Link to="/reportes">generar el reporte PDF</Link>.
         </>
       ) : (
         <>

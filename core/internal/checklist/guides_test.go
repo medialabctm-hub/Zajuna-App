@@ -201,3 +201,33 @@ func TestItemsTheAppCompletesFallBackToAValidGuide(t *testing.T) {
 		}
 	}
 }
+
+func TestDetectGuidesAsksToFixAScheduleWithErrors(t *testing.T) {
+	guides := DetectGuides(GuideInput{Evidences: []GuideEvidence{{ItemCode: "1.2.1", Slot: 1, ContentError: "la hoja del cronograma tiene 1 celda con el error #¡REF!"}}})
+	if len(guides) != 1 || guides[0].Kind != GuideContentError {
+		t.Fatalf("guides = %#v", guideCodes(guides))
+	}
+	guide := guides[0]
+	if !strings.Contains(guide.Detected, "#¡REF!") || !strings.Contains(strings.Join(guide.Steps, " "), "Google Sheets") || guide.EvidenceHint == "" {
+		t.Fatalf("content-error guide = %#v", guide)
+	}
+}
+
+func TestScheduleErrorsShareOneGuide(t *testing.T) {
+	evidences := []GuideEvidence{}
+	for _, code := range []string{"1.2.1", "1.2.2", "1.2.5"} {
+		evidences = append(evidences, GuideEvidence{ItemCode: code, Slot: 1, ContentError: "la hoja del cronograma tiene 1 celda con el error #REF!"})
+	}
+	evidences = append(evidences, GuideEvidence{ItemCode: "1.2.1", Slot: 3, ContentError: "la hoja del cronograma tiene 2 celdas con el error #N/A"})
+	targets := []CaptureTarget{
+		{ItemCode: "1.2.1", SlotNumber: 1, URL: "https://zajuna.sena.edu.co/zajuna/mod/page/view.php?id=1", Name: "Planear"},
+		{ItemCode: "1.2.1", SlotNumber: 3, URL: "https://zajuna.sena.edu.co/zajuna/mod/page/view.php?id=3", Name: "Verificar"},
+	}
+	guides := DetectGuides(GuideInput{Evidences: evidences, Targets: targets})
+	if len(guides) != 1 || guides[0].ItemCode != "1.2.1" || strings.Join(guides[0].AlsoItems, ",") != "1.2.2,1.2.5" {
+		t.Fatalf("guides = %#v", guides)
+	}
+	if !strings.Contains(guides[0].Detected, "#REF!") || !strings.Contains(guides[0].Detected, "#N/A") || len(guides[0].MissingSlots) != 2 {
+		t.Fatalf("every faulty sheet must be listed: %#v", guides[0])
+	}
+}

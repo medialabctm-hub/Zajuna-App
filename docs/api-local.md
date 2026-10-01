@@ -723,8 +723,8 @@ Cada evidencia queda `approved`, `pending` o `rejected` (tabla
 técnicos: `file_missing` y `login_page` (rechazada); `too_wide` (> 4000 px),
 `too_tall` (> 9000 px), `too_small` (< 200×120 px, solo en secciones del
 curso), `mostly_blank` (≥ 99,5 % casi blanco), `empty_section` (sección sin
-actividades ni archivos), `generic_selector`, `duplicate_content` y
-`outdated_rule` (pendiente). Una decisión manual se respeta mientras el
+actividades ni archivos), `generic_selector`, `duplicate_content`,
+`outdated_rule` y `sheet_errors` (cronograma publicado con celdas de error; pendiente). Una decisión manual se respeta mientras el
 `sha256` no cambie; al recapturar se vuelve a verificar. `capture-checklist`
 ejecuta la verificación al terminar (sin hacer fallar la captura).
 
@@ -790,6 +790,7 @@ resolver el instructor en Zajuna:
 | `empty-section` | Una evidencia con `empty_section`, o una ausencia «la sección no tiene actividades ni archivos». |
 | `content-absent` | Sin evidencia y la última captura informó «sin contenido en Zajuna» (foro sin respuestas del instructor, sin conclusión, sin fechas…). |
 | `route-missing` | Con mapa de rutas, ningún target cubre el ítem. No aplica a 6.1 ni 10.1.x, que esperan la selección de actividades. |
+| `content-error` | La evidencia existe, pero el contenido de Zajuna tiene errores que solo el instructor puede corregir: un cronograma publicado con celdas `#REF!` (motivo `sheet_errors`). Los ítems que comparten la captura van en una sola guía con `alsoItems`. |
 
 Los fallos técnicos (captura rota, imagen demasiado ancha) no generan guía:
 son trabajo de la app y se resuelven volviendo a capturar. Cada guía trae

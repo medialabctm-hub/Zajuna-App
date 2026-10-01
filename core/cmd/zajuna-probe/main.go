@@ -40,7 +40,10 @@ func main() {
 	method := flag.String("method", "", "función AJAX de Moodle")
 	rawArgs := flag.String("args", "{}", "argumentos JSON de la función")
 	page := flag.String("page", "", "ruta de una página de Zajuna para listar enlaces (solo forma)")
+	feature := flag.String("feature", "", "prueba una integración: forum-index, forum-instance, forum-export, grade-history, grade-items, pending-grading, sheet")
+	featureArg := flag.Int("arg", 0, "id del curso, del foro o de la actividad para -feature")
 	pattern := flag.String("match", `href="[^"]*(?:discuss|view)\.php\?[^"]*"`, "regex de enlaces a listar con -page")
+	header := flag.Bool("header", false, "con -page: muestra solo la primera línea (encabezado de un CSV)")
 	raw := flag.Bool("raw", false, "imprime la respuesta completa (puede contener datos personales; no la compartas)")
 	flag.Parse()
 
@@ -52,10 +55,22 @@ func main() {
 	}
 	fmt.Printf("sesión: sesskey=%t userId=%t\n", session.Sesskey != "", session.UserID > 0)
 
+	if *feature != "" {
+		runFeature(ctx, client, session, *feature, *featureArg)
+		return
+	}
 	if *page != "" {
 		body, err := client.GetPage(ctx, session, *page)
 		if err != nil {
 			fail(err)
+		}
+		if *header {
+			first, _, _ := strings.Cut(strings.TrimPrefix(body, string(rune(0xFEFF))), string(rune(10)))
+			if len(first) > 400 {
+				first = first[:400]
+			}
+			fmt.Printf("página %s: %d bytes, primera línea: %s\n", *page, len(body), first)
+			return
 		}
 		links := regexp.MustCompile(*pattern).FindAllString(body, -1)
 		fmt.Printf("página %s: %d bytes, %d coincidencias\n", *page, len(body), len(links))
@@ -194,4 +209,75 @@ func unique(values []string) []string {
 func fail(err error) {
 	fmt.Fprintln(os.Stderr, "error:", err)
 	os.Exit(1)
+}
+
+// runFeature exercises one session-only integration and prints only counts.
+func runFeature(ctx context.Context, client *zajuna.Client, session zajuna.Session, feature string, arg int) {
+	switch feature {
+	case "forum-index":
+		entries, err := client.ForumIndex(ctx, session, arg)
+		report(feature, err, fmt.Sprintf("%d foros", len(entries)))
+		for index, entry := range entries {
+			if index < 5 {
+				fmt.Printf("   foro %d: %d debates · %q\n", entry.ForumID, entry.Discussions, entry.Name)
+			}
+		}
+	case "forum-instance":
+		id, err := client.ForumInstanceID(ctx, session, arg)
+		report(feature, err, fmt.Sprintf("id de foro encontrado: %t", id > 0))
+	case "forum-export":
+		posts, err := client.ExportForum(ctx, session, arg)
+		unanswered, oldest := zajuna.UnansweredPosts(posts, session.UserID)
+		authors, mine := map[int]bool{}, 0
+		for _, post := range posts {
+			authors[post.UserID] = true
+			if post.UserID == session.UserID {
+				mine++
+			}
+		}
+		fmt.Printf("   autores distintos: %d · autor 0 presente: %t · mensajes del instructor: %d\n", len(authors), authors[0], mine)
+		report(feature, err, fmt.Sprintf("%d mensajes, %d sin respuesta del instructor (el más antiguo %s)", len(posts), unanswered, time.Unix(oldest, 0).Format("2006-01-02")))
+	case "grade-history":
+		entries, err := client.GradeHistory(ctx, session, arg)
+		graded, feedback := 0, 0
+		for _, entry := range entries {
+			if entry.Graded {
+				graded++
+			}
+			if entry.HasFeedback {
+				feedback++
+			}
+		}
+		report(feature, err, fmt.Sprintf("%d eventos, %d con calificación, %d con retroalimentación", len(entries), graded, feedback))
+	case "grade-items":
+		count, err := client.GradeItemCount(ctx, session, arg)
+		report(feature, err, fmt.Sprintf("%d ítems de calificación", count))
+	case "pending-grading":
+		pending, err := client.PendingGradings(ctx, session, arg)
+		total := 0
+		for _, entry := range pending {
+			total += entry.Count
+		}
+		report(feature, err, fmt.Sprintf("%d actividades con %d entregas por calificar", len(pending), total))
+	case "sheet":
+		body, err := client.GetPage(ctx, session, fmt.Sprintf("/zajuna/mod/page/view.php?id=%d", arg))
+		if err != nil {
+			report(feature, err, "")
+			return
+		}
+		for _, csvURL := range zajuna.PublishedSheetCSVURLs(body) {
+			rows, sheetErr := zajuna.FetchPublishedSheet(ctx, csvURL)
+			report(feature, sheetErr, fmt.Sprintf("%d filas · problemas: %v", len(rows), zajuna.SheetIssues(rows)))
+		}
+	default:
+		fail(fmt.Errorf("integración desconocida %q", feature))
+	}
+}
+
+func report(feature string, err error, detail string) {
+	if err != nil {
+		fmt.Printf("%s: NO disponible: %v\n", feature, err)
+		return
+	}
+	fmt.Printf("%s: disponible · %s\n", feature, detail)
 }

@@ -373,7 +373,7 @@ export interface EvidenceReview {
 }
 
 /** Por qué un ítem quedó fuera del alcance de la app (ver core/internal/checklist/guides.go). */
-export type ChecklistGuideKind = 'content-absent' | 'empty-section' | 'route-missing'
+export type ChecklistGuideKind = 'content-absent' | 'empty-section' | 'route-missing' | 'content-error'
 export type ChecklistGuideAction = 'recapture' | 'upload' | 'rediscover'
 
 export interface ChecklistGuideTemplate {
@@ -405,6 +405,8 @@ export interface ChecklistGuide {
   zajunaUrl?: string
   zajunaLabel?: string
   missingSlots?: number[]
+  /** Otros ítems que se resuelven con la misma acción (comparten la captura). */
+  alsoItems?: string[]
 }
 
 export interface ChecklistGuidesResponse {

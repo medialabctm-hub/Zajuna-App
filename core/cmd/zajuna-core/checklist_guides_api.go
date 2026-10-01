@@ -74,16 +74,18 @@ func buildChecklistGuides(ctx context.Context, store checklistGuideStore, fichaI
 		return checklistGuidesView{}, err
 	}
 	for _, entry := range report.Evidences {
-		empty := false
+		empty, contentError := false, ""
 		for _, reason := range entry.Reasons {
-			if reason.Code == evidence.ReasonEmptySection {
+			switch reason.Code {
+			case evidence.ReasonEmptySection:
 				empty = true
-				break
+			case evidence.ReasonSheetErrors:
+				contentError = strings.TrimPrefix(reason.Message, "La hoja publicada en Zajuna tiene errores: ")
 			}
 		}
 		input.Evidences = append(input.Evidences, checklist.GuideEvidence{
 			ItemCode: entry.ItemCode, Slot: entry.SlotNumber, Approved: entry.Status == evidence.ReviewApproved,
-			Superseded: entry.Superseded, EmptySection: empty,
+			Superseded: entry.Superseded, EmptySection: empty, ContentError: contentError,
 		})
 	}
 	if input.Absences, err = store.CaptureAbsenceReasons(ctx, ficha.ID); err != nil {

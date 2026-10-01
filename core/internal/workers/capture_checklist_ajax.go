@@ -34,6 +34,14 @@ type ajaxContentCache struct {
 	mu      sync.Mutex
 	courses map[string]*ajaxEntry[zajuna.CourseState]
 	forums  map[string]*ajaxEntry[[]zajuna.ForumUserPost]
+	// Heavy session-only sources (the grade history is megabytes): one
+	// download per session and course or forum, shared by every slot.
+	history  map[string]*ajaxEntry[[]zajuna.GradeHistoryEntry]
+	pending  map[string]*ajaxEntry[[]zajuna.PendingGrading]
+	exports  map[string]*ajaxEntry[[]zajuna.ForumPostRecord]
+	forumIDs map[string]*ajaxEntry[int]
+	items    map[string]*ajaxEntry[int]
+	sheets   map[string]*ajaxEntry[[]string]
 }
 
 type ajaxEntry[T any] struct {
@@ -87,6 +95,8 @@ func (w *CaptureChecklistWorker) ajaxContentAbsence(ctx context.Context, params 
 			return "", false
 		}
 		return sectionAbsence(state, sectionTitle)
+	case checklist.ContentCheckGradeItems:
+		return gradeItemsAbsence(ctx, w.client, params.Session, target.URL)
 	case checklist.ContentCheckForumDates:
 		cmID := forumCMIDFromURL(target.URL)
 		if cmID <= 0 {

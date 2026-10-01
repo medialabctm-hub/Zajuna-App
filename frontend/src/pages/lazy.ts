@@ -8,6 +8,7 @@ const loaders = {
   Fichas: () => import('./Fichas').then((module) => ({ default: module.Fichas })),
   Checklist: () => import('./Checklist').then((module) => ({ default: module.Checklist })),
   ChecklistItemDetail: () => import('./ChecklistItemDetail').then((module) => ({ default: module.ChecklistItemDetail })),
+  Guides: () => import('./Guides').then((module) => ({ default: module.Guides })),
   Activities: () => import('./Activities').then((module) => ({ default: module.Activities })),
   Evidences: () => import('./Evidences').then((module) => ({ default: module.Evidences })),
   Processes: () => import('./Processes').then((module) => ({ default: module.Processes })),
@@ -23,6 +24,7 @@ export const Overview = lazy(loaders.Overview)
 export const Fichas = lazy(loaders.Fichas)
 export const Checklist = lazy(loaders.Checklist)
 export const ChecklistItemDetail = lazy(loaders.ChecklistItemDetail)
+export const Guides = lazy(loaders.Guides)
 export const Activities = lazy(loaders.Activities)
 export const Evidences = lazy(loaders.Evidences)
 export const Processes = lazy(loaders.Processes)

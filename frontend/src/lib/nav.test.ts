@@ -32,6 +32,14 @@ describe('NAV_ITEMS', () => {
   })
 })
 
+describe('Guías', () => {
+  it('tiene su propio apartado en Operación, también para el detalle de un ítem', () => {
+    expect(NAV_ITEMS.find((item) => item.path === '/guias')).toMatchObject({ label: 'Guías', group: 'Operación', icon: 'help', showGenericHeader: true })
+    expect(findNavItem('/guias/14.1.1')?.label).toBe('Guías')
+    expect(OPERATION_ITEMS.map((item) => item.path)).toContain('/guias')
+  })
+})
+
 describe('findNavItem', () => {
   it('resuelve rutas exactas y anidadas usadas por el shell', () => {
     expect(findNavItem('/evidencias')?.label).toBe('Evidencias')

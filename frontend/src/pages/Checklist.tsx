@@ -33,6 +33,7 @@ import { RouteDiscoveryAction } from '../components/RouteDiscoveryAction'
 import { CaptureAction } from '../components/WorkflowActions'
 import { ActivitySelector } from '../components/ActivitySelector'
 import { GuideSummary } from '../components/ChecklistGuide'
+import { guidedItemCodes } from '../lib/guideVerification'
 import { itemReviewState, type GroupConfidence } from '../lib/evidenceGroupState'
 import type {
   DashboardCategory,
@@ -115,7 +116,7 @@ function TaskRow({
           Ver detalle
         </Link>
         {hasGuide ? (
-          <Link className="task-guide-link" to={`/checklist/${encodeURIComponent(item.itemCode)}#guia`}>
+          <Link className="task-guide-link" to={`/guias/${encodeURIComponent(item.itemCode)}`}>
             Depende de ti · ver guía
           </Link>
         ) : null}
@@ -596,7 +597,7 @@ export function Checklist() {
   const progress = Math.max(0, Math.min(100, Number(summary.percentage) || 0))
   const reviews = reviewsQuery.data || []
   const guides = guidesQuery.data?.guides || []
-  const guideCodes = new Set(guides.map((guide) => guide.itemCode))
+  const guideCodes = guidedItemCodes(guides)
 
   const filtered = items.filter((item) => {
     if (category === 'all') return true
@@ -809,9 +810,9 @@ export function Checklist() {
                 Sin evidencia {emptyEvidenceCount}
               </button>
               {guides.length ? (
-                <button type="button" aria-pressed={category === 'guia'} className={`checklist-filter-tab ${category === 'guia' ? 'active' : ''}`} onClick={() => handleCategoryChange('guia')}>
-                  Dependen de ti {guides.length}
-                </button>
+                <Link className="checklist-filter-tab" to="/guias">
+                  Dependen de ti {guides.length} →
+                </Link>
               ) : null}
             </div>
             <span className="helper">

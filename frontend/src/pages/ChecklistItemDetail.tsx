@@ -1,5 +1,5 @@
-import { useEffect } from 'react'
-import { Link, useLocation, useParams } from 'react-router-dom'
+import { Link, useParams } from 'react-router-dom'
+import { Icon } from '../components/Icon'
 import { MissingActiveFicha, PageError, PageSkeleton } from '../components/AsyncState'
 import { evidenceDownloadUrl } from '../api/client'
 import {
@@ -17,8 +17,8 @@ import {
 import { useToast } from '../hooks/useToast'
 import { friendlyError } from '../lib/friendlyError'
 import { confidenceFor, formatDate, routeStatusClass, routeStatusLabel } from '../lib/format'
-import { GuideCard } from '../components/ChecklistGuide'
 import { itemReviewState } from '../lib/evidenceGroupState'
+import { findGuideForItem } from '../lib/guideVerification'
 import type { DashboardItem, Evidence, ItemStatus, RouteTarget } from '../types'
 
 function targetLocation(target: RouteTarget) {
@@ -56,14 +56,7 @@ export function ChecklistItemDetail() {
   const capture = useCapture()
   const guidesQuery = useChecklistGuides(dashboard?.activeFichaId)
   const reviewQuery = useEvidenceReview(dashboard?.activeFichaId)
-  const guide = guidesQuery.data?.guides.find((entry) => entry.itemCode === decodedCode)
-  const location = useLocation()
-
-  // «Ver guía» llega con #guia: se lleva la vista a la guía cuando ya cargó.
-  useEffect(() => {
-    if (location.hash !== '#guia' || !guide) return
-    document.getElementById('guia')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-  }, [location.hash, guide])
+  const guide = findGuideForItem(guidesQuery.data?.guides ?? [], decodedCode)
 
   if (dashboardQuery.isLoading) return <PageSkeleton label="Cargando detalle de tarea" />
   if (dashboardQuery.isError && isNotFound(dashboardQuery.error)) {
@@ -171,7 +164,18 @@ export function ChecklistItemDetail() {
         </div>
       </section>
 
-      {guide ? <GuideCard guide={guide} fichaId={activeFichaId} canRecapture={targets.length > 0} /> : null}
+      {guide ? (
+        <Link className="card guide-detail-link" to={`/guias/${encodeURIComponent(task.itemCode)}`}>
+          <span className="guide-summary-icon" aria-hidden="true">
+            <Icon name="help" size={16} />
+          </span>
+          <span>
+            <strong>Este ítem depende de ti en Zajuna</strong>
+            <small>{guide.headline}</small>
+          </span>
+          <span className="guide-summary-toggle">Abrir su guía →</span>
+        </Link>
+      ) : null}
 
       <div className="task-detail-columns">
         <section className="card">

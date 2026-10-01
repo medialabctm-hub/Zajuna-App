@@ -42,6 +42,10 @@ const (
 	ReasonDuplicateContent = "duplicate_content"
 	ReasonEmptySection     = "empty_section"
 	ReasonOutdatedRule     = "outdated_rule"
+	// ReasonSheetErrors: the published Google Sheet of a schedule has cells
+	// with formula errors (#REF!…) or is empty. Only the instructor can fix
+	// the source sheet.
+	ReasonSheetErrors = "sheet_errors"
 )
 
 const (
@@ -161,6 +165,7 @@ type reviewMetadata struct {
 	SelectorFallbacks []string `json:"selectorFallbacks"`
 	CoveredItemCodes  []string `json:"coveredItemCodes"`
 	SemanticCheck     string   `json:"semanticCheck"`
+	SheetIssues       []string `json:"sheetIssues"`
 }
 
 // ImageStats are the measured properties of an evidence image.
@@ -364,6 +369,10 @@ func VerifyRecord(dataDir string, record Record, all []Record, now time.Time) Re
 	// rule; evidence from an older, weaker rule showed the wrong rows.
 	if required := checklist.SemanticCheckForItem(record.ItemCode); required != "" && strings.TrimSpace(record.Source) == "capture-checklist" && metadata.SemanticCheck != required {
 		review.Reasons = append(review.Reasons, ReviewReason{Code: ReasonOutdatedRule, Message: outdatedRuleMessage(required)})
+	}
+
+	if len(metadata.SheetIssues) > 0 {
+		review.Reasons = append(review.Reasons, ReviewReason{Code: ReasonSheetErrors, Message: "La hoja publicada en Zajuna tiene errores: " + strings.Join(metadata.SheetIssues, "; ") + "."})
 	}
 
 	if duplicates := duplicateItemCodes(record, metadata, all); len(duplicates) > 0 {

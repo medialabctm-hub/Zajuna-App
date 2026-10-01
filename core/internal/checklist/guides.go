@@ -17,6 +17,10 @@ const (
 	// GuideRouteMissing: route discovery did not find where the item lives
 	// in the course (the section or forum does not exist, or has another name).
 	GuideRouteMissing = "route-missing"
+	// GuideContentError: the evidence exists but what Zajuna shows is wrong
+	// (a schedule sheet with #REF! cells). Only the instructor can fix the
+	// source document.
+	GuideContentError = "content-error"
 )
 
 // Completion actions the interface offers to finish an item from a guide.
@@ -75,6 +79,9 @@ type Guide struct {
 	ZajunaURL    string         `json:"zajunaUrl,omitempty"`
 	ZajunaLabel  string         `json:"zajunaLabel,omitempty"`
 	MissingSlots []int          `json:"missingSlots,omitempty"`
+	// AlsoItems are other items fixed by the same action: the schedule items
+	// (1.2.x) share one capture per sheet, so one guide stands for all.
+	AlsoItems []string `json:"alsoItems,omitempty"`
 }
 
 func kindWhy(kind string) string {
@@ -83,6 +90,8 @@ func kindWhy(kind string) string {
 		return "La subsección existe en Zajuna, pero está vacía. Solo tú puedes subir ese contenido; nosotros no publicamos nada en tu curso."
 	case GuideRouteMissing:
 		return "No encontramos en el curso la sección o el foro donde vive este ítem. Puede que no exista todavía o que tenga otro nombre."
+	case GuideContentError:
+		return "La evidencia está en Zajuna, pero el contenido tiene errores que solo tú puedes corregir en el documento original. Nosotros no editamos tus archivos."
 	default:
 		return "La página está en Zajuna, pero todavía no tiene lo que pide el checklist. Ese contenido depende de ti; nosotros no publicamos nada en tu curso."
 	}
@@ -112,8 +121,18 @@ func guideSteps(content guideContent, kind string) []string {
 		if len(content.emptySteps) > 0 {
 			return append([]string(nil), content.emptySteps...)
 		}
+	case GuideContentError:
+		return append([]string(nil), contentErrorSteps...)
 	}
 	return append([]string(nil), content.steps...)
+}
+
+// contentErrorSteps fix a published Google Sheet (the course schedules):
+// Zajuna shows the published copy, so the source sheet is what changes.
+var contentErrorSteps = []string{
+	"Abre el cronograma original en Google Sheets con la cuenta que lo creó (el archivo, no la vista publicada que se ve en Zajuna).",
+	"Busca las celdas con error (#REF!, #N/A, #¡VALOR!…): casi siempre son fórmulas que apuntan a una fila o pestaña que se borró.",
+	"Corrige la fórmula o escribe el valor correcto (por ejemplo, la fecha de fin de fase) y espera un par de minutos: la hoja publicada en Zajuna se actualiza sola.",
 }
 
 // guideHandoff says what the instructor hands back so Zajuna Sync finishes.
@@ -123,6 +142,13 @@ func guideHandoff(kind string) string {
 		return "Cuando exista en Zajuna, pulsa «Buscar rutas de nuevo» para que la encontremos y después «Ya lo hice, verificar»: capturamos solo este ítem y lo marcamos como cumplido si la evidencia sale bien. " + upload
 	}
 	return "Cuando lo tengas en Zajuna, pulsa «Ya lo hice, verificar»: capturamos solo este ítem y, si la evidencia sale bien, lo marcamos como cumplido. " + upload
+}
+
+func guideEvidenceHint(content guideContent, kind string) string {
+	if kind == GuideContentError {
+		return "una captura del cronograma ya corregido tal como se ve en Zajuna, sin celdas con error."
+	}
+	return content.evidenceHint
 }
 
 // fallbackContent covers the items the app normally completes by itself
@@ -158,13 +184,16 @@ func BuildGuide(signal GuideSignal) (Guide, bool) {
 		return Guide{}, false
 	}
 	switch signal.Kind {
-	case GuideContentAbsent, GuideEmptySection, GuideRouteMissing:
+	case GuideContentAbsent, GuideEmptySection, GuideRouteMissing, GuideContentError:
 	default:
 		return Guide{}, false
 	}
 	content, ok := itemGuides[code]
 	if !ok {
 		content = fallbackContent(item)
+	}
+	if signal.Kind == GuideContentError {
+		content.headline = "Corrige los errores del cronograma publicado"
 	}
 	categoryLabel := ""
 	for _, category := range Categories() {
@@ -177,7 +206,7 @@ func BuildGuide(signal GuideSignal) (Guide, bool) {
 		ItemCode: code, Description: item.Description, CategoryCode: item.CategoryCode, CategoryLabel: categoryLabel,
 		Kind: signal.Kind, Headline: content.headline, Requirement: content.requirement, Location: content.location,
 		Why: kindWhy(signal.Kind), Detected: strings.TrimSpace(signal.Detected),
-		Steps: guideSteps(content, signal.Kind), Handoff: guideHandoff(signal.Kind), EvidenceHint: content.evidenceHint,
+		Steps: guideSteps(content, signal.Kind), Handoff: guideHandoff(signal.Kind), EvidenceHint: guideEvidenceHint(content, signal.Kind),
 		Actions: kindActions(signal.Kind), Template: content.template,
 		ZajunaURL: strings.TrimSpace(signal.ZajunaURL), ZajunaLabel: strings.TrimSpace(signal.ZajunaLabel),
 		MissingSlots: append([]int(nil), signal.MissingSlots...),
@@ -199,6 +228,9 @@ type GuideEvidence struct {
 	Superseded bool
 	// EmptySection: the review found a subsection without files or activities.
 	EmptySection bool
+	// ContentError: what is wrong with the content Zajuna shows (the review
+	// reason of a schedule sheet with formula errors), in plain words.
+	ContentError string
 }
 
 // GuideInput is the live state of a ficha that DetectGuides reads.
@@ -241,6 +273,9 @@ func DetectGuides(input GuideInput) []Guide {
 		}
 	}
 	guides := []Guide{}
+	// One content-error guide per item group: the items share the capture of
+	// the same sheet, so fixing it once fixes all of them.
+	contentErrorGuide := map[string]int{}
 	for _, item := range Items() {
 		code := item.ItemCode
 		if status[code] == string(StatusYes) {
@@ -249,11 +284,19 @@ func DetectGuides(input GuideInput) []Guide {
 		counted := evidences[code]
 		allApproved := len(counted) > 0
 		emptySlots := []int{}
+		errorSlots := []int{}
+		contentErrors := []string{}
 		for _, entry := range counted {
 			if !entry.Approved {
 				allApproved = false
 				if entry.EmptySection {
 					emptySlots = append(emptySlots, max(entry.Slot, 1))
+				}
+				if message := strings.TrimSpace(entry.ContentError); message != "" {
+					errorSlots = append(errorSlots, max(entry.Slot, 1))
+					if !containsString(contentErrors, message) {
+						contentErrors = append(contentErrors, message)
+					}
 				}
 			}
 		}
@@ -262,6 +305,10 @@ func DetectGuides(input GuideInput) []Guide {
 		}
 		signal := GuideSignal{ItemCode: code}
 		switch {
+		case len(contentErrors) > 0:
+			signal.Kind = GuideContentError
+			signal.MissingSlots = errorSlots
+			signal.Detected = "Última verificación: " + strings.TrimSuffix(strings.Join(contentErrors, "; "), ".") + "."
 		case len(emptySlots) > 0:
 			signal.Kind = GuideEmptySection
 			signal.MissingSlots = emptySlots
@@ -285,11 +332,29 @@ func DetectGuides(input GuideInput) []Guide {
 		if target, ok := guideTarget(targets[code], signal.MissingSlots); ok {
 			signal.ZajunaURL, signal.ZajunaLabel = target.URL, target.Name
 		}
+		if signal.Kind == GuideContentError {
+			if index, seen := contentErrorGuide[item.GroupName]; seen {
+				guides[index].AlsoItems = append(guides[index].AlsoItems, code)
+				continue
+			}
+		}
 		if guide, ok := BuildGuide(signal); ok {
+			if signal.Kind == GuideContentError {
+				contentErrorGuide[item.GroupName] = len(guides)
+			}
 			guides = append(guides, guide)
 		}
 	}
 	return guides
+}
+
+func containsString(values []string, value string) bool {
+	for _, existing := range values {
+		if existing == value {
+			return true
+		}
+	}
+	return false
 }
 
 // guideTarget picks the page to open: the target of the first slot that

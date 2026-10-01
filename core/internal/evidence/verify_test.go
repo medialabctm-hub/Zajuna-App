@@ -324,3 +324,18 @@ func hasReason(reasons []ReviewReason, code string) bool {
 	}
 	return false
 }
+
+func TestVerifyFlagsScheduleSheetErrors(t *testing.T) {
+	dataDir := t.TempDir()
+	path := writeTestPNG(t, dataDir, "schedule.png", 1600, 2600, 0.3)
+	broken := VerifyRecord(dataDir, testRecord("c1", "1.2.1", path, "a", map[string]any{"selector": "iframe", "sheetIssues": []string{"la hoja del cronograma tiene 1 celda con el error #¡REF!"}}), nil, time.Now())
+	if broken.Status != ReviewPending || broken.Reasons[len(broken.Reasons)-1].Code != ReasonSheetErrors {
+		t.Fatalf("a schedule with #REF! must be pending: %#v", broken)
+	}
+	clean := VerifyRecord(dataDir, testRecord("c2", "1.2.2", path, "b", map[string]any{"selector": "iframe", "sheetIssues": []string{}}), nil, time.Now())
+	for _, reason := range clean.Reasons {
+		if reason.Code == ReasonSheetErrors {
+			t.Fatalf("a clean schedule has no sheet reason: %#v", clean)
+		}
+	}
+}
