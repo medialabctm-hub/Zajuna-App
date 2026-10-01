@@ -390,10 +390,16 @@ export interface ChecklistGuide {
   categoryLabel: string
   kind: ChecklistGuideKind
   headline: string
+  /** Lo que pide el lineamiento, en una frase. */
+  requirement: string
+  /** Ruta de navegación dentro del curso (vacía si no se conoce). */
+  location?: string
   why: string
   detected?: string
   steps: string[]
   handoff: string
+  /** Qué subir exactamente si el instructor entrega la evidencia a Zajuna Sync. */
+  evidenceHint: string
   actions: ChecklistGuideAction[]
   template?: ChecklistGuideTemplate
   zajunaUrl?: string

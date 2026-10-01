@@ -1,6 +1,9 @@
 package checklist
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func guideCodes(guides []Guide) map[string]string {
 	codes := map[string]string{}
@@ -126,8 +129,75 @@ func TestDetectGuidesTellsAnEmptySectionAbsenceApart(t *testing.T) {
 		t.Fatalf("guides = %#v", codes)
 	}
 	for _, guide := range guides {
-		if guide.ItemCode == "14.1.1" && guide.Detected != "Última captura: la lista no tiene publicaciones del instructor autenticado sobre «conclusión»." {
+		if guide.ItemCode == "14.1.1" && guide.Detected != "Última verificación: la lista no tiene publicaciones del instructor autenticado sobre «conclusión»." {
 			t.Fatalf("detected = %q", guide.Detected)
+		}
+	}
+}
+
+// The items whose content only the instructor can create in Zajuna. The eight
+// evidenced in ficha 3135429 are mandatory; the rest share their nature.
+var instructorDependentItems = []string{
+	"7.3.2", "7.3.3", "13.1.1", "13.1.3", "9.1.6", "9.1.7", "14.1.1", "14.1.2",
+	"7.3.1", "7.4.1", "7.4.2", "7.4.3", "7.4.4", "13.1.2", "13.2.1", "13.2.2",
+	"9.1.1", "9.1.2", "9.1.3", "9.1.4", "9.1.5", "10.1.1", "10.1.2", "12.1.1", "12.1.2",
+	"11.1.1", "11.1.2", "11.1.3", "11.1.4", "11.2.1", "11.2.2", "11.2.3", "11.3", "11.4",
+}
+
+func TestInstructorDependentItemsHaveCompleteGuides(t *testing.T) {
+	catalog := map[string]bool{}
+	for _, item := range Items() {
+		catalog[item.ItemCode] = true
+	}
+	for code := range itemGuides {
+		if !catalog[code] {
+			t.Errorf("guide for %s, which is not a checklist item", code)
+		}
+	}
+	for _, code := range instructorDependentItems {
+		content, ok := itemGuides[code]
+		if !ok {
+			t.Errorf("%s needs a specific guide", code)
+			continue
+		}
+		if content.headline == "" || content.requirement == "" || content.location == "" || content.create == "" || content.evidenceHint == "" || len(content.steps) == 0 {
+			t.Errorf("%s: incomplete guide %#v", code, content)
+		}
+		for _, kind := range []string{GuideContentAbsent, GuideEmptySection, GuideRouteMissing} {
+			guide, ok := BuildGuide(GuideSignal{ItemCode: code, Kind: kind})
+			if !ok || len(guide.Steps) == 0 || guide.Location == "" || guide.Requirement == "" || guide.EvidenceHint == "" {
+				t.Errorf("%s/%s: %#v", code, kind, guide)
+				continue
+			}
+			// The handoff ends where Zajuna Sync takes over: verify or hand the evidence.
+			if !strings.Contains(guide.Handoff, "«Ya lo hice, verificar»") || !strings.Contains(guide.Handoff, "«Subir mi evidencia»") || guide.EvidenceHint != content.evidenceHint {
+				t.Errorf("%s/%s handoff does not lead to Zajuna Sync: %q", code, kind, guide.Handoff)
+			}
+		}
+		missing, _ := BuildGuide(GuideSignal{ItemCode: code, Kind: GuideRouteMissing})
+		if !strings.Contains(missing.Handoff, "«Buscar rutas de nuevo»") || !strings.Contains(strings.Join(missing.Steps, " "), content.create) {
+			t.Errorf("%s: a missing route must ask to create %q and search the routes again", code, content.create)
+		}
+	}
+	for _, code := range []string{"9.1.5", "9.1.6", "9.1.7", "14.1.1", "14.1.2", "11.2.3", "12.1.2"} {
+		if itemGuides[code].template == nil {
+			t.Errorf("%s must offer a text template", code)
+		}
+	}
+	empty, _ := BuildGuide(GuideSignal{ItemCode: "7.3.2", Kind: GuideEmptySection})
+	if !strings.Contains(strings.Join(empty.Steps, " "), "solo tiene su título") {
+		t.Errorf("7.3.2 empty-section steps = %#v", empty.Steps)
+	}
+}
+
+func TestItemsTheAppCompletesFallBackToAValidGuide(t *testing.T) {
+	for _, code := range []string{"1.1.1", "2.1.4", "4.1", "8.2", "15.1"} {
+		if _, ok := itemGuides[code]; ok {
+			t.Errorf("%s is completed by the app; it should use the fallback", code)
+		}
+		guide, ok := BuildGuide(GuideSignal{ItemCode: code, Kind: GuideContentAbsent})
+		if !ok || guide.Requirement == "" || guide.EvidenceHint == "" || len(guide.Steps) == 0 || guide.Handoff == "" {
+			t.Errorf("%s fallback: %#v", code, guide)
 		}
 	}
 }

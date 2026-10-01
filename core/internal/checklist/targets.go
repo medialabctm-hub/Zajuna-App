@@ -131,7 +131,11 @@ const forumPageSelector = `#page-mod-forum-view #region-main form[action*="/mod/
 // ForumDatesSelector matches a forum page only when Moodle shows its activity
 // dates ("Apertura:", "Cierre:", "Vencimiento:", "Fecha límite:"). A forum
 // without configured dates is not evidence of 9.1.3/9.1.4.
-const ForumDatesSelector = `#page-mod-forum-view #region-main:has([data-region="activity-dates"], .activity-dates, :text-matches("^\\s*(Apertura|Abri[óo]|Cierre|Cierra|Vencimiento|Vence|Fecha l[ií]mite|Fecha de corte)\\s*:", "i"))`
+const ForumDatesSelector = `#page-mod-forum-view #region-main:has([data-region="activity-dates"], .activity-dates, :text-matches("^\\s*` + ForumDateLabels + `\\s*:", "i"))`
+
+// ForumDateLabels are the labels Moodle prints before an activity date. The
+// browser rule (ForumDatesSelector) and the AJAX check share them.
+const ForumDateLabels = `(Apertura|Abri[óo]|Cierre|Cierra|Vencimiento|Vence|Fecha l[ií]mite|Fecha de corte)`
 
 type CapturePlanSummary struct {
 	ItemCount        int `json:"itemCount"`

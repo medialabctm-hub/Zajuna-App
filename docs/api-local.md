@@ -793,17 +793,35 @@ resolver el instructor en Zajuna:
 
 Los fallos técnicos (captura rota, imagen demasiado ancha) no generan guía:
 son trabajo de la app y se resuelven volviendo a capturar. Cada guía trae
-`headline`, `why`, `detected`, `steps[]`, `handoff` (qué entrega el
-instructor), `actions[]` (`recapture`, `upload`, `rediscover`), `template`
-opcional (texto para copiar, p. ej. la conclusión del foro), `zajunaUrl` y
-`zajunaLabel` (la página exacta del curso) y `missingSlots[]`. El contenido
-está escrito por ítem para los casos frecuentes, por grupo como respaldo y,
-para el resto, se arma con la descripción del ítem.
+`headline`, `requirement` (qué pide el lineamiento), `location` (ruta dentro
+del curso), `why`, `detected`, `steps[]` (adaptados al `kind`: con
+`route-missing` primero se crea o renombra la sección o el foro con el nombre
+exacto; con `empty-section` se sube el contenido a la subsección que ya
+existe), `handoff` (cómo entrega el trabajo a Zajuna Sync), `evidenceHint`
+(qué subir exactamente si el instructor entrega su evidencia), `actions[]`
+(`recapture`, `upload`, `rediscover`), `template` opcional (texto para copiar:
+conclusión y retroalimentación de foros, respuesta a dudas, anuncios de fase,
+de actividad, semanales y de aprobados, resumen de sesión), `zajunaUrl` y
+`zajunaLabel` (la página exacta del curso) y `missingSlots[]`.
+
+El catálogo (`core/internal/checklist/guides_catalog.go`) tiene guía escrita
+para los ítems cuyo contenido depende del instructor: documentos y actas de
+Seguimiento (7.3.x, 7.4.x, 13.x), foros (9.1.x, 14.1.x), anuncios (11.x),
+grabaciones y resúmenes de sesiones (12.1.x) y calificación de entregas
+(10.1.x). Los ítems que la app resuelve sola (cronogramas, perfil, menú,
+calificador, sesiones 8.x…) usan una guía de respaldo construida con la
+descripción del ítem.
 
 Para terminar el ítem, el instructor publica en Zajuna y pulsa «Ya lo hice,
 verificar» (`POST /api/checklist/capture` con `itemCodes: [código]`) o sube su
 evidencia (`POST /api/evidences/upload` con `itemCode` y `slotNumber`). Una
 subida con `itemCode` se revisa al momento y sincroniza el checklist.
+
+**Verificación con la API de Zajuna.** Antes de abrir Chromium,
+`capture-checklist` confirma por AJAX las subsecciones vacías, los foros sin
+respuestas o sin conclusión del instructor y los foros sin fechas (ver
+[API AJAX de Zajuna](zajuna-ajax-2026-10-01.md)). Esas ausencias llegan a la
+guía como «Última verificación: … (verificado con la API de Zajuna)».
 
 **Subida del instructor frente a captura.** Una subida (`source: manual`)
 aprobada reemplaza en su ítem y slot a la captura automática

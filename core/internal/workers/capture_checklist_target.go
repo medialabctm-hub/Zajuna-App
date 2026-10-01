@@ -137,6 +137,12 @@ func (w *CaptureChecklistWorker) captureChecklistTarget(ctx context.Context, par
 		return targetOutcome{failure: target.ItemCode + ": captura cancelada"}
 	}
 	defer unlock()
+	// Zajuna's AJAX API can confirm that the content is missing (an empty
+	// subsection, a forum without the instructor's replies or conclusion)
+	// without opening Chromium. Only a confirmed absence short-circuits.
+	if detail, absent := w.ajaxContentAbsence(ctx, params); absent {
+		return targetOutcome{absent: true, failure: target.ItemCode + ": " + detail, coveredItemCodes: coveredItemCodes(target)}
+	}
 	options := capture.CaptureOptions{
 		Selector: target.CSSSelector, Selectors: target.CSSSelectorFallbacks,
 		RevealSelectors: target.RevealSelectors, HideSelectors: target.HideSelectors,

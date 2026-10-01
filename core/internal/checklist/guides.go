@@ -1,7 +1,6 @@
 package checklist
 
 import (
-	"fmt"
 	"strings"
 )
 
@@ -54,287 +53,28 @@ type GuideTemplate struct {
 // Guide tells the instructor how to complete an item the app cannot prove by
 // itself, and what to hand back so the app finishes the work.
 type Guide struct {
-	ItemCode      string         `json:"itemCode"`
-	Description   string         `json:"description"`
-	CategoryCode  string         `json:"categoryCode"`
-	CategoryLabel string         `json:"categoryLabel"`
-	Kind          string         `json:"kind"`
-	Headline      string         `json:"headline"`
-	Why           string         `json:"why"`
-	Detected      string         `json:"detected,omitempty"`
-	Steps         []string       `json:"steps"`
-	Handoff       string         `json:"handoff"`
-	Actions       []string       `json:"actions"`
-	Template      *GuideTemplate `json:"template,omitempty"`
-	ZajunaURL     string         `json:"zajunaUrl,omitempty"`
-	ZajunaLabel   string         `json:"zajunaLabel,omitempty"`
-	MissingSlots  []int          `json:"missingSlots,omitempty"`
-}
-
-// guideContent is the hand-written part of a guide.
-type guideContent struct {
-	headline string
-	steps    []string
-	handoff  string
-	template *GuideTemplate
-}
-
-const (
-	handoffRecapture = "Cuando lo hayas publicado en Zajuna, pulsa «Ya lo hice, verificar». Capturamos solo este ítem y, si la evidencia sale bien, lo marcamos como cumplido."
-	handoffDocument  = "Súbelo a Zajuna y pulsa «Ya lo hice, verificar». Si prefieres, sube aquí una captura o el PDF. Lo revisamos y, si está bien, el ítem queda cumplido."
-)
-
-var conclusionTemplate = &GuideTemplate{
-	Label: "Texto sugerido para la conclusión",
-	Title: "Conclusión del foro temático: [nombre del foro]",
-	Body: "Apreciados aprendices:\n\n" +
-		"Agradezco sus aportes en este foro. A partir de sus participaciones destaco:\n" +
-		"1. [Idea principal 1]\n" +
-		"2. [Idea principal 2]\n" +
-		"3. [Idea principal 3]\n\n" +
-		"Conclusión: [síntesis del tema y relación con la actividad de proyecto].\n\n" +
-		"Cordialmente,\n[Nombre del instructor]",
-}
-
-// itemGuides holds the items with specific instructions; the rest fall back to
-// their group and then to the generic text of their kind.
-var itemGuides = map[string]guideContent{
-	"9.1.1": {
-		headline: "Nombra el foro de dudas según el lineamiento",
-		steps: []string{
-			"En la sección de foros del curso, abre el foro de dudas y pulsa «Editar ajustes».",
-			"Cambia el nombre a «Foro de Dudas e Inquietudes» y guarda los cambios.",
-		},
-		handoff: handoffRecapture,
-	},
-	"9.1.2": {
-		headline: "Crea al menos un Foro de Dudas e Inquietudes",
-		steps: []string{
-			"Activa la edición en el curso de Zajuna.",
-			"En la sección de foros, pulsa «Añadir una actividad o un recurso» y elige «Foro».",
-			"Nómbralo «Foro de Dudas e Inquietudes» y guarda los cambios.",
-		},
-		handoff: "Cuando exista, pulsa «Buscar rutas de nuevo» para que encontremos el foro, y después «Ya lo hice, verificar».",
-	},
-	"9.1.3": {
-		headline: "Configura las fechas del foro temático",
-		steps: []string{
-			"Abre el foro temático y entra en «Editar ajustes».",
-			"En «Disponibilidad», activa y completa la fecha de entrega o de vencimiento y la fecha límite.",
-			"Guarda los cambios y comprueba que las fechas se ven en la página del foro.",
-		},
-		handoff: handoffRecapture,
-	},
-	"9.1.4": {
-		headline: "Abre el foro temático en las fechas del cronograma",
-		steps: []string{
-			"Revisa en el cronograma de la fase las fechas del foro temático.",
-			"En «Editar ajustes» del foro, haz que la disponibilidad coincida con esas fechas y que el foro sea visible.",
-			"Guarda los cambios.",
-		},
-		handoff: handoffRecapture,
-	},
-	"9.1.5": {
-		headline: "Responde las dudas del foro de dudas",
-		steps: []string{
-			"Abre el Foro de Dudas e Inquietudes.",
-			"Responde cada debate de los aprendices con «Responder». La respuesta debe ser el último mensaje del debate.",
-			"Hazlo en máximo un día hábil desde que el aprendiz publica.",
-		},
-		handoff: handoffRecapture,
-	},
-	"9.1.6": {
-		headline: "Responde a los aprendices en los foros temáticos",
-		steps: []string{
-			"Abre el foro temático de la actividad.",
-			"Responde a las participaciones de los aprendices con «Responder». Tu mensaje debe quedar como el último de cada debate.",
-			"Hazlo en máximo un día hábil.",
-		},
-		handoff: handoffRecapture,
-	},
-	"9.1.7": {
-		headline: "Publica la retroalimentación de los foros temáticos",
-		steps: []string{
-			"Abre el foro temático de la actividad.",
-			"Responde a cada aprendiz con retroalimentación sobre su aporte: qué hizo bien y qué puede mejorar.",
-			"Comprueba que tu respuesta quede como último mensaje del debate.",
-		},
-		handoff: handoffRecapture,
-	},
-	"14.1.1": {
-		headline: "Publica la conclusión del foro temático",
-		steps: []string{
-			"Abre el foro temático cuando termine según el cronograma (o al día siguiente).",
-			"Pulsa «Añadir un nuevo tema de debate».",
-			"Pon un asunto que contenga la palabra «Conclusión» y pega el texto sugerido completado.",
-			"Pulsa «Enviar al foro».",
-		},
-		handoff:  handoffRecapture,
-		template: conclusionTemplate,
-	},
-	"14.1.2": {
-		headline: "Publica la conclusión como un debate nuevo",
-		steps: []string{
-			"Abre el foro temático y pulsa «Añadir un nuevo tema de debate». No la publiques como respuesta dentro de otro debate.",
-			"El asunto debe contener la palabra «Conclusión», por ejemplo «Conclusión del foro temático».",
-			"Pega el texto sugerido completado y pulsa «Enviar al foro».",
-		},
-		handoff:  handoffRecapture,
-		template: conclusionTemplate,
-	},
-	"7.3.2": {
-		headline: "Sube un documento de retención",
-		steps: []string{
-			"Activa la edición en el curso y abre Seguimiento y Evaluación → Seguimiento a la Formación → Documentos de retención.",
-			"Pulsa «Añadir una actividad o un recurso», elige «Archivo» y sube el documento (PDF).",
-			"Guarda los cambios.",
-		},
-		handoff: handoffDocument,
-	},
-	"7.3.3": {
-		headline: "Sube las actas de las reuniones EEF",
-		steps: []string{
-			"Activa la edición en el curso y abre Seguimiento y Evaluación → Seguimiento a la Formación → Reuniones EEF – Actas.",
-			"Pulsa «Añadir una actividad o un recurso», elige «Archivo» y sube el acta (PDF).",
-			"Guarda los cambios.",
-		},
-		handoff: handoffDocument,
-	},
-	"13.1.1": {
-		headline: "Publica 2 actas mensuales de reuniones EEF",
-		steps: []string{
-			"Abre la subsección Reuniones EEF – Actas del curso.",
-			"Sube como «Archivo» las 2 actas del mes, con un nombre que indique la fecha (por ejemplo «Acta EEF 2026-09-15»).",
-			"Guarda los cambios.",
-		},
-		handoff: handoffDocument,
-	},
-	"13.1.2": {
-		headline: "Publica el acta de comité al terminar la fase",
-		steps: []string{
-			"Abre la subsección Comités evaluativos – Actas.",
-			"Sube como «Archivo» al menos un acta de comité por fase terminada.",
-			"Guarda los cambios.",
-		},
-		handoff: handoffDocument,
-	},
-	"13.1.3": {
-		headline: "Publica un documento en Documentos de retención",
-		steps: []string{
-			"Abre la subsección Documentos de retención del curso.",
-			"Sube como «Archivo» al menos un documento de retención.",
-			"Guarda los cambios.",
-		},
-		handoff: handoffDocument,
-	},
-	"10.1.1": {
-		headline: "Califica y retroalimenta las evidencias entregadas",
-		steps: []string{
-			"Abre la actividad de evidencia y pulsa «Ver todas las entregas».",
-			"Califica cada entrega y escribe un comentario de retroalimentación.",
-			"Guarda. La entrega debe quedar en estado «Calificado».",
-		},
-		handoff: handoffRecapture,
-	},
-	"10.1.2": {
-		headline: "Retroalimenta las evidencias en máximo tres días hábiles",
-		steps: []string{
-			"Abre la actividad y revisa las entregas que no tienen calificación.",
-			"Califica y retroalimenta cada una en máximo tres días hábiles desde la entrega.",
-		},
-		handoff: handoffRecapture,
-	},
-	"11.2.3": {
-		headline: "Publica el anuncio semanal de la sesión en línea",
-		steps: []string{
-			"Abre el foro de Anuncios del curso y pulsa «Añadir un nuevo tema».",
-			"Indica fecha, hora y enlace de la sesión en línea de la semana.",
-			"Pulsa «Enviar al foro».",
-		},
-		handoff: handoffRecapture,
-		template: &GuideTemplate{
-			Label: "Texto sugerido para el anuncio",
-			Title: "Sesión en línea de la semana — [fecha]",
-			Body:  "Apreciados aprendices:\n\nLos invito a la sesión en línea de esta semana.\nFecha: [día y fecha]\nHora: [hora]\nEnlace: [enlace de la sesión]\nTema: [tema de la sesión]\n\nCordialmente,\n[Nombre del instructor]",
-		},
-	},
-	"11.3": {
-		headline: "Publica el anuncio de aprendices aprobados de la fase",
-		steps: []string{
-			"Abre el foro de Anuncios y pulsa «Añadir un nuevo tema».",
-			"Publica la lista de aprendices que aprobaron la fase.",
-			"Pulsa «Enviar al foro».",
-		},
-		handoff: handoffRecapture,
-	},
-}
-
-var groupGuides = map[string]guideContent{
-	"foros": {
-		headline: "Completa el foro en Zajuna",
-		steps: []string{
-			"Abre el foro correspondiente del curso.",
-			"Publica o responde lo que pide el ítem. Tu mensaje debe quedar visible en la lista de debates.",
-		},
-		handoff: handoffRecapture,
-	},
-	"conclusion_foros": {
-		headline: "Publica la conclusión del foro temático",
-		steps: []string{
-			"Abre el foro temático y pulsa «Añadir un nuevo tema de debate».",
-			"El asunto debe contener la palabra «Conclusión».",
-		},
-		handoff:  handoffRecapture,
-		template: conclusionTemplate,
-	},
-	"seguimiento_documentos": {
-		headline: "Sube el documento a la subsección",
-		steps: []string{
-			"Activa la edición y abre la subsección de Seguimiento y Evaluación que indica el ítem.",
-			"Pulsa «Añadir una actividad o un recurso», elige «Archivo» y sube el documento (PDF).",
-		},
-		handoff: handoffDocument,
-	},
-	"documentos_retencion": {
-		headline: "Sube los documentos de seguimiento",
-		steps: []string{
-			"Activa la edición y abre la subsección que indica el ítem.",
-			"Sube como «Archivo» los documentos que pide el lineamiento.",
-		},
-		handoff: handoffDocument,
-	},
-	"sesiones_semanales": {
-		headline: "Publica la grabación y el resumen de la sesión",
-		steps: []string{
-			"Abre la subsección de Sesiones en línea del mes correspondiente.",
-			"Añade la grabación (enlace o «URL») y el resumen de la sesión de la semana que falta.",
-		},
-		handoff: handoffRecapture,
-	},
-	"anuncios_fase": {
-		headline: "Publica el anuncio de inicio de fase",
-		steps: []string{
-			"Abre el foro de Anuncios y pulsa «Añadir un nuevo tema».",
-			"Incluye el nombre de la fase, sus fechas de inicio y fin, qué consultar y los pasos a seguir.",
-		},
-		handoff: handoffRecapture,
-	},
-	"anuncios_semanales": {
-		headline: "Publica el anuncio en el foro de Anuncios",
-		steps: []string{
-			"Abre el foro de Anuncios del curso y pulsa «Añadir un nuevo tema».",
-			"Redacta el anuncio que pide el ítem y pulsa «Enviar al foro».",
-		},
-		handoff: handoffRecapture,
-	},
-	"evidencias_aprendizaje": {
-		headline: "Califica las entregas con retroalimentación",
-		steps: []string{
-			"Abre la actividad y pulsa «Ver todas las entregas».",
-			"Califica y escribe la retroalimentación de cada entrega.",
-		},
-		handoff: handoffRecapture,
-	},
+	ItemCode      string `json:"itemCode"`
+	Description   string `json:"description"`
+	CategoryCode  string `json:"categoryCode"`
+	CategoryLabel string `json:"categoryLabel"`
+	Kind          string `json:"kind"`
+	Headline      string `json:"headline"`
+	// Requirement is what the guideline asks for, in one sentence.
+	Requirement string `json:"requirement"`
+	// Location is the navigation path to the item inside the course.
+	Location string   `json:"location"`
+	Why      string   `json:"why"`
+	Detected string   `json:"detected,omitempty"`
+	Steps    []string `json:"steps"`
+	Handoff  string   `json:"handoff"`
+	// EvidenceHint is exactly what to upload if the instructor hands the
+	// evidence to Zajuna Sync instead of waiting for a capture.
+	EvidenceHint string         `json:"evidenceHint"`
+	Actions      []string       `json:"actions"`
+	Template     *GuideTemplate `json:"template,omitempty"`
+	ZajunaURL    string         `json:"zajunaUrl,omitempty"`
+	ZajunaLabel  string         `json:"zajunaLabel,omitempty"`
+	MissingSlots []int          `json:"missingSlots,omitempty"`
 }
 
 func kindWhy(kind string) string {
@@ -348,43 +88,57 @@ func kindWhy(kind string) string {
 	}
 }
 
-func kindFallback(kind, description string) guideContent {
-	switch kind {
-	case GuideEmptySection:
-		return guideContent{
-			headline: "Agrega el contenido de la subsección",
-			steps: []string{
-				"Activa la edición en el curso y abre la subsección indicada.",
-				fmt.Sprintf("Agrega lo que pide el ítem: «%s».", description),
-			},
-			handoff: handoffDocument,
-		}
-	case GuideRouteMissing:
-		return guideContent{
-			headline: "Crea la sección o el recurso en el curso",
-			steps: []string{
-				fmt.Sprintf("Revisa en Zajuna dónde debería estar: «%s».", description),
-				"Si no existe, créalo con el nombre del lineamiento. Si existe con otro nombre, renómbralo.",
-			},
-			handoff: "Después pulsa «Buscar rutas de nuevo» y «Ya lo hice, verificar». También puedes subir aquí una captura tuya.",
-		}
-	default:
-		return guideContent{
-			headline: "Completa el contenido en Zajuna",
-			steps: []string{
-				fmt.Sprintf("Abre la página indicada y agrega lo que pide el ítem: «%s».", description),
-			},
-			handoff: handoffRecapture,
-		}
-	}
-}
-
 func kindActions(kind string) []string {
 	switch kind {
 	case GuideRouteMissing:
 		return []string{GuideActionRediscover, GuideActionRecapture, GuideActionUpload}
 	default:
 		return []string{GuideActionRecapture, GuideActionUpload}
+	}
+}
+
+// guideSteps adapts the item's steps to why it is out of reach: a missing
+// route first needs the section or forum created (or renamed) with the exact
+// name, so route discovery can find it.
+func guideSteps(content guideContent, kind string) []string {
+	switch kind {
+	case GuideRouteMissing:
+		first := []string{
+			"Activa la edición del curso («Activar edición», arriba a la derecha).",
+			"Comprueba si ya existe " + content.create + ". Si existe con otro nombre, renómbralo; si no existe, créalo con ese nombre exacto y hazlo visible.",
+		}
+		return append(first, content.steps...)
+	case GuideEmptySection:
+		if len(content.emptySteps) > 0 {
+			return append([]string(nil), content.emptySteps...)
+		}
+	}
+	return append([]string(nil), content.steps...)
+}
+
+// guideHandoff says what the instructor hands back so Zajuna Sync finishes.
+func guideHandoff(kind string) string {
+	upload := "Si prefieres, pulsa «Subir mi evidencia» y entrégala tú (abajo te decimos qué subir): la revisamos y, si está bien, el ítem queda cumplido."
+	if kind == GuideRouteMissing {
+		return "Cuando exista en Zajuna, pulsa «Buscar rutas de nuevo» para que la encontremos y después «Ya lo hice, verificar»: capturamos solo este ítem y lo marcamos como cumplido si la evidencia sale bien. " + upload
+	}
+	return "Cuando lo tengas en Zajuna, pulsa «Ya lo hice, verificar»: capturamos solo este ítem y, si la evidencia sale bien, lo marcamos como cumplido. " + upload
+}
+
+// fallbackContent covers the items the app normally completes by itself
+// (cronogramas, profile, course menu…): if one ever needs the instructor, the
+// guide is built from its description.
+func fallbackContent(item Item) guideContent {
+	return guideContent{
+		headline:    "Completa en Zajuna: " + item.Description,
+		requirement: item.Description + ".",
+		steps: []string{
+			stepActivarEdicion,
+			"Abre la página del curso donde está este ítem («Abrir en Zajuna» te lleva cuando la conocemos).",
+			"Agrega o corrige lo que pide el ítem y guarda los cambios.",
+		},
+		create:       "la sección o el recurso donde vive este ítem, con el nombre del lineamiento",
+		evidenceHint: "una captura de Zajuna donde se vea «" + item.Description + "».",
 	}
 }
 
@@ -410,10 +164,7 @@ func BuildGuide(signal GuideSignal) (Guide, bool) {
 	}
 	content, ok := itemGuides[code]
 	if !ok {
-		content, ok = groupGuides[item.GroupName]
-	}
-	if !ok {
-		content = kindFallback(signal.Kind, item.Description)
+		content = fallbackContent(item)
 	}
 	categoryLabel := ""
 	for _, category := range Categories() {
@@ -422,15 +173,12 @@ func BuildGuide(signal GuideSignal) (Guide, bool) {
 			break
 		}
 	}
-	steps := append([]string(nil), content.steps...)
-	if signal.Kind == GuideRouteMissing {
-		// A curated step list assumes the page exists; first it must be found.
-		steps = append([]string{"Comprueba que la sección o el foro exista en el curso con el nombre del lineamiento."}, steps...)
-	}
 	return Guide{
 		ItemCode: code, Description: item.Description, CategoryCode: item.CategoryCode, CategoryLabel: categoryLabel,
-		Kind: signal.Kind, Headline: content.headline, Why: kindWhy(signal.Kind), Detected: strings.TrimSpace(signal.Detected),
-		Steps: steps, Handoff: content.handoff, Actions: kindActions(signal.Kind), Template: content.template,
+		Kind: signal.Kind, Headline: content.headline, Requirement: content.requirement, Location: content.location,
+		Why: kindWhy(signal.Kind), Detected: strings.TrimSpace(signal.Detected),
+		Steps: guideSteps(content, signal.Kind), Handoff: guideHandoff(signal.Kind), EvidenceHint: content.evidenceHint,
+		Actions: kindActions(signal.Kind), Template: content.template,
 		ZajunaURL: strings.TrimSpace(signal.ZajunaURL), ZajunaLabel: strings.TrimSpace(signal.ZajunaLabel),
 		MissingSlots: append([]int(nil), signal.MissingSlots...),
 	}, true
@@ -525,7 +273,7 @@ func DetectGuides(input GuideInput) []Guide {
 				// The capture found the subsection with only its title.
 				signal.Kind = GuideEmptySection
 			}
-			signal.Detected = "Última captura: " + detail + "."
+			signal.Detected = "Última verificación: " + detail + "."
 		case len(counted) == 0 && input.MapReady && len(targets[code]) == 0 && !selectionBoundItem(code) && !activityBoundItem(code):
 			// Activity-bound items without targets wait for the activity
 			// selection (a step of the app), not for the instructor's content.

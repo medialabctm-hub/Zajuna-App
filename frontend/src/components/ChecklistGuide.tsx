@@ -140,6 +140,8 @@ export function GuideCard({ guide, fichaId, canRecapture }: GuideCardProps) {
           <div>
             <div className="eyebrow">Cómo completarlo · {GUIDE_KIND_LABEL[guide.kind]}</div>
             <h3 id="guide-title">{guide.headline}</h3>
+            {guide.requirement ? <p className="guide-requirement">{guide.requirement}</p> : null}
+            {guide.location ? <p className="guide-location" aria-label={`Dónde está en Zajuna: ${guide.location}`}>{guide.location}</p> : null}
             <p className="helper">{guide.why}</p>
           </div>
           {zajunaUrl ? (
@@ -156,7 +158,7 @@ export function GuideCard({ guide, fichaId, canRecapture }: GuideCardProps) {
             <li key={step}>{step}</li>
           ))}
         </ol>
-        {zajunaUrl && guide.zajunaLabel ? (
+        {zajunaUrl && guide.zajunaLabel && !guide.location ? (
           <p className="helper guide-where">Página: {guide.zajunaLabel.replace(/\s+—\s+Evidencia\s+\d+$/, '')}</p>
         ) : null}
 
@@ -203,7 +205,10 @@ export function GuideCard({ guide, fichaId, canRecapture }: GuideCardProps) {
             ) : null}
           </div>
           {actions.has('upload') ? (
-            <small className="helper">PNG, JPG o PDF de hasta 25 MB{guide.missingSlots?.length ? ` · se guarda en el slot ${slot}` : ''}.</small>
+            <small className="helper guide-upload-hint">
+              {guide.evidenceHint ? <><strong>Qué subir:</strong> {guide.evidenceHint} </> : null}
+              PNG, JPG o PDF de hasta 25 MB{guide.missingSlots?.length ? ` · se guarda en el slot ${slot}` : ''}.
+            </small>
           ) : null}
         </div>
       </div>
