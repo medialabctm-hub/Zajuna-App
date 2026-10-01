@@ -2,6 +2,8 @@ import { Fragment, useEffect, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import {
   useActivities,
+  useChecklistGuides,
+  useEvidenceReview,
   useDashboard,
   useDeleteEvidence,
   useDiscoverCourseMaps,
@@ -30,6 +32,9 @@ import { friendlyError } from '../lib/friendlyError'
 import { RouteDiscoveryAction } from '../components/RouteDiscoveryAction'
 import { CaptureAction } from '../components/WorkflowActions'
 import { ActivitySelector } from '../components/ActivitySelector'
+import { GuideSummary } from '../components/ChecklistGuide'
+import { guidedItemCodes } from '../lib/guideVerification'
+import { itemReviewState, type GroupConfidence } from '../lib/evidenceGroupState'
 import type {
   DashboardCategory,
   DashboardItem,
@@ -65,14 +70,18 @@ function humanRoute(target: RouteTarget): string {
 
 function TaskRow({
   item,
+  hasGuide,
+  reviewState,
   onPreview,
   onSetStatus,
 }: {
   item: DashboardItem
+  hasGuide: boolean
+  reviewState: GroupConfidence | null
   onPreview: (evidence: Evidence) => void
   onSetStatus: (itemCode: string, status: ItemStatus) => void
 }) {
-  const confidence = confidenceFor(item)
+  const confidence = reviewState ? { ...reviewState, detail: 'Estado en Revisión' } : confidenceFor(item)
   const maxEvidences = Number(item.maxEvidences) || 1
   const filled = Math.min(Number(item.evidenceCount) || 0, maxEvidences)
   const current = item.status || 'PENDIENTE'
@@ -106,6 +115,11 @@ function TaskRow({
         <Link className="task-detail-link" to={`/checklist/${encodeURIComponent(item.itemCode)}`}>
           Ver detalle
         </Link>
+        {hasGuide ? (
+          <Link className="task-guide-link" to={`/guias/${encodeURIComponent(item.itemCode)}`}>
+            Depende de ti · ver guía
+          </Link>
+        ) : null}
       </div>
       <div className="task-slots">
         <div className="slot-row">
@@ -333,7 +347,7 @@ function RouteReviewSection({
     return (
       <section className="card route-card">
         <div className="card-pad">
-          <div className="eyebrow">Paso 2 · Buscar rutas</div>
+          <div className="eyebrow">Rutas del curso</div>
           <h3 style={{ marginTop: 7 }}>Rutas aún no disponibles</h3>
           <p className="helper" style={{ marginTop: 6 }}>
             {targetsData?.discovery?.message || 'Busca las rutas del curso antes de revisar o capturar evidencias.'}
@@ -536,6 +550,8 @@ export function Checklist() {
   const activitiesQuery = useActivities(dashboard?.activeFichaId)
   const targetsQuery = useTargets(dashboard?.activeFichaId)
   const reviewsQuery = useReviews(dashboard?.activeFichaId)
+  const guidesQuery = useChecklistGuides(dashboard?.activeFichaId)
+  const reviewQuery = useEvidenceReview(dashboard?.activeFichaId)
   const setupQuery = useSetupStatus()
 
   const setItemStatus = useSetItemStatus()
@@ -580,9 +596,12 @@ export function Checklist() {
   const progressTotal = Math.max(total, 1)
   const progress = Math.max(0, Math.min(100, Number(summary.percentage) || 0))
   const reviews = reviewsQuery.data || []
+  const guides = guidesQuery.data?.guides || []
+  const guideCodes = guidedItemCodes(guides)
 
   const filtered = items.filter((item) => {
     if (category === 'all') return true
+    if (category === 'guia') return guideCodes.has(item.itemCode)
     if (category === 'pending') return item.status === 'PENDIENTE'
     if (category === 'no') return item.status === 'NO'
     if (category === 'empty') return !item.evidenceCount
@@ -756,7 +775,7 @@ export function Checklist() {
               <i>
                 <span style={{ width: `${(done / progressTotal) * 100}%`, background: 'var(--brand)' }} />
                 <span style={{ width: `${(failed / progressTotal) * 100}%`, background: 'var(--no)' }} />
-                <span style={{ width: `${(pending / progressTotal) * 100}%`, background: '#f0c77e' }} />
+                <span style={{ width: `${(pending / progressTotal) * 100}%`, background: 'var(--pending-bar)' }} />
               </i>
               <div className="checklist-progress-copy">
                 <strong>{progress} %</strong>
@@ -769,7 +788,7 @@ export function Checklist() {
                   {failed}
                 </span>
                 <span>
-                  <i style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 3, background: '#f0c77e', marginRight: 5 }} />
+                  <i style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 3, background: 'var(--pending-bar)', marginRight: 5 }} />
                   {pending}
                 </span>
               </div>
@@ -790,11 +809,18 @@ export function Checklist() {
               <button type="button" aria-pressed={category === 'empty'} className={`checklist-filter-tab ${category === 'empty' ? 'active' : ''}`} onClick={() => handleCategoryChange('empty')}>
                 Sin evidencia {emptyEvidenceCount}
               </button>
+              {guides.length ? (
+                <Link className="checklist-filter-tab" to="/guias">
+                  Dependen de ti {guideCodes.size} →
+                </Link>
+              ) : null}
             </div>
             <span className="helper">
               Mostrando {filtered.length} de {items.length} ítems
             </span>
           </div>
+
+          <GuideSummary guides={guides} />
 
           {activitiesQuery.isLoading ? (
             <section className="card"><div className="card-pad"><p className="helper" role="status">Cargando actividades de la ficha…</p></div></section>
@@ -804,7 +830,7 @@ export function Checklist() {
             activitiesQuery.data?.mapReady === false ? (
               <section className="card">
                 <div className="card-pad">
-                  <div className="eyebrow">Paso 2 · Buscar rutas</div>
+                  <div className="eyebrow">Rutas del curso</div>
                   <h3 style={{ marginTop: 7 }}>Todavía no hay actividades del curso</h3>
                   <p className="helper" style={{ marginTop: 6 }}>
                     {activitiesQuery.data.discovery?.message || 'Busca las rutas del curso para cargar las actividades y elegir cuáles estarán a tu cargo.'}
@@ -816,7 +842,7 @@ export function Checklist() {
                 </div>
               </section>
             ) : activitiesQuery.data ? (
-              <ActivitySelector key={dashboard.activeFichaId} data={activitiesQuery.data} fichaId={dashboard.activeFichaId} />
+              <ActivitySelector key={dashboard.activeFichaId} data={activitiesQuery.data} fichaId={dashboard.activeFichaId} fichaCode={dashboard.ficha?.externalId} />
             ) : null
           )}
 
@@ -863,7 +889,7 @@ export function Checklist() {
                         </span>
                       </div>
                     )}
-                    <TaskRow item={item} onPreview={(evidence) => setPreview(evidence)} onSetStatus={handleSetStatus} />
+                    <TaskRow item={item} hasGuide={guideCodes.has(item.itemCode)} reviewState={itemReviewState(item.itemCode, reviewQuery.data?.evidences ?? [])} onPreview={(evidence) => setPreview(evidence)} onSetStatus={handleSetStatus} />
                   </Fragment>
                 ))
               ) : (

@@ -65,6 +65,9 @@ func applyV13(ctx context.Context, tx *sql.Tx) error {
 	return nil
 }
 
+// enforceMaxEvidences keeps the newest evidences of an item up to its limit.
+// The instructor's uploads go first: they complete items the app cannot prove
+// by itself, so an automatic recapture must never push them out.
 func (s *Store) enforceMaxEvidences(ctx context.Context, fichaID, itemCode string) error {
 	var max int
 	err := s.db.QueryRowContext(ctx, `SELECT max_evidences FROM checklist_catalog_items WHERE item_code = ?`, itemCode).Scan(&max)
@@ -80,7 +83,7 @@ func (s *Store) enforceMaxEvidences(ctx context.Context, fichaID, itemCode strin
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT id, file_path FROM evidences
 		WHERE ficha_id = ? AND item_code = ?
-		ORDER BY captured_at DESC, id DESC
+		ORDER BY CASE WHEN source = 'manual' THEN 0 ELSE 1 END, captured_at DESC, id DESC
 	`, fichaID, itemCode)
 	if err != nil {
 		return fmt.Errorf("list evidences for max enforcement: %w", err)

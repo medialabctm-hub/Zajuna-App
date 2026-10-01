@@ -2,6 +2,7 @@ package checklist
 
 import (
 	"encoding/json"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -409,8 +410,19 @@ func TestSeguimientoItemsTargetTheirOwnSubsection(t *testing.T) {
 		}
 		seen[title] = item
 	}
-	if chain := captureSelectorChainForItem("7.4.3", "seguimiento_documentos", courseSectionByTitle("Registro de Novedades")); !strings.Contains(chain[1], comitesSectionTitle) {
-		t.Fatalf("7.4.x must fall back to Comités evaluativos, got %v", chain)
+	// A missing subsection is never replaced by its parent section.
+	if chain := captureSelectorChainForItem("7.4.3", "seguimiento_documentos", courseSectionByTitle("Registro de Novedades")); len(chain) != 1 || strings.Contains(chain[0], comitesSectionTitle) {
+		t.Fatalf("7.4.x must use only its own subsection, got %v", chain)
+	}
+	// Titles tolerate articles and prepositions between courses.
+	pattern := regexp.MustCompile("(?i)" + sectionTitlePattern("Reporte del Curso"))
+	for _, name := range []string{"Reporte del Curso", "Reporte de curso", "Reporte curso"} {
+		if !pattern.MatchString(name) {
+			t.Fatalf("%q must match «Reporte del Curso»", name)
+		}
+	}
+	if pattern.MatchString("Planeación, Reporte del Curso") {
+		t.Fatal("the title stays anchored at the start")
 	}
 }
 
@@ -463,8 +475,12 @@ func TestTransversalOnlySelectionNeverFallsBackToEveryActivity(t *testing.T) {
 
 func TestSectionTitlesAreAnchoredAtTheStart(t *testing.T) {
 	selector := topLevelCourseSectionByTitle(seguimientoSectionTitle)
-	if !strings.Contains(selector, `text-matches("^`) || !strings.Contains(selector, "Seguimiento y Evaluaci") || !strings.Contains(selector, ":not(li.section li.section)") {
+	if !strings.Contains(selector, `text-matches("^`) || !strings.Contains(selector, ":not(li.section li.section)") {
 		t.Fatalf("7.1.x must match a top-level section whose name starts with the title, got %s", selector)
+	}
+	pattern := regexp.MustCompile("(?i)" + sectionTitlePattern(seguimientoSectionTitle))
+	if !pattern.MatchString("Seguimiento y Evaluación") || !pattern.MatchString("Seguimiento y evaluación") || pattern.MatchString("Planeación, Seguimiento y Evaluación") {
+		t.Fatal("the Seguimiento title must match its own name, anchored at the start")
 	}
 }
 

@@ -131,7 +131,11 @@ const forumPageSelector = `#page-mod-forum-view #region-main form[action*="/mod/
 // ForumDatesSelector matches a forum page only when Moodle shows its activity
 // dates ("Apertura:", "Cierre:", "Vencimiento:", "Fecha límite:"). A forum
 // without configured dates is not evidence of 9.1.3/9.1.4.
-const ForumDatesSelector = `#page-mod-forum-view #region-main:has([data-region="activity-dates"], .activity-dates, :text-matches("^\\s*(Apertura|Abri[óo]|Cierre|Cierra|Vencimiento|Vence|Fecha l[ií]mite|Fecha de corte)\\s*:", "i"))`
+const ForumDatesSelector = `#page-mod-forum-view #region-main:has([data-region="activity-dates"], .activity-dates, :text-matches("^\\s*` + ForumDateLabels + `\\s*:", "i"))`
+
+// ForumDateLabels are the labels Moodle prints before an activity date. The
+// browser rule (ForumDatesSelector) and the AJAX check share them.
+const ForumDateLabels = `(Apertura|Abri[óo]|Cierre|Cierra|Vencimiento|Vence|Fecha l[ií]mite|Fecha de corte)`
 
 type CapturePlanSummary struct {
 	ItemCount        int `json:"itemCount"`
@@ -966,18 +970,15 @@ func captureSelectorChainForItem(itemCode, groupName, primary string) []string {
 	if title == "" {
 		return captureSelectorChain(groupName, primary)
 	}
-	// Section-bound items are identified only by their named section. A
-	// missing subsection falls back to its parent section, never to the
-	// whole course page or its first (banner) section.
+	// Section-bound items are identified only by their named section: a
+	// missing subsection is never replaced by its parent (a capture of
+	// «Comités evaluativos» does not prove «Planes de Mejoramiento»). The
+	// main sections fall back to a nested one with the same name: some
+	// courses (ficha 3607884) only have «Seguimiento y evaluación» inside
+	// «Información general».
 	chain := []string{primary}
-	if title != seguimientoSectionTitle && title != sesionesSectionTitle {
-		parent := seguimientoSectionTitle
-		if strings.HasPrefix(itemCode, "8.") {
-			parent = sesionesSectionTitle
-		} else if strings.HasPrefix(itemCode, "7.4.") && title != comitesSectionTitle {
-			parent = comitesSectionTitle
-		}
-		chain = append(chain, courseSectionByTitle(parent))
+	if title == seguimientoSectionTitle || title == sesionesSectionTitle {
+		chain = append(chain, courseSectionByTitle(title))
 	}
 	return chain
 }
@@ -1075,8 +1076,24 @@ func courseSectionByTitle(title string) string {
 // a substring also matched "Planeación, Seguimiento y Evaluación" when the
 // item was about the "Seguimiento y Evaluación" section.
 func sectionTitlePattern(title string) string {
-	return `^\s*` + regexp.QuoteMeta(title)
+	// Articles and prepositions vary between courses («Reporte de curso»,
+	// «Reporte del Curso»): the words that carry the name must appear in
+	// order, with any of those small words (or none) between them.
+	words := []string{}
+	for _, word := range strings.Fields(title) {
+		if !sectionTitleStopWords[strings.ToLower(word)] {
+			words = append(words, regexp.QuoteMeta(word))
+		}
+	}
+	if len(words) == 0 {
+		return `^\s*` + regexp.QuoteMeta(title)
+	}
+	return `^\s*` + strings.Join(words, `[\s-]+(?:(?:de|del|la|las|los|el|en|y|a|e)[\s-]+)*`)
 }
+
+// sectionTitleStopWords vary between SENA courses without changing which
+// section a title names.
+var sectionTitleStopWords = map[string]bool{"de": true, "del": true, "la": true, "las": true, "los": true, "el": true, "en": true, "y": true, "a": true, "e": true, "-": true}
 
 // topLevelCourseSectionByTitle only matches a main course section, never a
 // subsection with the same name (a SENA course also has a hidden

@@ -83,16 +83,15 @@ func TestSectionBoundItemsFallBackOnlyToTheirParentSection(t *testing.T) {
 	for _, target := range targets {
 		switch target.ItemCode {
 		case "7.3.1":
-			// Its own subsection (see TestSeguimientoItemsTargetTheirOwnSubsection)
-			// and then only the parent section.
-			want := []string{courseSectionByTitle(courseSectionTitleForItem("7.3.1")), courseSectionByTitle(seguimientoSectionTitle)}
+			// Only its own subsection: the parent section does not prove it.
+			want := []string{courseSectionByTitle(courseSectionTitleForItem("7.3.1"))}
 			if !reflect.DeepEqual(target.CSSSelectorFallbacks, want) {
-				t.Fatalf("7.3.1 must fall back only to its parent section, got %#v", target.CSSSelectorFallbacks)
+				t.Fatalf("7.3.1 must use only its own subsection, got %#v", target.CSSSelectorFallbacks)
 			}
 		case "7.1.1":
-			// Its own section is matched top-level and anchored at the start
-			// of the name (see TestSectionTitlesAreAnchoredAtTheStart).
-			want := []string{topLevelCourseSectionByTitle(seguimientoSectionTitle)}
+			// Its own section, top-level first and then nested with the same
+			// name (ficha 3607884 only has it inside «Información general»).
+			want := []string{topLevelCourseSectionByTitle(seguimientoSectionTitle), courseSectionByTitle(seguimientoSectionTitle)}
 			if !reflect.DeepEqual(target.CSSSelectorFallbacks, want) {
 				t.Fatalf("7.1.1 must only use its own section, got %#v", target.CSSSelectorFallbacks)
 			}

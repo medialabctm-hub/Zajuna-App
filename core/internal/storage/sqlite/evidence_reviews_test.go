@@ -2,6 +2,7 @@ package sqlite
 
 import (
 	"context"
+	"errors"
 	"image"
 	"image/color"
 	"image/png"
@@ -258,5 +259,225 @@ func TestApprovedItemsAreMarkedInTheChecklistAutomatically(t *testing.T) {
 	}
 	if status("2.1.1") != "SI" {
 		t.Fatalf("a manual Sí must be kept, got %s", status("2.1.1"))
+	}
+}
+
+func TestInstructorUploadCompletesAnItemWithAnEmptySectionCapture(t *testing.T) {
+	dataDir := t.TempDir()
+	store, err := Open(dataDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	ctx := context.Background()
+	if _, err := store.UpsertFichas(ctx, []zajuna.Ficha{{ExternalID: "300", Name: "Ficha", CourseID: "c3"}}); err != nil {
+		t.Fatal(err)
+	}
+	fichas, _ := store.ListFichas(ctx, 10)
+	fichaID := fichas[0].ID
+	capturePath := filepath.Join(dataDir, "evidences", "empty.png")
+	writeReviewPNG(t, capturePath, 800, 600, true)
+	if err := store.CreateEvidence(ctx, evidence.Record{ID: "cap", FichaID: fichaID, ItemCode: "7.3.2", SlotNumber: 1, Name: "Documentos de retención", FilePath: capturePath, Format: "png", Source: "capture-checklist", SHA256: "sha-cap", Metadata: []byte(`{"contentItems":0}`)}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.VerifyEvidenceReviews(ctx, fichaID); err != nil {
+		t.Fatal(err)
+	}
+	status := func() string {
+		var value string
+		if err := store.DB().QueryRowContext(ctx, `SELECT status FROM checklist_items WHERE ficha_id = ? AND item_code = '7.3.2'`, fichaID).Scan(&value); err != nil {
+			t.Fatal(err)
+		}
+		return value
+	}
+	if status() != "PENDIENTE" {
+		t.Fatalf("an empty section must keep the item pending, got %s", status())
+	}
+
+	manualPath := filepath.Join(dataDir, "evidences", "manual", "acta.pdf")
+	if err := os.MkdirAll(filepath.Dir(manualPath), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(manualPath, []byte("%PDF-1.4"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.CreateEvidence(ctx, evidence.Record{ID: "man", FichaID: fichaID, ItemCode: "7.3.2", SlotNumber: 1, Name: "Documento", FilePath: manualPath, Format: "pdf", Source: evidence.EvidenceSourceManual, SHA256: "sha-man"}); err != nil {
+		t.Fatal(err)
+	}
+	report, err := store.ReviewNewEvidenceAndSync(ctx, fichaID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if status() != "SI" {
+		t.Fatalf("the instructor's upload must complete the item, got %s", status())
+	}
+	if report.Summary.ItemsApproved != 1 || report.Summary.ItemsPending != 0 {
+		t.Fatalf("summary=%#v", report.Summary)
+	}
+
+	// A later automatic recapture (the section is still empty in Zajuna) must
+	// not push the instructor's upload out of the 1-evidence item.
+	recapturePath := filepath.Join(dataDir, "evidences", "empty-2.png")
+	writeReviewPNG(t, recapturePath, 800, 600, true)
+	if err := store.CreateEvidence(ctx, evidence.Record{ID: "cap-2", FichaID: fichaID, ItemCode: "7.3.2", SlotNumber: 1, Name: "Documentos de retención", FilePath: recapturePath, Format: "png", Source: "capture-checklist", SHA256: "sha-cap-2", Metadata: []byte(`{"contentItems":0}`)}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.GetEvidence(ctx, "man"); err != nil {
+		t.Fatalf("the instructor's upload was removed by a recapture: %v", err)
+	}
+	if _, err := store.VerifyEvidenceReviews(ctx, fichaID); err != nil {
+		t.Fatal(err)
+	}
+	if status() != "SI" {
+		t.Fatalf("the item must stay completed after a recapture, got %s", status())
+	}
+}
+
+func TestInstructorUploadSupersedesTheEmptySlotOfAMultiEvidenceItem(t *testing.T) {
+	dataDir := t.TempDir()
+	store, err := Open(dataDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	ctx := context.Background()
+	if _, err := store.UpsertFichas(ctx, []zajuna.Ficha{{ExternalID: "301", Name: "Ficha", CourseID: "c4"}}); err != nil {
+		t.Fatal(err)
+	}
+	fichas, _ := store.ListFichas(ctx, 10)
+	fichaID := fichas[0].ID
+	add := func(id string, slot int, source, metadata string) {
+		path := filepath.Join(dataDir, "evidences", id+".png")
+		writeReviewPNG(t, path, 800, 600, true)
+		if err := store.CreateEvidence(ctx, evidence.Record{ID: id, FichaID: fichaID, ItemCode: "12.1.1", SlotNumber: slot, Name: id, FilePath: path, Format: "png", Source: source, SHA256: "sha-" + id, Metadata: []byte(metadata)}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	add("week-1", 1, "capture-checklist", `{}`)
+	add("week-4", 4, "capture-checklist", `{"contentItems":0}`)
+	if _, err := store.VerifyEvidenceReviews(ctx, fichaID); err != nil {
+		t.Fatal(err)
+	}
+	add("week-4-manual", 4, evidence.EvidenceSourceManual, `{}`)
+	report, err := store.ReviewNewEvidenceAndSync(ctx, fichaID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	superseded := map[string]bool{}
+	for _, entry := range report.Evidences {
+		superseded[entry.EvidenceID] = entry.Superseded
+	}
+	if !superseded["week-4"] || superseded["week-1"] || superseded["week-4-manual"] {
+		t.Fatalf("superseded = %#v", superseded)
+	}
+	var status string
+	if err := store.DB().QueryRowContext(ctx, `SELECT status FROM checklist_items WHERE ficha_id = ? AND item_code = '12.1.1'`, fichaID).Scan(&status); err != nil {
+		t.Fatal(err)
+	}
+	if status != "SI" {
+		t.Fatalf("12.1.1 must be completed, got %s", status)
+	}
+}
+
+func TestAnItemWithAMissingElementIsNeverFulfilled(t *testing.T) {
+	dataDir := t.TempDir()
+	store, err := Open(dataDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	ctx := context.Background()
+	if _, err := store.UpsertFichas(ctx, []zajuna.Ficha{{ExternalID: "400", Name: "Ficha", CourseID: "c5"}}); err != nil {
+		t.Fatal(err)
+	}
+	fichas, _ := store.ListFichas(ctx, 10)
+	fichaID := fichas[0].ID
+	path := filepath.Join(dataDir, "evidences", "forum.png")
+	writeReviewPNG(t, path, 800, 600, true)
+	// 9.1.3: one forum captured with its dates, the other forum has none.
+	if err := store.CreateEvidence(ctx, evidence.Record{ID: "f1", FichaID: fichaID, ItemCode: "9.1.3", SlotNumber: 1, Name: "Foro con fechas", FilePath: path, Format: "png", Source: "capture-checklist", SHA256: "sha-f1", Metadata: []byte(`{"semanticCheck":"forum-dates"}`)}); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.RecordCaptureGaps(ctx, fichaID, []string{"9.1.3"}, []string{"9.1.3: sin contenido en Zajuna: el foro no tiene fechas de apertura ni de cierre configuradas"}, nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.VerifyEvidenceReviews(ctx, fichaID); err != nil {
+		t.Fatal(err)
+	}
+	status := func() string {
+		var value string
+		if err := store.DB().QueryRowContext(ctx, `SELECT status FROM checklist_items WHERE ficha_id = ? AND item_code = '9.1.3'`, fichaID).Scan(&value); err != nil {
+			t.Fatal(err)
+		}
+		return value
+	}
+	if status() != "PENDIENTE" {
+		t.Fatalf("approved evidence plus a missing forum must stay pending, got %s", status())
+	}
+	// A later capture of the item finds both forums: fulfilled.
+	if err := store.RecordCaptureGaps(ctx, fichaID, []string{"9.1.3"}, nil, nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.SyncApprovedChecklistItems(ctx, fichaID); err != nil {
+		t.Fatal(err)
+	}
+	if status() != "SI" {
+		t.Fatalf("without gaps the item is fulfilled, got %s", status())
+	}
+	// And an automatic «Sí» goes back to pending when a new gap appears.
+	if err := store.RecordCaptureGaps(ctx, fichaID, []string{"9.1.3"}, nil, []string{"9.1.3: navegación fallida"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.SyncApprovedChecklistItems(ctx, fichaID); err != nil {
+		t.Fatal(err)
+	}
+	if status() != "PENDIENTE" {
+		t.Fatalf("a failed slot leaves the item unverified, got %s", status())
+	}
+	gaps, _ := store.CaptureGaps(ctx, fichaID)
+	if gaps["9.1.3"].Kind != CaptureGapFailed {
+		t.Fatalf("gaps = %#v", gaps)
+	}
+}
+
+func TestItemsWithGapsOrErrorsCannotBeMarkedByHand(t *testing.T) {
+	dataDir := t.TempDir()
+	store, err := Open(dataDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	ctx := context.Background()
+	if _, err := store.UpsertFichas(ctx, []zajuna.Ficha{{ExternalID: "500", Name: "Ficha", CourseID: "c6"}}); err != nil {
+		t.Fatal(err)
+	}
+	fichas, _ := store.ListFichas(ctx, 10)
+	fichaID := fichas[0].ID
+	if err := store.RecordCaptureGaps(ctx, fichaID, []string{"9.1.3"}, []string{"9.1.3: sin contenido en Zajuna: el foro no tiene fechas"}, nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.SetChecklistItemStatus(ctx, fichaID, "9.1.3", "SI"); !errors.Is(err, ErrItemNotFulfillable) {
+		t.Fatalf("a manual «SI» with a gap must be refused, got %v", err)
+	}
+	if err := store.SetChecklistItemStatus(ctx, fichaID, "9.1.3", "NO"); err != nil {
+		t.Fatalf("«No» stays free: %v", err)
+	}
+	// An evidence that shows #REF! cannot be approved by hand.
+	path := filepath.Join(dataDir, "evidences", "sheet.png")
+	writeReviewPNG(t, path, 800, 600, true)
+	if err := store.CreateEvidence(ctx, evidence.Record{ID: "s1", FichaID: fichaID, ItemCode: "1.2.1", SlotNumber: 1, Name: "Cronograma", FilePath: path, Format: "png", Source: "capture-checklist", SHA256: "sha-s1", Metadata: []byte(`{"sheetIssues":["la columna «Fecha fin fase» del cronograma tiene 1 celda con el error #REF!"]}`)}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.VerifyEvidenceReviews(ctx, fichaID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.SetEvidenceReview(ctx, "s1", evidence.ReviewApproved, ""); !errors.Is(err, ErrItemNotFulfillable) {
+		t.Fatalf("approving an evidence with known errors must be refused, got %v", err)
+	}
+	if err := store.SetChecklistItemStatus(ctx, fichaID, "1.2.1", "SI"); !errors.Is(err, ErrItemNotFulfillable) {
+		t.Fatalf("a manual «SI» over known errors must be refused, got %v", err)
+	}
+	if err := store.SetChecklistItemStatus(ctx, fichaID, "4.1", "SI"); err != nil {
+		t.Fatalf("an item without gaps or errors can still be marked: %v", err)
 	}
 }

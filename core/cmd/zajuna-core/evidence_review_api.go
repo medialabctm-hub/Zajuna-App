@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/zajuna-app/core/internal/evidence"
+	"github.com/zajuna-app/core/internal/storage/sqlite"
 )
 
 // evidenceReviewStore is implemented by the SQLite store (see
@@ -94,6 +95,10 @@ func registerEvidenceReviewRoutes(mux *http.ServeMux, store evidence.Store) {
 		entry, err := reviewStore.SetEvidenceReview(r.Context(), r.PathValue("id"), status, note)
 		if errors.Is(err, sql.ErrNoRows) {
 			writeError(w, http.StatusNotFound, errors.New("evidencia no encontrada"))
+			return
+		}
+		if errors.Is(err, sqlite.ErrItemNotFulfillable) {
+			writeError(w, http.StatusConflict, err)
 			return
 		}
 		if err != nil {

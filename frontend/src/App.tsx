@@ -9,6 +9,7 @@ import {
   Activities,
   Checklist,
   ChecklistItemDetail,
+  Guides,
   Diagnostics,
   Evidences,
   Fichas,
@@ -49,6 +50,8 @@ function App() {
         <Route path="/fichas" element={<Fichas />} />
         <Route path="/checklist" element={<Checklist />} />
         <Route path="/checklist/:itemCode" element={<ChecklistItemDetail />} />
+        <Route path="/guias" element={<Guides />} />
+        <Route path="/guias/:itemCode" element={<Guides />} />
         <Route path="/actividades" element={<Activities />} />
         <Route path="/evidencias" element={<Evidences />} />
         <Route path="/revision" element={<Review />} />

@@ -141,13 +141,30 @@ func (s *Store) VerifyEvidenceReviews(ctx context.Context, fichaID string) (evid
 	return report, nil
 }
 
+// ReviewNewEvidenceAndSync verifies only the evidences without a review (a
+// file the instructor just uploaded) and syncs the checklist, so an item
+// completed with the instructor's evidence becomes "SI" without re-reading
+// every image of the ficha.
+func (s *Store) ReviewNewEvidenceAndSync(ctx context.Context, fichaID string) (evidence.ReviewReport, error) {
+	report, err := evidence.VerifyFicha(ctx, s, s.dataDir, fichaID, true, time.Now().UTC())
+	if err != nil {
+		return report, err
+	}
+	if _, err := s.SyncApprovedChecklistItems(ctx, fichaID); err != nil {
+		return report, err
+	}
+	return report, nil
+}
+
 // AutoReviewSource marks checklist changes made by SyncApprovedChecklistItems.
 const AutoReviewSource = "revision-automatica"
 
 // SyncApprovedChecklistItems marks as fulfilled ("SI") every pending item of
-// the ficha whose evidences are all approved, and returns to pending an item
-// it marked earlier whose evidence is no longer all approved. A status the
-// person set by hand is never changed. It returns how many items changed.
+// the ficha whose evidences are all approved AND whose last capture left no
+// gap (no slot without content in Zajuna, no failed slot): an item is correct
+// or it is not. It returns to pending an item it marked earlier that no
+// longer qualifies. A status the person set by hand is never changed. It
+// returns how many items changed.
 func (s *Store) SyncApprovedChecklistItems(ctx context.Context, fichaID string) (int, error) {
 	fichaID = strings.TrimSpace(fichaID)
 	if fichaID == "" {
@@ -157,25 +174,32 @@ func (s *Store) SyncApprovedChecklistItems(ctx context.Context, fichaID string) 
 		return 0, err
 	}
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT e.item_code, MIN(CASE WHEN r.status = 'approved' THEN 1 ELSE 0 END)
+		SELECT e.id, e.item_code, e.slot_number, e.source, COALESCE(r.status, '')
 		FROM evidences e LEFT JOIN evidence_reviews r ON r.evidence_id = e.id
-		WHERE e.ficha_id = ? AND e.item_code <> ''
-		GROUP BY e.item_code`, fichaID)
+		WHERE e.ficha_id = ? AND e.item_code <> ''`, fichaID)
 	if err != nil {
 		return 0, fmt.Errorf("list reviewed checklist items: %w", err)
 	}
-	approved := map[string]bool{}
+	slots := []evidence.SlotEvidence{}
 	for rows.Next() {
-		var code string
-		var allApproved int
-		if err := rows.Scan(&code, &allApproved); err != nil {
+		var entry evidence.SlotEvidence
+		var source string
+		if err := rows.Scan(&entry.ID, &entry.ItemCode, &entry.Slot, &source, &entry.Status); err != nil {
 			rows.Close()
 			return 0, fmt.Errorf("scan reviewed checklist item: %w", err)
 		}
-		approved[code] = allApproved == 1
+		entry.Manual = evidence.IsManualSource(source)
+		slots = append(slots, entry)
 	}
 	rows.Close()
 	if err := rows.Err(); err != nil {
+		return 0, err
+	}
+	// An approved upload of the instructor replaces the capture of its slot
+	// (see evidence.SupersededEvidence).
+	approved := evidence.ItemApprovals(slots)
+	gaps, err := s.CaptureGaps(ctx, fichaID)
+	if err != nil {
 		return 0, err
 	}
 	transaction, err := s.db.BeginTx(ctx, nil)
@@ -199,10 +223,12 @@ func (s *Store) SyncApprovedChecklistItems(ctx context.Context, fichaID string) 
 			return 0, fmt.Errorf("scan checklist item for auto review: %w", err)
 		}
 		switch {
-		case status == string(checklist.StatusPending) && approved[code]:
-			changes = append(changes, change{code, status, string(checklist.StatusYes), "Todas sus evidencias quedaron aprobadas en Revisión."})
+		case status == string(checklist.StatusPending) && approved[code] && gaps[code].Kind == "":
+			changes = append(changes, change{code, status, string(checklist.StatusYes), "Todas sus evidencias quedaron aprobadas en Revisión y la captura no encontró faltantes."})
 		case status == string(checklist.StatusYes) && lastSource == AutoReviewSource && !approved[code]:
 			changes = append(changes, change{code, status, string(checklist.StatusPending), "Una de sus evidencias ya no está aprobada."})
+		case status == string(checklist.StatusYes) && lastSource == AutoReviewSource && gaps[code].Kind != "":
+			changes = append(changes, change{code, status, string(checklist.StatusPending), "Le falta un elemento: " + gaps[code].Detail})
 		}
 	}
 	items.Close()
@@ -260,6 +286,13 @@ func (s *Store) SetEvidenceReview(ctx context.Context, evidenceID, status, note 
 		review.UpdatedAt = now
 	} else {
 		review = evidence.VerifyRecord(s.dataDir, record, records, now)
+	}
+	if status == evidence.ReviewApproved {
+		for _, reason := range review.Reasons {
+			if reason.Code == evidence.ReasonSheetErrors {
+				return evidence.ReviewEntry{}, fmt.Errorf("%w: %s Corrige la hoja en Google Sheets y vuelve a verificar el ítem", ErrItemNotFulfillable, reason.Message)
+			}
+		}
 	}
 	if status != evidence.ReviewPending {
 		review.Status = status

@@ -41,7 +41,7 @@ function groupByPhase(activities: Activity[]) {
  * other instructors and only produced wrong evidence. The draft is local so
  * the user sees unsaved changes; render with key={fichaId}.
  */
-export function ActivitySelector({ data, fichaId }: { data: ActivitiesResponse; fichaId: string }) {
+export function ActivitySelector({ data, fichaId, fichaCode }: { data: ActivitiesResponse; fichaId: string; fichaCode?: string }) {
   const toast = useToast()
   const saveActivities = useSaveActivities()
   const saved = useMemo(() => savedSelection(data), [data])
@@ -62,7 +62,6 @@ export function ActivitySelector({ data, fichaId }: { data: ActivitiesResponse; 
 
   const all = data.activities || []
   const technical = all.filter(isSelectable)
-  const transversal = all.filter((activity) => !isSelectable(activity))
   const technicalIds = technical.map((activity) => activity.id)
   const slotsPerItem = Number(data.slotsPerItem) || DEFAULT_SLOTS_PER_ITEM
   const used = activitiesUsedForEvidence(technical, draft, slotsPerItem)
@@ -131,8 +130,11 @@ export function ActivitySelector({ data, fichaId }: { data: ActivitiesResponse; 
       <div className="card-pad">
         <div className="side-title">
           <div>
-            <div className="eyebrow">Paso 3 · Seleccionar actividades</div>
-            <h3 style={{ marginTop: 7 }}>¿Qué actividades técnicas orientas tú en esta ficha?</h3>
+            <div className="eyebrow">Paso 1 · Seleccionar actividades</div>
+            <h3 style={{ marginTop: 7 }}>¿Qué actividades técnicas orientas tú en {fichaCode ? `la ficha ${fichaCode}` : 'esta ficha'}?</h3>
+            <p className="helper" style={{ marginTop: 5 }}>
+              Solo aparecen las actividades del curso de esta ficha{data.courseId ? ` (curso ${data.courseId})` : ''}. Cada ficha tiene su propia selección.
+            </p>
           </div>
           <span className="badge">{draft.size} de {technical.length} marcadas</span>
         </div>
@@ -147,13 +149,6 @@ export function ActivitySelector({ data, fichaId }: { data: ActivitiesResponse; 
           </li>
           <li>
             <b>2</b>
-            <span>
-              <strong>Las transversales no se pueden marcar.</strong> Las orienta otro instructor, así que sus fechas y
-              calificaciones no son evidencia tuya y solo generaban evidencia errónea.
-            </span>
-          </li>
-          <li>
-            <b>3</b>
             <span>
               <strong>Guarda la selección.</strong> Por cada ítem se usan las {slotsPerItem} primeras en orden de fase:
               aparecen marcadas con «Se usa en la evidencia».
@@ -205,7 +200,7 @@ export function ActivitySelector({ data, fichaId }: { data: ActivitiesResponse; 
         <div className="activity-list">
           {!all.length ? (
             <div className="empty">
-              El curso no tiene actividades detectadas. Vuelve al paso 2 y pulsa “Buscar rutas” para leer el contenido del curso.
+              El curso no tiene actividades detectadas. Abre <Link to="/fichas">Fichas</Link> y pulsa “Buscar rutas” para volver a leer el contenido del curso.
             </div>
           ) : !technical.length ? (
             <div className="empty">Este curso no tiene actividades técnicas detectadas, así que no hay nada que seleccionar.</div>
@@ -254,23 +249,6 @@ export function ActivitySelector({ data, fichaId }: { data: ActivitiesResponse; 
           )}
         </div>
 
-        {transversal.length ? (
-          <details className="activity-blocked">
-            <summary>
-              {transversal.length} actividades transversales no seleccionables (las orienta otro instructor)
-            </summary>
-            <p className="helper">{transversal[0].blockedReason || 'Competencia transversal: su evidencia corresponde a otro instructor.'}</p>
-            <ul>
-              {transversal.map((activity) => (
-                <li key={activity.id}>
-                  <span className="activity-title">{activity.title || 'Actividad sin título'}</span>
-                  <span className="activity-meta">{activity.phaseName || 'Sin fase identificada'} · Referencia {activity.id}</span>
-                </li>
-              ))}
-            </ul>
-          </details>
-        ) : null}
-
         <div className="activity-actions">
           <span className="helper">
             {narrowed ? `Mostrando ${visible.length} de ${technical.length} actividades técnicas` : `${technical.length} actividades técnicas`}
@@ -278,7 +256,7 @@ export function ActivitySelector({ data, fichaId }: { data: ActivitiesResponse; 
           <div className="inline">
             {(justSaved || hasSavedSelection) && !dirty ? (
               <Link className="button ghost small" to="/resumen">
-                Siguiente: paso 4, preparar evidencias →
+                Siguiente: paso 2, preparar evidencias →
               </Link>
             ) : null}
             <button

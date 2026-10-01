@@ -34,7 +34,9 @@ export function Topbar({ mobileMenuOpen, onToggleMobileMenu, menuButtonRef }: To
   const unreadNotifications = (notifications || []).filter((item) => !item.readAt).length
 
   let mid: string | null = null
-  if (location.pathname.startsWith('/checklist') && dashboard?.ficha) {
+  // Every page that shows data of the active ficha says which one it is.
+  const fichaScoped = navItem?.group === 'Operación' && !['/resumen', '/fichas'].includes(navItem?.path || '')
+  if (fichaScoped && dashboard?.ficha) {
     mid = `Ficha ${dashboard.ficha.externalId}`
   } else if (location.pathname.startsWith('/configuracion')) {
     const tab = searchParams.get('tab') || 'account'
@@ -66,7 +68,7 @@ export function Topbar({ mobileMenuOpen, onToggleMobileMenu, menuButtonRef }: To
         <span aria-hidden="true">/</span>
         {mid && (
           <>
-            {location.pathname.startsWith('/checklist') ? (
+            {fichaScoped ? (
               <Link className="mid breadcrumb-link" to="/fichas">{mid}</Link>
             ) : (
               <span className="mid">{mid}</span>

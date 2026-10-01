@@ -10,12 +10,12 @@ import {
   useSetEvidenceReview,
   useSetItemStatus,
   useSetupStatus,
-  useVerifyEvidences,
-} from '../hooks/api'
+  useVerifyEvidences, useChecklistGuides } from '../hooks/api'
 import { useToast } from '../hooks/useToast'
 import { formatDate } from '../lib/format'
 import { friendlyError } from '../lib/friendlyError'
 import { approvedItemsNotMarked } from '../lib/workflow'
+import { guidedItemCodes } from '../lib/guideVerification'
 import type {
   EvidenceReviewEntry,
   EvidenceReviewMissingItem,
@@ -224,9 +224,11 @@ export function Review() {
   const [preview, setPreview] = useState<EvidenceReviewEntry | null>(null)
   const [markingDone, setMarkingDone] = useState(false)
   const setItemStatus = useSetItemStatus()
+  const guidesQuery = useChecklistGuides(fichaId || undefined)
+  // Items with something missing in Zajuna are never offered to be marked.
   const approvedNotMarked = useMemo(
-    () => approvedItemsNotMarked(reviewQuery.data?.evidences ?? [], dashboardQuery.data?.items ?? []),
-    [reviewQuery.data, dashboardQuery.data],
+    () => approvedItemsNotMarked(reviewQuery.data?.evidences ?? [], dashboardQuery.data?.items ?? [], guidedItemCodes(guidesQuery.data?.guides ?? [])),
+    [reviewQuery.data, dashboardQuery.data, guidesQuery.data],
   )
   const closePreview = useCallback(() => setPreview(null), [])
 

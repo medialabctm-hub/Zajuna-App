@@ -1280,6 +1280,16 @@ func (s *Store) SetChecklistItemStatus(ctx context.Context, fichaID, itemCode, s
 	if !checklist.ValidStatus(status) {
 		return fmt.Errorf("estado de checklist inválido: %s", status)
 	}
+	// The checklist is correct or not: an item with something missing in
+	// Zajuna, or with evidence that shows known errors, cannot be marked
+	// fulfilled by hand («No» and «Pendiente» stay free).
+	if status == string(checklist.StatusYes) {
+		if reason, blocked, err := s.itemBlocker(ctx, fichaID, itemCode); err != nil {
+			return err
+		} else if blocked {
+			return fmt.Errorf("%w: %s", ErrItemNotFulfillable, reason)
+		}
+	}
 	if err := s.EnsureChecklistItems(ctx, fichaID); err != nil {
 		return err
 	}

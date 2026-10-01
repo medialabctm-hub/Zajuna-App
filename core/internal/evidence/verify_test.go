@@ -3,6 +3,7 @@ package evidence
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"image"
 	"image/color"
 	"image/png"
@@ -323,4 +324,23 @@ func hasReason(reasons []ReviewReason, code string) bool {
 		}
 	}
 	return false
+}
+
+func TestVerifyFlagsScheduleSheetErrors(t *testing.T) {
+	dataDir := t.TempDir()
+	path := writeTestPNG(t, dataDir, "schedule.png", 1600, 2600, 0.3)
+	meta := map[string]any{"selector": "iframe", "sheetIssues": []string{"la columna «Fecha fin fase» del cronograma tiene 1 celda con el error #¡REF!"}}
+	// An evidence that shows a known error is never ready, whatever the item.
+	for index, item := range []string{"1.2.1", "1.2.5"} {
+		review := VerifyRecord(dataDir, testRecord(fmt.Sprintf("c%d", index), item, path, fmt.Sprintf("h%d", index), meta), nil, time.Now())
+		if review.Status != ReviewPending || review.Reasons[len(review.Reasons)-1].Code != ReasonSheetErrors {
+			t.Fatalf("%s with #REF! in its sheet must be pending: %#v", item, review)
+		}
+	}
+	clean := VerifyRecord(dataDir, testRecord("c2", "1.2.2", path, "b", map[string]any{"selector": "iframe", "sheetIssues": []string{}}), nil, time.Now())
+	for _, reason := range clean.Reasons {
+		if reason.Code == ReasonSheetErrors {
+			t.Fatalf("a clean schedule has no sheet reason: %#v", clean)
+		}
+	}
 }

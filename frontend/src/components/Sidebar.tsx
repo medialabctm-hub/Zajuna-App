@@ -1,7 +1,8 @@
 import { NavLink } from 'react-router-dom'
 import { Icon } from './Icon'
+import { guidedItemCodes } from '../lib/guideVerification'
 import { OPERATION_ITEMS, SYSTEM_ITEMS } from '../lib/nav'
-import { useDiagnostics, useFichas, useJobs } from '../hooks/api'
+import { useChecklistGuides, useDashboard, useDiagnostics, useFichas, useJobs } from '../hooks/api'
 
 interface SidebarProps {
   open?: boolean
@@ -11,6 +12,8 @@ interface SidebarProps {
 export function Sidebar({ open = false, onClose }: SidebarProps) {
   const { data: fichas } = useFichas()
   const { data: jobs } = useJobs()
+  const { data: dashboard } = useDashboard()
+  const guideCount = guidedItemCodes(useChecklistGuides(dashboard?.activeFichaId).data?.guides ?? []).size
   const diagnostics = useDiagnostics()
   const hasActiveJob = (jobs || []).some((job) => ['queued', 'running', 'waiting_user', 'retrying'].includes(job.status))
   const checks = diagnostics.data?.checks || []
@@ -45,13 +48,14 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
             to={item.path}
             onClick={onClose}
             className={({ isActive }) => `sidebar-item${isActive ? ' active' : ''}`}
-            aria-label={item.path === '/fichas' ? `Fichas, ${fichas?.length || 0}` : undefined}
+            aria-label={item.path === '/fichas' ? `Fichas, ${fichas?.length || 0}` : item.path === '/guias' && guideCount ? `Guías, ${guideCount} pendientes` : undefined}
           >
             <span className="sidebar-icon">
               <Icon name={item.icon} size={16} />
             </span>
             <span className="nav-label">{item.label}</span>
             {item.path === '/fichas' && <span className="nav-count" aria-hidden="true">{fichas?.length || 0}</span>}
+            {item.path === '/guias' && guideCount > 0 && <span className="nav-count guide" aria-hidden="true">{guideCount}</span>}
             {item.path === '/trabajos' && <i id="nav-job-dot" className="live-dot" hidden={!hasActiveJob} aria-hidden="true" />}
           </NavLink>
         ))}

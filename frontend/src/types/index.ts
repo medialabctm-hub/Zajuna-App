@@ -343,6 +343,8 @@ export interface EvidenceReviewEntry {
   height?: number
   sha256?: string
   sharedWith?: string[]
+  /** Una subida aprobada del instructor reemplazó esta captura en su slot. */
+  superseded?: boolean
 }
 
 export interface EvidenceReviewMissingItem {
@@ -368,4 +370,47 @@ export interface EvidenceReview {
   summary: EvidenceReviewSummary
   evidences: EvidenceReviewEntry[]
   missingItems: EvidenceReviewMissingItem[]
+}
+
+/** Por qué un ítem quedó fuera del alcance de la app (ver core/internal/checklist/guides.go). */
+export type ChecklistGuideKind = 'content-absent' | 'empty-section' | 'route-missing' | 'content-error'
+export type ChecklistGuideAction = 'recapture' | 'upload' | 'rediscover'
+
+export interface ChecklistGuideTemplate {
+  label: string
+  title?: string
+  body: string
+}
+
+/** Guía para que el instructor complete en Zajuna un ítem que la app no puede probar sola. */
+export interface ChecklistGuide {
+  itemCode: string
+  description: string
+  categoryCode: string
+  categoryLabel: string
+  kind: ChecklistGuideKind
+  headline: string
+  /** Lo que pide el lineamiento, en una frase. */
+  requirement: string
+  /** Ruta de navegación dentro del curso (vacía si no se conoce). */
+  location?: string
+  why: string
+  detected?: string
+  steps: string[]
+  handoff: string
+  /** Qué subir exactamente si el instructor entrega la evidencia a Zajuna Sync. */
+  evidenceHint: string
+  actions: ChecklistGuideAction[]
+  template?: ChecklistGuideTemplate
+  zajunaUrl?: string
+  zajunaLabel?: string
+  missingSlots?: number[]
+  /** Otros ítems que se resuelven con la misma acción (comparten la captura). */
+  alsoItems?: string[]
+}
+
+export interface ChecklistGuidesResponse {
+  fichaId: string
+  mapReady: boolean
+  guides: ChecklistGuide[]
 }

@@ -1,9 +1,10 @@
-import { useActivities, useDashboard, useEvidenceReview, useFichas, useJobs, useTargets } from './api'
-import { approvedItemsNotMarked, computeWorkflow, currentWorkflowStep, type WorkflowStep, type WorkflowStepKey } from '../lib/workflow'
+import { useActivities, useChecklistGuides, useDashboard, useEvidenceReview, useFichas, useJobs, useTargets } from './api'
+import { guidedItemCodes } from '../lib/guideVerification'
+import { approvedItemsNotMarked, reviewableOpenEvidences, computeWorkflow, currentWorkflowStep, pendingAutomaticStep, visibleWorkflowSteps, type WorkflowStep, type WorkflowStepKey } from '../lib/workflow'
 
 const ACTIVE = ['queued', 'running', 'waiting_user', 'retrying']
 
-/** Estado del flujo guiado (1 sincronizar → 5 revisar) con datos reales. */
+/** Estado del flujo guiado con datos reales: 2 pasos automáticos y 3 visibles (actividades → revisar). */
 export function useWorkflow() {
   const fichasQuery = useFichas()
   const dashboardQuery = useDashboard()
@@ -12,6 +13,8 @@ export function useWorkflow() {
   const activitiesQuery = useActivities(activeFichaId)
   const jobsQuery = useJobs()
   const reviewQuery = useEvidenceReview(activeFichaId)
+  const guidesQuery = useChecklistGuides(activeFichaId)
+  const guided = guidedItemCodes(guidesQuery.data?.guides ?? [])
   const jobs = jobsQuery.data || []
   const running = (type: string) => jobs.some((job) => job.type === type && ACTIVE.includes(job.status))
   const evidenceCount = (dashboardQuery.data?.items || []).reduce((sum, item) => sum + (Number(item.evidenceCount) || 0), 0)
@@ -25,13 +28,13 @@ export function useWorkflow() {
     selectedActivities: activitiesQuery.data?.selectedCount || 0,
     evidenceCount,
     captureRunning: running('capture-checklist'),
-    reviewOpen: summary ? (Number(summary.pending) || 0) + (Number(summary.rejected) || 0) : undefined,
+    reviewOpen: reviewQuery.data ? reviewableOpenEvidences(reviewQuery.data.evidences ?? []) : undefined,
     reviewTotal: summary ? Number(summary.total) || 0 : undefined,
-    unmarkedApproved: reviewQuery.data ? approvedItemsNotMarked(reviewQuery.data.evidences ?? [], dashboardQuery.data?.items ?? []).length : undefined,
+    unmarkedApproved: reviewQuery.data ? approvedItemsNotMarked(reviewQuery.data.evidences ?? [], dashboardQuery.data?.items ?? [], guided).length : undefined,
   })
   const current = currentWorkflowStep(steps)
   const step = (key: WorkflowStepKey) => steps.find((entry) => entry.key === key) as WorkflowStep
   // Mientras cargan los datos no se sabe qué paso falta: no mostrar bloqueos.
   const isLoading = dashboardQuery.isLoading || (!!activeFichaId && (targetsQuery.isLoading || activitiesQuery.isLoading))
-  return { steps, current, step, isLoading, isCurrent: (key: WorkflowStepKey) => current?.key === key }
+  return { steps, visible: visibleWorkflowSteps(steps), automaticPending: pendingAutomaticStep(steps), current, step, isLoading, isCurrent: (key: WorkflowStepKey) => current?.key === key }
 }

@@ -43,6 +43,10 @@ type Session struct {
 	Client      *http.Client
 	BaseURL     string
 	ProfileName string
+	// Sesskey and UserID come from the first authenticated page and enable
+	// the AJAX API (see ajax.go). They live only in memory, like the cookies.
+	Sesskey string
+	UserID  int
 }
 
 // CookiesForURL returns a copy of the in-memory session cookies that match a
@@ -204,6 +208,9 @@ func (c *Client) Login(ctx context.Context, credentials Credentials) (Session, e
 		return Session{}, fmt.Errorf("%w: Zajuna no devolvió cookies de sesión", ErrAuthentication)
 	}
 	session.ProfileName = parseProfileName(coursesBody)
+	session.Sesskey = parseSesskey(coursesBody)
+	// Best effort: without a confirmed id the forum checks are skipped.
+	session.UserID = c.ResolveUserID(ctx, session, userIDCandidates(coursesBody))
 	return session, nil
 }
 

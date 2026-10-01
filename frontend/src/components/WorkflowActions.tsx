@@ -11,7 +11,7 @@ interface ActionProps {
   fullWidth?: boolean
 }
 
-/** Paso 1: una sola sincronización a la vez (antes se podía lanzar 4 veces seguidas). */
+/** Sincronización manual (automática en el primer arranque): una sola a la vez. */
 export function SyncFichasAction({ className = '', compact = false, fullWidth = false }: ActionProps) {
   const toast = useToast()
   const { data: setup } = useSetupStatus()
@@ -26,7 +26,7 @@ export function SyncFichasAction({ className = '', compact = false, fullWidth = 
     syncFichas.mutate(
       { username: setup?.zajunaUsername || '', documentType: setup?.zajunaDocumentType || 'CC' },
       {
-        onSuccess: () => toast('Estamos sincronizando tus fichas. Cuando termine, elige tu ficha y sigue con el paso 2.'),
+        onSuccess: () => toast('Estamos sincronizando tus fichas. Cuando termine, elige tu ficha para seguir.'),
         onError: (error) => toast(friendlyError(error.message), true),
       },
     )
@@ -43,7 +43,7 @@ export function SyncFichasAction({ className = '', compact = false, fullWidth = 
 }
 
 /**
- * Paso 4: preparar evidencias solo cuando las rutas existen y hay actividades
+ * Paso 2: preparar evidencias solo cuando las rutas existen y hay actividades
  * seleccionadas; si falta algo, se dice qué y se enlaza al paso que falta.
  */
 export function CaptureAction({ className = '', compact = false, fullWidth = false }: ActionProps) {
@@ -58,11 +58,11 @@ export function CaptureAction({ className = '', compact = false, fullWidth = fal
   const blocker = isLoading
     ? null
     : !dashboard?.activeFichaId
-    ? { text: 'Primero elige una ficha (paso 1).', to: '/fichas', label: 'Ir al paso 1' }
+    ? { text: 'Primero elige una ficha.', to: '/fichas', label: 'Ir a Fichas' }
     : routes?.state !== 'done'
-      ? { text: 'Primero busca las rutas del curso (paso 2).', to: '/fichas', label: 'Ir al paso 2' }
+      ? { text: 'Aún faltan las rutas del curso.', to: '/fichas', label: 'Buscar rutas' }
       : activities?.state !== 'done'
-        ? { text: 'Primero selecciona tus actividades técnicas (paso 3).', to: '/actividades', label: 'Ir al paso 3' }
+        ? { text: 'Primero selecciona tus actividades técnicas (paso 1).', to: '/actividades', label: 'Ir al paso 1' }
         : null
   const busy = capture.isPending || running
   const classes = ['button', isCurrent('capture') ? 'primary is-next-step' : 'ghost', compact ? 'small' : '', className].filter(Boolean).join(' ')
@@ -72,7 +72,7 @@ export function CaptureAction({ className = '', compact = false, fullWidth = fal
     capture.mutate(
       { fichaId: dashboard.activeFichaId, username: setup?.zajunaUsername || '', documentType: setup?.zajunaDocumentType || 'CC' },
       {
-        onSuccess: () => toast('Estamos preparando tus evidencias. Al terminar las revisamos automáticamente (paso 5).'),
+        onSuccess: () => toast('Estamos preparando tus evidencias. Al terminar las revisamos automáticamente (paso 3).'),
         onError: (error) => toast(friendlyError(error.message), true),
       },
     )

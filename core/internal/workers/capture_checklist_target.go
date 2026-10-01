@@ -137,6 +137,16 @@ func (w *CaptureChecklistWorker) captureChecklistTarget(ctx context.Context, par
 		return targetOutcome{failure: target.ItemCode + ": captura cancelada"}
 	}
 	defer unlock()
+	// Zajuna's AJAX API can confirm that the content is missing (an empty
+	// subsection, a forum without the instructor's replies or conclusion)
+	// without opening Chromium. Only a confirmed absence short-circuits.
+	if detail, absent := w.ajaxContentAbsence(ctx, params); absent {
+		detail += w.absenceInsight(ctx, params)
+		return targetOutcome{absent: true, failure: target.ItemCode + ": " + detail, coveredItemCodes: coveredItemCodes(target)}
+	}
+	// A schedule (1.x) is a published Google Sheet: its cells are read too, so
+	// formula errors (#REF!) reach the review and the instructor's guide.
+	sheetIssues := scheduleSheetIssues(ctx, w.client, params.Session, target)
 	options := capture.CaptureOptions{
 		Selector: target.CSSSelector, Selectors: target.CSSSelectorFallbacks,
 		RevealSelectors: target.RevealSelectors, HideSelectors: target.HideSelectors,
@@ -203,9 +213,26 @@ func (w *CaptureChecklistWorker) captureChecklistTarget(ctx context.Context, par
 			return targetOutcome{failure: target.ItemCode + ": el foro asignado no está disponible para tu cuenta; vuelve a buscar las rutas del curso"}
 		}
 		if errors.Is(captureErr, capture.ErrContentAbsent) {
-			return targetOutcome{absent: true, failure: target.ItemCode + ": " + absenceMessage(target, captureErr), coveredItemCodes: coveredItemCodes(target)}
+			detail := absenceMessage(target, captureErr) + w.absenceInsight(ctx, params)
+			return targetOutcome{absent: true, failure: target.ItemCode + ": " + detail, coveredItemCodes: coveredItemCodes(target)}
 		}
-		return targetOutcome{failure: target.ItemCode + ": " + captureErr.Error()}
+		failure := target.ItemCode + ": " + captureErr.Error()
+		// 10.1.x reports a missing grading table as an absence by its message
+		// (absentContent); it gets the same explanation as typed absences, in
+		// words the instructor can act on.
+		if absentContent(failure) {
+			if checklist.GradingInsightItem(target.ItemCode) {
+				name := strings.TrimSpace(target.ActivityTitle)
+				if name == "" {
+					name = "una de las actividades seleccionadas"
+				} else {
+					name = "«" + name + "»"
+				}
+				failure = target.ItemCode + ": sin contenido en Zajuna: " + name + " " + gradingTableMarker
+			}
+			failure += w.absenceInsight(ctx, params)
+		}
+		return targetOutcome{failure: failure}
 	}
 	if isZajunaLoginURL(captureResult.FinalURL) {
 		return targetOutcome{failure: target.ItemCode + ": Zajuna redirigió a login"}
@@ -231,6 +258,7 @@ func (w *CaptureChecklistWorker) captureChecklistTarget(ctx context.Context, par
 		"rowsTotal": captureResult.RowsTotal, "rowStart": captureResult.RowStart, "contentItems": captureResult.ContentItems,
 		"rowMatch": target.RowMatch, "rowRequireReply": target.RowRequireReply, "semanticCheck": target.SemanticCheck, "courseLayout": target.CourseLayout,
 		"maxCaptureWidth": target.MaxCaptureWidth, "columnBatch": target.ColumnBatch, "columnWindows": captureResult.ColumnWindows,
+		"sheetIssues": sheetIssueMessages(sheetIssues),
 	})
 	capturedAt := time.Now().UTC()
 	evidenceRecords := 0

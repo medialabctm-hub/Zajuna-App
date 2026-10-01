@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -246,6 +247,14 @@ func registerEvidenceRoutes(mux *http.ServeMux, store evidence.Store, dataDir st
 			writeError(w, http.StatusInternalServerError, err)
 			return
 		}
+		// The upload completes the item when its review comes out approved
+		// (it also replaces a capture that showed an empty section).
+		if reviewer, ok := store.(manualEvidenceReviewer); ok && itemCode != "" {
+			if _, err := reviewer.ReviewNewEvidenceAndSync(r.Context(), fichaID); err != nil {
+				writeError(w, http.StatusInternalServerError, err)
+				return
+			}
+		}
 		writeJSON(w, http.StatusCreated, toEvidenceView(record))
 	})
 
@@ -414,4 +423,10 @@ func safeEvidencePathPart(value string) string {
 	}
 	value = strings.NewReplacer("\\", "_", "/", "_", ":", "_", "..", "_").Replace(value)
 	return value
+}
+
+// manualEvidenceReviewer is implemented by the SQLite store: it reviews a
+// freshly uploaded evidence and syncs the checklist item it completes.
+type manualEvidenceReviewer interface {
+	ReviewNewEvidenceAndSync(ctx context.Context, fichaID string) (evidence.ReviewReport, error)
 }

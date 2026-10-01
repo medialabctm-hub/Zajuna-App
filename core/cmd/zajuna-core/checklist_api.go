@@ -137,6 +137,10 @@ func registerChecklistRoutes(mux *http.ServeMux, service checklistService) {
 				writeError(w, http.StatusNotFound, errors.New("el ítem de checklist no existe para esta ficha"))
 				return
 			}
+			if errors.Is(err, sqlite.ErrItemNotFulfillable) {
+				writeError(w, http.StatusConflict, err)
+				return
+			}
 			writeError(w, http.StatusBadRequest, err)
 			return
 		}

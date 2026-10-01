@@ -1,9 +1,12 @@
 import { Link, useParams } from 'react-router-dom'
+import { Icon } from '../components/Icon'
 import { MissingActiveFicha, PageError, PageSkeleton } from '../components/AsyncState'
 import { evidenceDownloadUrl } from '../api/client'
 import {
   useCapture,
+  useChecklistGuides,
   useChecklistItemDetail,
+  useEvidenceReview,
   useDashboard,
   useReviews,
   useSetItemStatus,
@@ -14,6 +17,8 @@ import {
 import { useToast } from '../hooks/useToast'
 import { friendlyError } from '../lib/friendlyError'
 import { confidenceFor, formatDate, routeStatusClass, routeStatusLabel } from '../lib/format'
+import { itemReviewState } from '../lib/evidenceGroupState'
+import { findGuideForItem } from '../lib/guideVerification'
 import type { DashboardItem, Evidence, ItemStatus, RouteTarget } from '../types'
 
 function targetLocation(target: RouteTarget) {
@@ -49,6 +54,9 @@ export function ChecklistItemDetail() {
   const setupQuery = useSetupStatus()
   const setStatus = useSetItemStatus()
   const capture = useCapture()
+  const guidesQuery = useChecklistGuides(dashboard?.activeFichaId)
+  const reviewQuery = useEvidenceReview(dashboard?.activeFichaId)
+  const guide = findGuideForItem(guidesQuery.data?.guides ?? [], decodedCode)
 
   if (dashboardQuery.isLoading) return <PageSkeleton label="Cargando detalle de tarea" />
   if (dashboardQuery.isError && isNotFound(dashboardQuery.error)) {
@@ -76,7 +84,9 @@ export function ChecklistItemDetail() {
     return Boolean(target.coveredItemCodes?.includes(task.itemCode))
   })
   const reviews = reviewsQuery.data || []
-  const confidence = confidenceFor(task)
+  // La etiqueta sigue a Revisión; sin revisión, la confianza de la captura.
+  const reviewState = itemReviewState(task.itemCode, reviewQuery.data?.evidences ?? [])
+  const confidence = reviewState ? { ...reviewState, detail: 'Estado en Revisión' } : confidenceFor(task)
   const maxEvidences = Math.max(1, Number(task.maxEvidences) || 1)
   const evidenceCount = Number(task.evidenceCount) || 0
   const events = detailQuery.data?.events || []
@@ -146,13 +156,26 @@ export function ChecklistItemDetail() {
           </div>
 
           <div className="task-detail-actions">
-            <button className="button primary" onClick={handleCapture} disabled={capture.isPending || targetsQuery.isLoading || !targets.length}>
+            <button className={`button ${guide ? 'ghost' : 'primary'}`} onClick={handleCapture} disabled={capture.isPending || targetsQuery.isLoading || !targets.length}>
               {capture.isPending ? 'Preparando…' : 'Preparar evidencia'}
             </button>
             <Link className="button ghost" to="/evidencias">Ver galería de evidencias</Link>
           </div>
         </div>
       </section>
+
+      {guide ? (
+        <Link className="card guide-detail-link" to={`/guias/${encodeURIComponent(task.itemCode)}`}>
+          <span className="guide-summary-icon" aria-hidden="true">
+            <Icon name="help" size={16} />
+          </span>
+          <span>
+            <strong>Este ítem depende de ti en Zajuna</strong>
+            <small>{guide.headline}</small>
+          </span>
+          <span className="guide-summary-toggle">Abrir su guía →</span>
+        </Link>
+      ) : null}
 
       <div className="task-detail-columns">
         <section className="card">

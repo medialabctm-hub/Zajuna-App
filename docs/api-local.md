@@ -723,8 +723,8 @@ Cada evidencia queda `approved`, `pending` o `rejected` (tabla
 técnicos: `file_missing` y `login_page` (rechazada); `too_wide` (> 4000 px),
 `too_tall` (> 9000 px), `too_small` (< 200×120 px, solo en secciones del
 curso), `mostly_blank` (≥ 99,5 % casi blanco), `empty_section` (sección sin
-actividades ni archivos), `generic_selector`, `duplicate_content` y
-`outdated_rule` (pendiente). Una decisión manual se respeta mientras el
+actividades ni archivos), `generic_selector`, `duplicate_content`,
+`outdated_rule` y `sheet_errors` (pendiente). `sheet_errors` aparece cuando el cronograma publicado tiene celdas con error, y el mensaje nombra la columna: una evidencia con errores conocidos nunca se aprueba. Una decisión manual se respeta mientras el
 `sha256` no cambie; al recapturar se vuelve a verificar. `capture-checklist`
 ejecuta la verificación al terminar (sin hacer fallar la captura).
 
@@ -769,13 +769,74 @@ corría. «pending» retira la decisión manual de forma explícita.
   automática). Devuelve la evidencia actualizada.
 
 `POST /api/evidences/verify`, `PUT /api/evidences/{id}/review` y la revisión
-automática al terminar `capture-checklist` sincronizan el checklist: un ítem
-«PENDIENTE» cuyas evidencias están todas aprobadas pasa a «SI», y un «SI»
-puesto por esta sincronización vuelve a «PENDIENTE» si una evidencia deja de
-estar aprobada. Un «SI» o «NO» manual nunca se cambia. Cada cambio queda en el
+automática al terminar `capture-checklist` sincronizan el checklist con una
+regla estricta (correcto o no). Un ítem «PENDIENTE» pasa a «SI» solo si se
+cumplen dos condiciones: todas sus evidencias están aprobadas y la última
+captura del ítem no dejó ningún faltante, es decir, ningún slot sin contenido
+en Zajuna ni ningún slot fallido (`capture_gaps:<ficha>` en `app_settings`,
+que escribe `capture-checklist` antes de verificar).
+
+Así ocurrió en la ficha 3135429: 9.1.3 tenía un foro con fechas aprobado y
+otro sin fechas, y no queda cumplido. Si a un «SI» automático le aparece un
+faltante, vuelve a «PENDIENTE», y lo mismo si una evidencia deja de estar
+aprobada. Un «SI» o «NO» manual nunca se cambia. Cada cambio queda en el
 historial del ítem con `source: "revision-automatica"`. Los ítems sin
 evidencia de `missingItems` explican la ausencia de la última captura
 («Sin contenido en Zajuna: …») cuando la hubo.
+
+### Guías para ítems que dependen del instructor
+
+`GET /api/checklist/guides?fichaId=<id>` devuelve `{fichaId, mapReady, guides[]}`.
+Vale para cualquier ficha: las guías salen del estado vivo de la ficha
+(`checklist.DetectGuides`), no de una lista fija. Un ítem recibe guía cuando no
+está en «SI», no tiene toda su evidencia aprobada y la causa solo la puede
+resolver el instructor en Zajuna:
+
+| `kind` | Cuándo |
+|---|---|
+| `empty-section` | Una evidencia con `empty_section`, o una ausencia «la sección no tiene actividades ni archivos». |
+| `content-absent` | Sin evidencia y la última captura informó «sin contenido en Zajuna» (foro sin respuestas del instructor, sin conclusión, sin fechas…). |
+| `route-missing` | Con mapa de rutas, ningún target cubre el ítem. No aplica a 6.1 ni 10.1.x, que esperan la selección de actividades. |
+| `content-error` | El contenido de Zajuna tiene errores que solo el instructor puede corregir. Hoy es el caso de un cronograma publicado con celdas `#REF!` (motivo `sheet_errors`, evidencia pendiente). Los ítems que comparten la captura van en una sola guía con `alsoItems`. |
+
+Los fallos técnicos (captura rota, imagen demasiado ancha) no generan guía:
+son trabajo de la app y se resuelven volviendo a capturar. Cada guía trae
+`headline`, `requirement` (qué pide el lineamiento), `location` (ruta dentro
+del curso), `why`, `detected`, `steps[]` (adaptados al `kind`: con
+`route-missing` primero se crea o renombra la sección o el foro con el nombre
+exacto; con `empty-section` se sube el contenido a la subsección que ya
+existe), `handoff` (cómo entrega el trabajo a Zajuna Sync), `evidenceHint`
+(qué subir exactamente si el instructor entrega su evidencia), `actions[]`
+(`recapture`, `upload`, `rediscover`), `template` opcional (texto para copiar:
+conclusión y retroalimentación de foros, respuesta a dudas, anuncios de fase,
+de actividad, semanales y de aprobados, resumen de sesión), `zajunaUrl` y
+`zajunaLabel` (la página exacta del curso) y `missingSlots[]`.
+
+El catálogo (`core/internal/checklist/guides_catalog.go`) tiene guía escrita
+para los ítems cuyo contenido depende del instructor: documentos y actas de
+Seguimiento (7.3.x, 7.4.x, 13.x), foros (9.1.x, 14.1.x), anuncios (11.x),
+grabaciones y resúmenes de sesiones (12.1.x) y calificación de entregas
+(10.1.x). Los ítems que la app resuelve sola (cronogramas, perfil, menú,
+calificador, sesiones 8.x…) usan una guía de respaldo construida con la
+descripción del ítem.
+
+Para terminar el ítem, el instructor publica en Zajuna y pulsa «Ya lo hice,
+verificar» (`POST /api/checklist/capture` con `itemCodes: [código]`) o sube su
+evidencia (`POST /api/evidences/upload` con `itemCode` y `slotNumber`). Una
+subida con `itemCode` se revisa al momento y sincroniza el checklist.
+
+**Verificación con la API de Zajuna.** Antes de abrir Chromium,
+`capture-checklist` confirma por AJAX las subsecciones vacías, los foros sin
+respuestas o sin conclusión del instructor y los foros sin fechas (ver
+[API AJAX de Zajuna](zajuna-ajax-2026-10-01.md)). Esas ausencias llegan a la
+guía como «Última verificación: … (verificado con la API de Zajuna)».
+
+**Subida del instructor frente a captura.** Una subida (`source: manual`)
+aprobada reemplaza en su ítem y slot a la captura automática
+(`evidence.SupersededEvidence`): la captura se conserva, pero ya no bloquea el
+ítem, y la revisión la marca con `superseded: true`. El límite de evidencias
+por ítem conserva primero las subidas del instructor, así que una recaptura
+automática nunca las expulsa.
 
 ### `POST /api/reports`
 

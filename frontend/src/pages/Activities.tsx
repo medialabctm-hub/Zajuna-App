@@ -34,7 +34,7 @@ export function Activities() {
     return (
       <section className="card onboarding-card">
         <div className="card-pad">
-          <div className="eyebrow">Paso 2 · Buscar rutas</div>
+          <div className="eyebrow">Rutas del curso</div>
           <h2 style={{ marginTop: 7 }}>Primero busca las rutas del curso</h2>
           <p className="helper" style={{ marginTop: 8 }}>{data.discovery?.message || 'Necesitamos leer el contenido del curso para mostrarte las actividades disponibles.'}</p>
           <div className="inline" style={{ marginTop: 18 }}>
@@ -48,7 +48,7 @@ export function Activities() {
 
   return (
     <div className="grid">
-      <ActivitySelector key={activeFichaId} data={data} fichaId={activeFichaId} />
+      <ActivitySelector key={activeFichaId} data={data} fichaId={activeFichaId} fichaCode={dashboardQuery.data?.ficha?.externalId} />
     </div>
   )
 }
