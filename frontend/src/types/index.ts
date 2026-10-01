@@ -407,10 +407,14 @@ export interface ChecklistGuide {
   missingSlots?: number[]
   /** Otros ítems que se resuelven con la misma acción (comparten la captura). */
   alsoItems?: string[]
+  /** Recomendación: el ítem está cumplido, pero el contenido tiene errores. */
+  advisory?: boolean
 }
 
 export interface ChecklistGuidesResponse {
   fichaId: string
   mapReady: boolean
   guides: ChecklistGuide[]
+  /** Recomendaciones (contenido con errores) que no cuentan como pendientes. */
+  advice?: ChecklistGuide[]
 }

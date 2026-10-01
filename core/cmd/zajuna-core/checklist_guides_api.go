@@ -27,6 +27,8 @@ type checklistGuidesView struct {
 	FichaID  string            `json:"fichaId"`
 	MapReady bool              `json:"mapReady"`
 	Guides   []checklist.Guide `json:"guides"`
+	// Advice: recommendations (content with errors) that are not pending.
+	Advice []checklist.Guide `json:"advice"`
 }
 
 // registerChecklistGuideRoutes exposes the guides for the items the app
@@ -117,5 +119,5 @@ func buildChecklistGuides(ctx context.Context, store checklistGuideStore, fichaI
 		}
 		input.Targets = checklist.ApplyRouteReviews(targets, reviews)
 	}
-	return checklistGuidesView{FichaID: ficha.ID, MapReady: input.MapReady, Guides: checklist.DetectGuides(input)}, nil
+	return checklistGuidesView{FichaID: ficha.ID, MapReady: input.MapReady, Guides: checklist.DetectGuides(input), Advice: checklist.DetectAdvice(input)}, nil
 }

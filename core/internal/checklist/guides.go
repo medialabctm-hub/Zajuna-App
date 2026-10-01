@@ -82,6 +82,9 @@ type Guide struct {
 	// AlsoItems are other items fixed by the same action: the schedule items
 	// (1.2.x) share one capture per sheet, so one guide stands for all.
 	AlsoItems []string `json:"alsoItems,omitempty"`
+	// Advisory: a recommendation about content Zajuna shows with errors; the
+	// items are fulfilled and the guide is not counted as pending.
+	Advisory bool `json:"advisory,omitempty"`
 }
 
 func kindWhy(kind string) string {
@@ -355,6 +358,63 @@ func containsString(values []string, value string) bool {
 		}
 	}
 	return false
+}
+
+// DetectAdvice returns recommendations for content Zajuna shows with errors
+// (a schedule sheet with #REF! cells) whatever the items' status: the
+// evidence is valid, but what it shows should be fixed. Items that share the
+// capture of the same sheets are grouped in one recommendation.
+func DetectAdvice(input GuideInput) []Guide {
+	targets := map[string][]CaptureTarget{}
+	for _, target := range input.Targets {
+		covered := target.CoveredItemCodes
+		if len(covered) == 0 {
+			covered = []string{target.ItemCode}
+		}
+		for _, code := range covered {
+			targets[code] = append(targets[code], target)
+		}
+	}
+	errorsByItem := map[string][]string{}
+	slotsByItem := map[string][]int{}
+	for _, entry := range input.Evidences {
+		message := strings.TrimSpace(entry.ContentError)
+		if entry.ItemCode == "" || entry.Superseded || message == "" {
+			continue
+		}
+		if !containsString(errorsByItem[entry.ItemCode], message) {
+			errorsByItem[entry.ItemCode] = append(errorsByItem[entry.ItemCode], message)
+		}
+		slotsByItem[entry.ItemCode] = append(slotsByItem[entry.ItemCode], max(entry.Slot, 1))
+	}
+	advice := []Guide{}
+	byGroup := map[string]int{}
+	for _, item := range Items() {
+		messages := errorsByItem[item.ItemCode]
+		if len(messages) == 0 {
+			continue
+		}
+		if index, seen := byGroup[item.GroupName]; seen {
+			advice[index].AlsoItems = append(advice[index].AlsoItems, item.ItemCode)
+			continue
+		}
+		signal := GuideSignal{
+			ItemCode: item.ItemCode, Kind: GuideContentError, MissingSlots: slotsByItem[item.ItemCode],
+			Detected: "Última verificación: " + strings.TrimSuffix(strings.Join(messages, "; "), ".") + ".",
+		}
+		if target, ok := guideTarget(targets[item.ItemCode], signal.MissingSlots); ok {
+			signal.ZajunaURL, signal.ZajunaLabel = target.URL, target.Name
+		}
+		guide, ok := BuildGuide(signal)
+		if !ok {
+			continue
+		}
+		guide.Advisory = true
+		guide.Why = "Las evidencias son válidas y el ítem cuenta como cumplido, pero la hoja publicada en Zajuna muestra celdas con error. Te recomendamos corregirlas en el documento original."
+		byGroup[item.GroupName] = len(advice)
+		advice = append(advice, guide)
+	}
+	return advice
 }
 
 // guideTarget picks the page to open: the target of the first slot that

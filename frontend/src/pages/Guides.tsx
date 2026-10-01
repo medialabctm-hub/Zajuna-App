@@ -38,7 +38,8 @@ function writeSeen(fichaId: string, value: Record<string, string>) {
 }
 
 function GuideRow({ guide, fichaId, item, jobs, selected }: { guide: ChecklistGuide; fichaId: string; item?: DashboardItem; jobs: Job[]; selected: boolean }) {
-  const status = guideRowStatus(guideVerification(latestItemCaptureJob(jobs, fichaId, guide.itemCode), item?.status), guide.kind)
+  const verificationState = guideVerification(latestItemCaptureJob(jobs, fichaId, guide.itemCode), item?.status)
+  const status = guide.advisory && verificationState.kind !== 'running' && verificationState.kind !== 'settling' ? { label: 'Recomendación', tone: 'pending' as const } : guideRowStatus(verificationState, guide.kind)
   return (
     <li>
       <Link className={`guide-row${selected ? ' selected' : ''}`} to={`/guias/${encodeURIComponent(guide.itemCode)}`} aria-current={selected ? 'page' : undefined}>
@@ -74,6 +75,7 @@ export function Guides() {
   const reviewQuery = useEvidenceReview(fichaId || undefined)
   const { data: jobs } = useJobs()
   const guides = guidesQuery.data?.guides ?? []
+  const advice = guidesQuery.data?.advice ?? []
   const items = dashboardQuery.data?.items ?? []
   const codes = guides.map((guide) => guide.itemCode)
   const codesKey = codes.join('|')
@@ -101,7 +103,7 @@ export function Guides() {
   const statusByCode = Object.fromEntries(items.map((item) => [item.itemCode, item.status]))
   const resolved = resolvedGuideCodes(seen, codes, statusByCode)
   const allJobs = jobs ?? []
-  const selectedGuide = findGuideForItem(guides, selectedCode)
+  const selectedGuide = findGuideForItem(guides, selectedCode) ?? findGuideForItem(advice, selectedCode)
   // Evidence uploaded for this item that the automatic review left pending:
   // the guide is gone (the item has evidence) but it is not fulfilled yet.
   const pendingUpload = (reviewQuery.data?.evidences ?? []).some((entry) => entry.itemCode === selectedCode && !entry.superseded && entry.status !== 'approved')
@@ -127,6 +129,16 @@ export function Guides() {
           ) : (
             <div className="empty">Todo lo que depende de ti en Zajuna está al día. Si una captura vuelve a encontrar algo faltante, aparecerá aquí con su guía.</div>
           )}
+          {advice.length ? (
+            <div className="guides-resolved">
+              <div className="eyebrow">Recomendaciones · no cuentan como pendientes</div>
+              <ul className="guide-list">
+                {advice.map((guide) => (
+                  <GuideRow key={`advice-${guide.itemCode}`} guide={guide} fichaId={fichaId} item={items.find((item) => item.itemCode === guide.itemCode)} jobs={allJobs} selected={guide.itemCode === selectedCode} />
+                ))}
+              </ul>
+            </div>
+          ) : null}
           {resolved.length ? (
             <div className="guides-resolved">
               <div className="eyebrow">Cumplidos recientemente</div>

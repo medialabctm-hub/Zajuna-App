@@ -43,8 +43,9 @@ const (
 	ReasonEmptySection     = "empty_section"
 	ReasonOutdatedRule     = "outdated_rule"
 	// ReasonSheetErrors: the published Google Sheet of a schedule has cells
-	// with formula errors (#REF!…) or is empty. Only the instructor can fix
-	// the source sheet.
+	// with formula errors (#REF!…) or is empty. It is advisory: one broken
+	// cell does not unprove the rest of the schedule, so the evidence stays
+	// approved and the instructor gets a recommendation to fix the sheet.
 	ReasonSheetErrors = "sheet_errors"
 )
 
@@ -443,11 +444,18 @@ func isReviewImage(format, path string) bool {
 	return false
 }
 
+// advisoryReasons are reported to the person but never leave an evidence
+// pending by themselves.
+var advisoryReasons = map[string]bool{ReasonSheetErrors: true}
+
 func statusForReasons(reasons []ReviewReason) string {
 	status := ReviewApproved
 	for _, reason := range reasons {
 		if reason.Code == ReasonFileMissing || reason.Code == ReasonLoginPage {
 			return ReviewRejected
+		}
+		if advisoryReasons[reason.Code] {
+			continue
 		}
 		status = ReviewPending
 	}

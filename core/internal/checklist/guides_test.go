@@ -213,6 +213,20 @@ func TestDetectGuidesAsksToFixAScheduleWithErrors(t *testing.T) {
 	}
 }
 
+func TestScheduleErrorsAreAdviceNotPendingGuides(t *testing.T) {
+	input := GuideInput{
+		Items:     []GuideItemState{{ItemCode: "1.2.1", Status: "SI"}, {ItemCode: "1.2.2", Status: "SI"}},
+		Evidences: []GuideEvidence{{ItemCode: "1.2.1", Slot: 1, Approved: true, ContentError: "la hoja del cronograma tiene 1 celda con el error #REF!"}, {ItemCode: "1.2.2", Slot: 1, Approved: true, ContentError: "la hoja del cronograma tiene 1 celda con el error #REF!"}},
+	}
+	if guides := DetectGuides(input); len(guides) != 0 {
+		t.Fatalf("fulfilled schedules are not pending guides: %#v", guideCodes(guides))
+	}
+	advice := DetectAdvice(input)
+	if len(advice) != 1 || !advice[0].Advisory || advice[0].ItemCode != "1.2.1" || strings.Join(advice[0].AlsoItems, ",") != "1.2.2" {
+		t.Fatalf("advice = %#v", advice)
+	}
+}
+
 func TestScheduleErrorsShareOneGuide(t *testing.T) {
 	evidences := []GuideEvidence{}
 	for _, code := range []string{"1.2.1", "1.2.2", "1.2.5"} {
