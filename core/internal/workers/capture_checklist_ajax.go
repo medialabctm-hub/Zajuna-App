@@ -132,7 +132,10 @@ func (w *CaptureChecklistWorker) ajaxContentAbsence(ctx context.Context, params 
 func sectionAbsence(state zajuna.CourseState, title string) (string, bool) {
 	sections := state.SectionsWithTitlePrefix(title)
 	if len(sections) == 0 {
-		return "", false
+		// The course structure is complete in this answer: a subsection the
+		// guideline asks for that does not exist is the instructor's to
+		// create (the browser would not find it either).
+		return fmt.Sprintf("%sla subsección «%s» no existe en el curso (verificado con la API de Zajuna)", ajaxAbsencePrefix, checklist.CourseSectionName(title)), true
 	}
 	for _, section := range sections {
 		// A summary (text, a link, an embedded file) is content the browser

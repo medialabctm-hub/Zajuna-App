@@ -325,6 +325,10 @@ func DetectGuides(input GuideInput) []Guide {
 				// The capture found the subsection with only its title.
 				signal.Kind = GuideEmptySection
 			}
+			if strings.Contains(detail, "no existe en el curso") {
+				// The subsection must be created with the guideline's name.
+				signal.Kind = GuideRouteMissing
+			}
 			signal.Detected = "Última verificación: " + detail + "."
 		case len(counted) == 0 && input.MapReady && len(targets[code]) == 0 && !selectionBoundItem(code) && !activityBoundItem(code):
 			// Activity-bound items without targets wait for the activity

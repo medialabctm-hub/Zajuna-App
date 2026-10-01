@@ -48,7 +48,7 @@ export function Activities() {
 
   return (
     <div className="grid">
-      <ActivitySelector key={activeFichaId} data={data} fichaId={activeFichaId} />
+      <ActivitySelector key={activeFichaId} data={data} fichaId={activeFichaId} fichaCode={dashboardQuery.data?.ficha?.externalId} />
     </div>
   )
 }

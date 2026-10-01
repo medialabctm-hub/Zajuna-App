@@ -842,7 +842,7 @@ export function Checklist() {
                 </div>
               </section>
             ) : activitiesQuery.data ? (
-              <ActivitySelector key={dashboard.activeFichaId} data={activitiesQuery.data} fichaId={dashboard.activeFichaId} />
+              <ActivitySelector key={dashboard.activeFichaId} data={activitiesQuery.data} fichaId={dashboard.activeFichaId} fichaCode={dashboard.ficha?.externalId} />
             ) : null
           )}
 

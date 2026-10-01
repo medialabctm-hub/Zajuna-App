@@ -54,3 +54,23 @@ func IsScheduleItem(itemCode string) bool {
 func GradingInsightItem(itemCode string) bool {
 	return itemCode == "10.1.1" || itemCode == "10.1.2"
 }
+
+// courseSectionNames are the full names of the subsections the guideline
+// asks for, by the title prefix used to find them.
+var courseSectionNames = map[string]string{
+	"Reporte del Curso":      "Reporte del Curso",
+	comitesSectionTitle:      "Comités evaluativos - Actas",
+	"Documentos de retenci":  "Documentos de retención",
+	"Reuniones EEF":          "Reuniones EEF - Actas",
+	"Planes de Mejoramiento": "Planes de Mejoramiento",
+	"Registro de Novedades":  "Registro de Novedades",
+	"Llamados de atenci":     "Llamados de atención",
+}
+
+// CourseSectionName is the full name of a subsection the guideline asks for.
+func CourseSectionName(titlePrefix string) string {
+	if name, ok := courseSectionNames[titlePrefix]; ok {
+		return name
+	}
+	return titlePrefix
+}

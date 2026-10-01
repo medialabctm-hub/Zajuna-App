@@ -174,3 +174,16 @@ func TestForumUserPostsKeepsOnlySubjectsDatesAndReplies(t *testing.T) {
 		t.Fatalf("unknown user err = %v", err)
 	}
 }
+
+func TestSectionTitlesTolerateArticles(t *testing.T) {
+	state, err := ParseCourseState(`{"section":[{"id":"14","title":"Reporte de curso","hassummary":false,"cmlist":[],"children":[]}]}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(state.SectionsWithTitlePrefix("Reporte del Curso")) != 1 {
+		t.Fatal("«Reporte de curso» is «Reporte del Curso»")
+	}
+	if len(state.SectionsWithTitlePrefix("Comités evaluativos")) != 0 {
+		t.Fatal("other titles do not match")
+	}
+}

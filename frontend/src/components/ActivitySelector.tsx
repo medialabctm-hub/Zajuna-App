@@ -41,7 +41,7 @@ function groupByPhase(activities: Activity[]) {
  * other instructors and only produced wrong evidence. The draft is local so
  * the user sees unsaved changes; render with key={fichaId}.
  */
-export function ActivitySelector({ data, fichaId }: { data: ActivitiesResponse; fichaId: string }) {
+export function ActivitySelector({ data, fichaId, fichaCode }: { data: ActivitiesResponse; fichaId: string; fichaCode?: string }) {
   const toast = useToast()
   const saveActivities = useSaveActivities()
   const saved = useMemo(() => savedSelection(data), [data])
@@ -132,7 +132,10 @@ export function ActivitySelector({ data, fichaId }: { data: ActivitiesResponse; 
         <div className="side-title">
           <div>
             <div className="eyebrow">Paso 1 · Seleccionar actividades</div>
-            <h3 style={{ marginTop: 7 }}>¿Qué actividades técnicas orientas tú en esta ficha?</h3>
+            <h3 style={{ marginTop: 7 }}>¿Qué actividades técnicas orientas tú en {fichaCode ? `la ficha ${fichaCode}` : 'esta ficha'}?</h3>
+            <p className="helper" style={{ marginTop: 5 }}>
+              Solo aparecen las actividades del curso de esta ficha{data.courseId ? ` (curso ${data.courseId})` : ''}. Cada ficha tiene su propia selección.
+            </p>
           </div>
           <span className="badge">{draft.size} de {technical.length} marcadas</span>
         </div>

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/zajuna-app/core/internal/checklist"
@@ -85,8 +86,10 @@ func TestAJAXFailuresAndUnknownTitlesFallBackToTheBrowser(t *testing.T) {
 	}
 	state, _ := zajuna.ParseCourseState(`{"section":[{"id":"1","title":"General","cmlist":[],"children":[]}],"cm":[]}`)
 	worker = &CaptureChecklistWorker{client: &fakeAJAXClient{state: state}}
-	if _, absent := worker.ajaxContentAbsence(context.Background(), ajaxParams("13.1.3", courseURL, "s-missing")); absent {
-		t.Fatal("a subsection that does not exist is a route problem, not an absence")
+	// The course structure is complete: a guideline subsection that does not
+	// exist is the instructor's to create.
+	if detail, absent := worker.ajaxContentAbsence(context.Background(), ajaxParams("13.1.3", courseURL, "s-missing")); !absent || !strings.Contains(detail, "«Documentos de retención» no existe en el curso") {
+		t.Fatalf("a missing subsection is an absence: %q %v", detail, absent)
 	}
 	if _, absent := worker.ajaxContentAbsence(context.Background(), ajaxParams("13.1.3", courseURL, "")); absent {
 		t.Fatal("without sesskey the API is not used")

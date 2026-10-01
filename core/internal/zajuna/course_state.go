@@ -156,17 +156,32 @@ func appendUnique(values []string, value string) []string {
 // prefix, ignoring case and accents ("Documentos de retenci" matches
 // "Documentos de retención de aprendices").
 func (s CourseState) SectionsWithTitlePrefix(prefix string) []CourseSection {
-	wanted := FoldText(prefix)
+	wanted := titleKey(prefix)
 	if wanted == "" {
 		return nil
 	}
 	result := []CourseSection{}
 	for _, section := range s.Sections {
-		if strings.HasPrefix(FoldText(section.Title), wanted) {
+		if strings.HasPrefix(titleKey(section.Title), wanted) {
 			result = append(result, section)
 		}
 	}
 	return result
+}
+
+// titleKeyStopWords vary between courses («Reporte de curso», «Reporte del
+// Curso») without changing which section a title names.
+var titleKeyStopWords = map[string]bool{"de": true, "del": true, "la": true, "las": true, "los": true, "el": true, "en": true, "y": true, "a": true, "e": true, "-": true}
+
+// titleKey folds a title and drops its articles and prepositions.
+func titleKey(title string) string {
+	words := []string{}
+	for _, word := range strings.Fields(strings.ReplaceAll(FoldText(title), "-", " ")) {
+		if !titleKeyStopWords[word] {
+			words = append(words, word)
+		}
+	}
+	return strings.Join(words, " ")
 }
 
 // ContentCount counts the activities and resources inside a section and
