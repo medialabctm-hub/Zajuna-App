@@ -216,7 +216,13 @@ func (w *CaptureChecklistWorker) captureChecklistTarget(ctx context.Context, par
 			detail := absenceMessage(target, captureErr) + w.absenceInsight(ctx, params)
 			return targetOutcome{absent: true, failure: target.ItemCode + ": " + detail, coveredItemCodes: coveredItemCodes(target)}
 		}
-		return targetOutcome{failure: target.ItemCode + ": " + captureErr.Error()}
+		failure := target.ItemCode + ": " + captureErr.Error()
+		// 10.1.x reports a missing grading table as an absence by its message
+		// (absentContent); it gets the same explanation as typed absences.
+		if absentContent(failure) {
+			failure += w.absenceInsight(ctx, params)
+		}
+		return targetOutcome{failure: failure}
 	}
 	if isZajunaLoginURL(captureResult.FinalURL) {
 		return targetOutcome{failure: target.ItemCode + ": Zajuna redirigió a login"}
