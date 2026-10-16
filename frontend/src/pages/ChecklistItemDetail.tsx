@@ -21,6 +21,14 @@ import { itemReviewState } from '../lib/evidenceGroupState'
 import { findGuideForItem } from '../lib/guideVerification'
 import type { DashboardItem, Evidence, ItemStatus, RouteTarget } from '../types'
 
+/** Estado del ítem como se muestra en esta página (Sí, No, Pendiente). */
+function itemStatusText(value?: string) {
+  if (value === 'SI') return 'Sí'
+  if (value === 'NO') return 'No'
+  if (value === 'PENDIENTE' || !value) return 'Pendiente'
+  return value
+}
+
 function targetLocation(target: RouteTarget) {
   return target.url || target.cssSelector || 'Ruta pendiente de definir'
 }
@@ -233,14 +241,14 @@ export function ChecklistItemDetail() {
                 <div className="task-history-row" key={event.id}>
                   <span className={`diagnostic-icon ${event.toStatus === 'SI' ? 'ok' : event.toStatus === 'NO' ? 'error' : 'warn'}`} aria-hidden="true" />
                   <div>
-                    <strong>{event.fromStatus ? `${event.fromStatus} → ${event.toStatus}` : `Estado inicial: ${event.toStatus}`}</strong>
+                    <strong>{event.fromStatus ? `${itemStatusText(event.fromStatus)} → ${itemStatusText(event.toStatus)}` : `Estado inicial: ${itemStatusText(event.toStatus)}`}</strong>
                     <small>{event.source === 'manual' ? 'Decisión manual' : event.source === 'revision-automatica' ? 'Revisión automática' : event.source} · {formatDate(event.createdAt)}</small>
                   </div>
                 </div>
               ))}
               <div className="task-history-row">
                 <span className={`diagnostic-icon ${task.status === 'SI' ? 'ok' : task.status === 'NO' ? 'error' : 'warn'}`} aria-hidden="true" />
-                <div><strong>Estado actual: {task.status === 'SI' ? 'Sí' : task.status === 'NO' ? 'No' : 'Pendiente'}</strong><small>Actualizado {formatDate(task.updatedAt)}</small></div>
+                <div><strong>Estado actual: {itemStatusText(task.status)}</strong><small>Actualizado {formatDate(task.updatedAt)}</small></div>
               </div>
               <div className="task-history-row">
                 <span className="diagnostic-icon ok" aria-hidden="true" />

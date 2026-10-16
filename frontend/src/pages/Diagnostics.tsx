@@ -47,7 +47,7 @@ export function Diagnostics() {
         <div className="card-pad">
           <div className="section-toolbar">
             <div>
-              <h3>Notificaciones y diagnóstico</h3>
+              <h3>Estado de la aplicación</h3>
               <p className="helper">Comprobaciones locales, sin enviar credenciales ni contenido a servicios externos.</p>
             </div>
             <button className="button ghost small" onClick={() => query.refetch()} disabled={query.isFetching}>

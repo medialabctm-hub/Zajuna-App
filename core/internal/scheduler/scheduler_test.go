@@ -66,3 +66,28 @@ func TestRunDueSubmitsAndAdvancesSchedule(t *testing.T) {
 		t.Fatalf("unexpected submitted input: %#v", submitter.input)
 	}
 }
+
+func TestRunDueWithAncientNextRunDoesNotSpin(t *testing.T) {
+	now := time.Date(2026, 8, 6, 12, 0, 0, 0, time.UTC)
+	store := &memoryStore{schedules: []Schedule{{ID: "schedule-1", WorkerType: "sync-fichas", Interval: time.Second, Enabled: true, NextRunAt: time.Date(1, 1, 1, 0, 0, 1, 0, time.UTC)}}}
+	runner, err := New(store, &fakeSubmitter{}, time.Minute)
+	if err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan error, 1)
+	go func() {
+		_, err := runner.RunDue(context.Background(), now)
+		done <- err
+	}()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("RunDue must not iterate once per missed interval since year 1")
+	}
+	if !store.nextRunAt.After(now) || store.nextRunAt.After(now.Add(time.Second)) {
+		t.Fatalf("next run must be the next interval after now, got %s", store.nextRunAt)
+	}
+}

@@ -151,3 +151,24 @@ func TestForumIDFallsBackToTheCourseForumIndex(t *testing.T) {
 		t.Fatalf("insight through the index = %q", got)
 	}
 }
+
+func TestScheduleSheetIssuesWithoutSesskeyAreNotCachedAcrossLogins(t *testing.T) {
+	previous := fetchSheet
+	defer func() { fetchSheet = previous }()
+	broken := true
+	fetchSheet = func(context.Context, string) ([][]string, error) {
+		if broken {
+			return [][]string{{"Fase", "Fecha fin fase"}, {"Planear", "#¡REF!"}}, nil
+		}
+		return [][]string{{"Fase", "Fecha fin fase"}, {"Planear", "2026-09-01"}}, nil
+	}
+	client := &fullFakeClient{page: `<iframe src="https://docs.google.com/spreadsheets/d/e/2PACX-y/pubhtml?gid=1"></iframe>`}
+	target := checklist.CaptureTarget{ItemCode: "1.2.1", URL: "https://zajuna.sena.edu.co/zajuna/mod/page/view.php?id=4268999"}
+	if issues := scheduleSheetIssues(context.Background(), client, zajuna.Session{}, target); len(issues) != 1 {
+		t.Fatalf("first read must report the error: %#v", issues)
+	}
+	broken = false // the instructor fixed the sheet; a new capture logs in again
+	if issues := scheduleSheetIssues(context.Background(), client, zajuna.Session{}, target); len(issues) != 0 {
+		t.Fatalf("a fixed sheet must not be reported from a stale cache: %#v", issues)
+	}
+}

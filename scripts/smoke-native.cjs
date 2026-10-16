@@ -24,7 +24,9 @@ function classifyAuthenticodeStatus(status) {
 function listReleaseArtifacts(distRoot) {
   if (!fs.existsSync(distRoot)) return [];
   return fs.readdirSync(distRoot, { withFileTypes: true })
-    .filter((entry) => entry.isFile() && !METADATA_FILES.has(entry.name))
+    // Solo instaladores: latest*.yml, *.blockmap y builder-*.yml no se firman y
+    // dejarían el release bloqueado aunque los instaladores tengan firma válida.
+    .filter((entry) => entry.isFile() && !METADATA_FILES.has(entry.name) && /\.(exe|AppImage)$/i.test(entry.name))
     .map((entry) => {
       const filePath = path.join(distRoot, entry.name);
       return {

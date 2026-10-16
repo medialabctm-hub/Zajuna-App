@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import { useDashboard, useDiscoverCourseMaps, useJobs, useSetupStatus, useTargets } from '../hooks/api'
 import { friendlyJobStatus, friendlyJobType, jobStatusClass } from '../lib/format'
+import { jobsForFicha } from '../lib/jobFailure'
 import { useToast } from '../hooks/useToast'
 import { friendlyError } from '../lib/friendlyError'
 import { useWorkflow } from '../hooks/workflow'
@@ -35,7 +36,8 @@ export function RouteDiscoveryAction({
   // Paso ya hecho: botón secundario, para no competir con el siguiente paso.
   const routesDone = step('routes')?.state === 'done'
 
-  const discoverJobs = (jobsQuery.data || [])
+  // Solo la búsqueda de la ficha activa (o la general): nunca la de otra ficha.
+  const discoverJobs = jobsForFicha(jobsQuery.data || [], dashboard?.activeFichaId)
     .filter((job) => job.type === 'discover-course-maps')
     .sort((a, b) => String(b.updatedAt || b.createdAt || '').localeCompare(String(a.updatedAt || a.createdAt || '')))
   const latest = discoverJobs[0]

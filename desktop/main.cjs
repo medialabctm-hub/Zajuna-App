@@ -3,6 +3,7 @@ const { spawn } = require('node:child_process');
 const { stopProcessTree } = require('./stop-process-tree.cjs');
 const crypto = require('node:crypto');
 const fs = require('node:fs/promises');
+const { constants: fsConstants } = require('node:fs');
 const path = require('node:path');
 const os = require('node:os');
 
@@ -41,6 +42,11 @@ let coreStartPromise;
 let coreRecoveryPromise;
 let coreLogWrite = Promise.resolve();
 let quitting = false;
+// Marcas de tiempo de las recuperaciones recientes: un core que cae en bucle
+// no debe reiniciarse (ni abrir una pestaña nueva) indefinidamente.
+let recentRecoveries = [];
+const RECOVERY_WINDOW_MS = 5 * 60 * 1000;
+const MAX_RECOVERIES_PER_WINDOW = 5;
 
 const CORE_LOG_LIMIT = 1024 * 1024;
 // Shared only with the core it spawns (via its environment, which the core
@@ -159,6 +165,29 @@ function validateLocalEndpoint(value) {
   return { url: parsed.origin, port: value.port };
 }
 
+// En POSIX os.tmpdir() suele ser /tmp, compartido entre usuarios, y la ruta
+// del archivo viaja en el argv del core (visible en /proc). Otro usuario
+// podría crear antes ese archivo apuntando a su propio servidor en 127.0.0.1
+// y recibir el secreto del lanzador en /api/session/bootstrap. Solo se acepta
+// un archivo regular, sin enlace simbólico, del mismo usuario y sin permisos
+// para grupo/otros (el core lo escribe con 0600). En Windows %TEMP% es por
+// usuario y estas comprobaciones no aplican.
+async function readEndpointFile(file) {
+  const handle = await fs.open(file, fsConstants.O_RDONLY | (fsConstants.O_NOFOLLOW || 0));
+  try {
+    const stats = await handle.stat();
+    if (!stats.isFile()) {
+      throw new Error('El endpoint local no es un archivo regular.');
+    }
+    if (typeof process.getuid === 'function' && (stats.uid !== process.getuid() || (stats.mode & 0o077) !== 0)) {
+      throw new Error('El endpoint local no pertenece a este usuario o tiene permisos abiertos.');
+    }
+    return await handle.readFile('utf8');
+  } finally {
+    await handle.close();
+  }
+}
+
 async function startCore() {
   if (coreStartPromise) return coreStartPromise;
   const startPromise = startCoreOnce();
@@ -188,6 +217,10 @@ async function startCoreOnce() {
     );
   }
 
+  if (endpointFile) {
+    // Un core que terminó por caída no borra su archivo de endpoint.
+    await fs.rm(endpointFile, { force: true });
+  }
   const endpointNonce = crypto.randomBytes(16).toString('hex');
   endpointFile = path.join(os.tmpdir(), `zajuna-app-${process.pid}-${endpointNonce}.json`);
   await fs.rm(endpointFile, { force: true });
@@ -248,7 +281,7 @@ async function startCoreOnce() {
     const poll = async () => {
       if (settled) return;
       try {
-        const contents = await fs.readFile(endpointFile, 'utf8');
+        const contents = await readEndpointFile(endpointFile);
         const endpoint = validateLocalEndpoint(JSON.parse(contents));
         await waitForCoreReady(endpoint);
         coreEndpoint = endpoint;
@@ -273,6 +306,20 @@ async function recoverCore(reason) {
 
   coreRecoveryPromise = (async () => {
     await appendCoreLog(`\n[supervisor] El núcleo terminó (${reason}); intentando recuperación.\n`);
+
+    const now = Date.now();
+    recentRecoveries = recentRecoveries.filter((at) => now - at < RECOVERY_WINDOW_MS);
+    recentRecoveries.push(now);
+    if (recentRecoveries.length > MAX_RECOVERIES_PER_WINDOW) {
+      await appendCoreLog(
+        `[supervisor] El núcleo terminó ${recentRecoveries.length} veces en ${RECOVERY_WINDOW_MS / 60000} minutos; ` +
+          'se detiene la recuperación automática.\n',
+      );
+      quitting = true;
+      await stopCore();
+      app.quit();
+      return;
+    }
 
     let endpoint;
     let lastError;
@@ -413,6 +460,8 @@ if (!hasSingleInstanceLock) {
   app.exit(0);
 } else {
   app.on('second-instance', async () => {
+    // Durante el cierre no se arranca un core nuevo.
+    if (quitting) return;
     try {
       const endpoint = coreEndpoint || await startCore();
       await openAppInBrowser(endpoint);

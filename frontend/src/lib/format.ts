@@ -200,6 +200,9 @@ export const ROUTE_KIND_LABELS: Record<string, string> = {
   phase: 'subsección de fase',
   forum: 'foro técnico',
   assign: 'actividad',
+  grading: 'calificaciones de la actividad',
+  resource: 'archivo del curso',
+  url: 'enlace del curso',
 }
 
 export function routeStatusLabel(value?: string) {

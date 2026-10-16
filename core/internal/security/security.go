@@ -38,6 +38,9 @@ func RedactText(value string) string {
 	// Before the key patterns: "Authorization: Bearer x" would otherwise
 	// only lose the scheme word.
 	value = bearerCredential.ReplaceAllString(value, `${1}[redacted]`)
+	// JSON form ("sesskey":"abc", as in Moodle's M.cfg) before the key
+	// patterns, which expect the separator right after the key.
+	value = jsonSensitiveValue.ReplaceAllString(value, `${1}[redacted]`)
 	for _, re := range sensitiveTextPatterns {
 		value = re.ReplaceAllString(value, `${1}[redacted]`)
 	}
@@ -52,6 +55,8 @@ var sensitiveTextPatterns = func() []*regexp.Regexp {
 	}
 	return patterns
 }()
+
+var jsonSensitiveValue = regexp.MustCompile(`(?i)("(?:password|token|sesskey|access_token|refresh_token|secret|cookie|authorization|moodlesession)"\s*:\s*")((?:[^"\\]|\\.)*)`)
 
 var bearerCredential = regexp.MustCompile(`(?i)(\b(?:bearer|basic)\s+)[A-Za-z0-9._~+/=-]{8,}`)
 

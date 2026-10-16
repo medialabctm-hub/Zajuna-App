@@ -1,375 +1,412 @@
-# Guía de instalación de Zajuna Sync
+# Guía de instalación y primer uso de Zajuna Sync
 
-Esta guía acompaña **cada pantalla** desde la descarga hasta el primer uso.
-Está pensada para un instructor o usuario final en **Windows 10/11 de 64 bits**.
-No hace falta saber programar ni abrir una terminal, salvo para comprobar el
-checksum si el equipo de entrega te lo pide.
+Esta guía te acompaña paso a paso, desde la descarga hasta tener tu primer
+reporte. Está pensada para instructores: no hace falta saber programar ni
+abrir una terminal (salvo en Linux, o si quieres comprobar el archivo
+descargado).
 
-Hoy el instalador **no tiene firma Authenticode**. Por eso, en algunos equipos
-aparece **SmartScreen**. Eso es esperado y temporal: se cierra cuando exista
-certificado ([MDL-29](https://linear.app/medialab-sena/issue/MDL-29)). Mientras
-tanto, **no desactives** Windows Defender ni SmartScreen de forma permanente.
+**Resumen del recorrido**
 
 ```text
-Descargar → (opcional) SHA256 → Ejecutar .exe
-    → ¿SmartScreen? → Más información → continuar
-    → Asistente / barra de instalación
-    → Abrir Zajuna Sync → Setup (documento + contraseña)
-    → Resumen en el navegador
+1. Revisar requisitos → 2. Descargar → 3. Instalar (aviso de SmartScreen)
+→ 4. Abrir y conectar tu cuenta de Zajuna → 5. Primer uso:
+   fichas → actividades → evidencias → revisión → reporte PDF
 ```
 
-Linux (AppImage) va al final, como anexo. macOS no es una plataforma soportada.
+- Windows: secciones 1 a 9.
+- Linux: sección 10.
+- macOS no está soportado.
 
 ---
 
-## 1. Antes de instalar
-
-Comprueba esto en el equipo:
+## 1. Requisitos
 
 | Requisito | Qué significa en la práctica |
 |---|---|
-| Windows 10 u 11, **64 bits** | En Configuración → Sistema → Acerca de, la edición debe ser x64. |
-| **2 GiB libres** como mínimo | El instalador pesa unos 350 MB, pero al descomprimir (Electron + Chromium) ocupa más de 1 GiB. Reserva 2 GiB; 5–10 GiB si vas a capturar muchas evidencias. |
-| Conexión a internet | Solo para entrar a Zajuna (HTTPS). La app en sí corre en tu PC (`127.0.0.1`). |
-| Cuenta de Zajuna | Tipo de documento, número y contraseña. No se piden en el instalador; salen en el **primer arranque**. |
-
-Descarga **solo** el archivo que te entregue el equipo de Medialab / el canal
-oficial. El nombre típico es:
-
-```text
-Zajuna.App.Setup-0.1.0.exe
-```
-
-El número de versión puede cambiar. Si te pasan también un
-`release-manifest.json`, úsalo en el paso 2. Si no hay manifiesto, salta a
-«Ejecutar el instalador» y no inventes un checksum.
+| **Windows 10 u 11 de 64 bits**, o Linux de 64 bits | En Windows: Configuración → Sistema → Acerca de; el «Tipo de sistema» debe decir *64 bits*. |
+| **2 GB libres** como mínimo | El instalador pesa unos 350 MB, pero instalado ocupa más de 1 GB (incluye el navegador interno que toma las capturas). Reserva 5–10 GB si vas a capturar muchas evidencias. |
+| **4 GB de RAM** (8 GB recomendado) | Las capturas abren un navegador interno; con poca memoria, evita lanzar muchas a la vez. |
+| **Internet** | Solo para entrar a Zajuna. La aplicación en sí corre en tu computador. |
+| **Cuenta de Zajuna** | Tipo de documento, número y contraseña. Se piden al abrir la aplicación por primera vez, no durante la instalación. |
+| **Un navegador** | Chrome, Edge o Firefox. La aplicación se muestra ahí. |
 
 ---
 
-## 2. Comprobar el archivo (si hay manifiesto)
+## 2. Descargar el instalador
 
-1. Deja el `.exe` y el `release-manifest.json` en la misma carpeta (por
-   ejemplo Descargas).
-2. Abre PowerShell en esa carpeta: clic derecho en un espacio vacío +
-   **Abrir en Terminal** (o *Abrir la ventana de PowerShell aquí*).
-3. Ejecuta, cambiando el nombre si tu archivo es otro:
+1. Abre la página de
+   [versiones publicadas (Releases)](https://github.com/ElBrayayinn/Zajuna-App/releases/latest).
+2. Baja hasta la sección **Assets** y descarga:
+   - **Windows:** el archivo `.exe`, por ejemplo `Zajuna.Sync.Setup-0.1.6.exe`.
+     (Las versiones antiguas se llamaban `Zajuna.App.Setup-<versión>.exe`.)
+   - **Linux:** el archivo `.AppImage` (ver sección 10).
+3. El número de versión puede cambiar; descarga siempre la más reciente.
 
-```powershell
-Get-FileHash -Algorithm SHA256 ".\Zajuna.App.Setup-0.1.0.exe"
-```
+Descarga el instalador **solo** desde esa página o desde el canal que te
+indique el equipo de Medialab.
 
-4. Compara el valor `Hash` con el `sha256` del manifiesto. Deben coincidir
-   **exactamente** (mayúsculas o minúsculas no importan).
-5. Si no coinciden: **no instales**. Borra el archivo y pide de nuevo el
-   instalador oficial.
+### Opcional: comprobar que el archivo no se dañó
 
----
+En la misma página hay un archivo `release-manifest-windows.json` (o
+`release-manifest.json`) con la «huella» (SHA256) de cada instalador. Si
+quieres comprobarla:
 
-## 3. Ejecutar el instalador
+1. Deja el `.exe` y el manifiesto en la misma carpeta (por ejemplo Descargas).
+2. Clic derecho en un espacio vacío de la carpeta → **Abrir en Terminal**.
+3. Escribe (cambiando el nombre si tu archivo es otro):
 
-1. En el Explorador de archivos, ve a Descargas (o la carpeta donde lo
-   guardaste).
-2. Doble clic en `Zajuna.Sync.Setup-….exe`.
-3. Windows puede pedir permiso de administrador (**Control de cuentas de
-   usuario**). Si el diálogo muestra *Zajuna Sync*, pulsa **Sí**.
+   ```powershell
+   Get-FileHash -Algorithm SHA256 ".\Zajuna.Sync.Setup-0.1.6.exe"
+   ```
 
-Si en vez del instalador aparece una pantalla azul/amarilla de Windows, ve al
-paso 4. Si el asistente arranca de una vez, salta al paso 5.
-
----
-
-## 4. SmartScreen: «Windows protegió su PC»
-
-**Por qué sale.** El instalador actual no lleva firma Authenticode (a veces
-llamada AuthCode). Windows no reconoce al editor y, en **algunos** equipos,
-bloquea el primer clic. En otros no aparece nada: depende de la versión de
-Windows, de SmartScreen y de la política del PC.
-
-**Pantalla que ves.** Un recuadro de Windows, a menudo con un escudo o un
-icono de advertencia. Título típico: *Windows protegió su PC*. Texto típico:
-*Microsoft Defender SmartScreen impidió que se iniciara una aplicación no
-reconocida*. El botón grande suele ser **No ejecutar**.
-
-**Qué pulsas, en este orden:**
-
-1. **Más información** (abajo a la izquierda; en inglés: *More info*).
-   Hasta que no pulses eso, no aparece la opción de continuar.
-2. Revisa que el nombre del archivo sea el instalador oficial
-   (`Zajuna.Sync.Setup-….exe`).
-3. **Ejecutar de todas formas** (en inglés: *Run anyway*).
-4. Si pide administrador, **Sí**.
-
-Eso **no** apaga SmartScreen para siempre. Solo autoriza este archivo en esta
-ocasión.
-
-Otras variantes que puedes ver:
-
-- En **Edge**, al descargar: aviso de que el archivo no se suele descargar.
-  Usa **…** / **Conservar** / **Mostrar más** y confirma conservar el archivo.
-  Luego ábrelo desde Descargas; ahí puede salir el diálogo del paso 4.
-- El botón puede decir *Run anyway* si Windows está en inglés.
-- Si **no** ves «Más información» y solo hay *No ejecutar*: el equipo tiene
-  una política que bloquea ejecutables sin firma. No intentes desactivar
-  Defender. Pide al administrador de esa máquina una excepción, o espera el
-  instalador firmado (MDL-29).
+4. Compara el valor `Hash` con el `sha256` del manifiesto. Deben ser iguales
+   (mayúsculas o minúsculas no importan). Si no coinciden, **no instales**:
+   borra el archivo y descárgalo de nuevo.
 
 ---
 
-## 5. Asistente de instalación
+## 3. Ejecutar el instalador (Windows)
 
-El empaquetado es NSIS (electron-builder). En la mayoría de equipos verás un
-instalador de **un clic** o una barra de progreso corta:
-
-1. Acepta el Control de cuentas de usuario si aún no lo hiciste.
-2. Espera a que copie los archivos (puede tardar uno o dos minutos: lleva
-   Chromium para las capturas).
-3. Al terminar, deja marcada la opción de **ejecutar Zajuna Sync** si aparece,
-   o pulsa **Finalizar**.
-
-Windows crea un acceso en el menú Inicio llamado **Zajuna Sync**. En muchos
-equipos también hay acceso en el escritorio.
-
-Si el asistente muestra *Siguiente* / *Elegir carpeta* / *Instalar*, deja la
-ruta por defecto (`Archivos de programa\Zajuna Sync`) salvo que te hayan
-indicado otra.
+1. En el Explorador de archivos, ve a **Descargas**.
+2. Haz doble clic en `Zajuna.Sync.Setup-….exe`.
+3. Si aparece una pantalla azul de Windows, sigue el paso 4. Si no, salta al
+   paso 5.
 
 ---
 
-## 6. Primer arranque (Setup)
+## 4. Aviso «Windows protegió su PC» (SmartScreen)
 
-Zajuna Sync **no abre una ventana propia**. Electron arranca en segundo plano,
-enciende el core en `127.0.0.1` y abre tu **navegador predeterminado**.
+**Por qué sale.** El instalador todavía no tiene firma digital, así que
+Windows no reconoce al editor y, en algunos equipos, frena el primer intento.
+En otros equipos no aparece nada. Es esperado y no significa que el archivo
+tenga un virus.
 
-1. Si el instalador no la lanzó, abre **Zajuna Sync** desde el menú Inicio.
-2. Espera a que el navegador muestre la app. La dirección será algo como
-   `http://127.0.0.1:#####/` (el puerto cambia).
-3. En el primer uso verás **Conecta tu cuenta de Zajuna** (título *Tu espacio
-   de trabajo local* a la izquierda). Completa:
+**Lo que ves.** Un recuadro azul con el título *Windows protegió su PC* y el
+texto *Microsoft Defender SmartScreen impidió que se iniciara una aplicación
+no reconocida*. El único botón visible es **No ejecutar**.
+
+**Qué pulsar, en este orden:**
+
+1. **Más información** (enlace debajo del texto; en inglés, *More info*).
+2. Comprueba que el nombre del archivo sea `Zajuna.Sync.Setup-….exe`.
+3. **Ejecutar de todas formas** (en inglés, *Run anyway*).
+
+Esto no apaga SmartScreen: solo autoriza este archivo esta vez. **No
+desactives** Windows Defender ni SmartScreen.
+
+Otras situaciones:
+
+- **Edge avisa al descargar** que el archivo no se descarga con frecuencia:
+  pulsa **…** → **Conservar** (o **Mostrar más** → **Conservar de todas
+  formas**). Luego ábrelo desde Descargas.
+- **No aparece «Más información»**, solo *No ejecutar*: el equipo tiene una
+  política que bloquea programas sin firma. Pide al administrador de ese
+  equipo que autorice el instalador.
+
+---
+
+## 5. Instalación
+
+El instalador es de **un clic**: no hace preguntas.
+
+1. Verás una barra de progreso. Espera uno o dos minutos (copia también el
+   navegador interno que toma las capturas).
+2. Al terminar, la aplicación se abre sola.
+
+La instalación es solo para tu usuario de Windows (queda en
+`%LOCALAPPDATA%\Programs\zajuna-app`), así que normalmente **no pide permiso
+de administrador**. Se crean accesos directos llamados **Zajuna Sync** en el
+menú Inicio y en el escritorio.
+
+---
+
+## 6. Abrir la aplicación y conectar tu cuenta
+
+Zajuna Sync **no abre una ventana propia**: se muestra en una pestaña de tu
+navegador predeterminado.
+
+1. Si no se abrió sola, abre **Zajuna Sync** desde el menú Inicio o el
+   escritorio.
+2. Espera unos segundos. El navegador mostrará una dirección parecida a
+   `http://127.0.0.1:52741/` (el número cambia cada vez). Esa dirección es tu
+   propio computador; nadie más puede abrirla.
+3. Verás la pantalla **Conecta tu cuenta de Zajuna**. Completa:
    - **Tipo de documento:** Cédula de ciudadanía (CC), Tarjeta de identidad
      (TI) o Cédula de extranjería (CE).
    - **Número de documento.**
    - **Contraseña de Zajuna.**
-4. Pulsa **Continuar**. Debe aparecer el aviso *Cuenta conectada
-   correctamente* y pasar a **Resumen**.
+4. Pulsa **Continuar**. Aparece el aviso *Cuenta conectada correctamente*.
 
-La app no abre un icono en la bandeja: si cierras el navegador, el proceso
-sigue en segundo plano (paso 7).
+**Sobre el inicio de sesión.** Zajuna pide el ingreso en dos pasos (primero
+el portal del SENA y después el aula virtual). No tienes que hacer nada: la
+aplicación hace los dos pasos por ti con los datos de este formulario, cada
+vez que necesita entrar.
 
-La contraseña se guarda en el almacén del sistema (Credential Manager en
-Windows), no en un archivo a la vista. Las fichas, evidencias y reportes
-quedan en este equipo.
+Tu contraseña se guarda en el almacén seguro del sistema (el Administrador de
+credenciales de Windows), no en un archivo. Si Zajuna pide una verificación
+adicional (CAPTCHA o código), la aplicación se detiene y te avisa; resuélvela
+entrando a Zajuna en tu navegador y vuelve a intentarlo.
 
-Si Zajuna pide CAPTCHA u otra verificación, la guía de la propia pantalla te
-indica que la resuelvas en el navegador. No hace falta “saltar” ese paso.
-
----
-
-## 7. Cómo saber que quedó bien
-
-- El navegador muestra **Zajuna Sync · Operación local** y la vista **Resumen**.
-- En el menú lateral puedes abrir Fichas, Checklist, Actividades, Evidencias,
-  Reportes, Configuración y Diagnóstico.
-- Si cierras **solo la pestaña**, la app **sigue corriendo**. Volver a pulsar
-  el acceso directo reabre la misma URL; no instala una segunda copia.
-
-**Cómo salir de verdad.** Cerrar Chrome/Edge no apaga el core. En Windows:
-
-1. Abre el Administrador de tareas (`Ctrl` + `Mayús` + `Esc`).
-2. Busca **Zajuna Sync**.
-3. Finaliza esa tarea.
-
-La próxima vez que uses el acceso directo, volverá a arrancar limpio.
+Para confirmar que Zajuna acepta tus datos, puedes ir a **Configuración** y
+pulsar **Probar conexión**.
 
 ---
 
-## 8. Si algo falla
+## 7. Primer uso: de la ficha al reporte
+
+### 7.1 La primera carga (automática)
+
+Justo después de conectar la cuenta aparece la pantalla **Primer arranque**:
+
+1. *Buscando tus fichas*: la aplicación trae tus cursos desde Zajuna.
+2. *Preparando las rutas de tus cursos*: localiza las secciones de cada ficha
+   donde están las evidencias.
+
+Solo pasa la primera vez. Puedes pulsar **Continuar sin esperar** y seguir
+trabajando; la búsqueda continúa por detrás. Si falla, verás **Buscar mis
+fichas** o **Reintentar rutas** para intentarlo de nuevo.
+
+Al terminar llegas a **Resumen**. En la parte de arriba de las pantallas de
+trabajo hay una barra de pasos que siempre te dice cuál es el **siguiente
+paso**.
+
+### 7.2 Menú lateral
+
+| Pantalla | Para qué sirve |
+|---|---|
+| **Resumen** | Avance de la ficha activa, siguiente paso y botón **Preparar evidencias**. |
+| **Fichas** | Lista de tus fichas. **Sincronizar fichas** las actualiza desde Zajuna; **Seleccionar** elige la ficha activa; **Buscar rutas** lee el contenido de su curso. |
+| **Checklist** | Cada punto del checklist con su estado (sin evidencia, por revisar, para corregir, confirmado) y dónde se encontró la evidencia. |
+| **Guías** | Lo que solo tú puedes hacer dentro de Zajuna, paso a paso (por ejemplo, publicar algo que falta). |
+| **Actividades** | Marca las actividades técnicas que tú calificas. Las transversales aparecen bloqueadas. |
+| **Evidencias** | Galería de capturas y archivos. **Agregar una evidencia** sube un archivo tuyo. |
+| **Revisión** | Revisión automática de cada evidencia (aprobada, pendiente, rechazada) y tu decisión final. |
+| **Trabajos** | Lo que la aplicación está haciendo o hizo (sincronizar, capturar, generar reportes) y si algo necesita atención. |
+| **Reportes** | Genera el reporte final y guarda una copia. |
+| **Configuración** | Credenciales de Zajuna, **Probar conexión**, preferencias de captura, almacenamiento, copias de seguridad y versión instalada. |
+| **Diagnóstico** | Estado de la aplicación, incidencias recientes y una guía rápida. |
+| **Notificaciones** | Avisos de los trabajos terminados o con problemas. |
+
+### 7.3 El recorrido recomendado
+
+1. **Elige tu ficha.** En **Fichas**, pulsa **Seleccionar** en la ficha con
+   la que vas a trabajar. Si no aparece, pulsa **Sincronizar fichas**.
+2. **Busca las rutas del curso** (si la aplicación no lo hizo ya): botón
+   **Buscar rutas** en Fichas o en Resumen.
+3. **Selecciona tus actividades.** En **Actividades**, marca las actividades
+   técnicas que tú calificas.
+4. **Prepara las evidencias.** En **Resumen**, pulsa **Preparar evidencias**.
+   La aplicación entra a Zajuna y toma las capturas. Puedes ver el avance en
+   **Trabajos**; puede tardar varios minutos.
+5. **Revisa.** En **Revisión**, aprueba las evidencias correctas. Si alguna
+   salió mal, usa **Volver a capturar**. En **Checklist** ves el estado de
+   cada punto y en **Guías** lo que te toca hacer a ti en Zajuna.
+6. **Genera el reporte.** En **Reportes**, deja el formato **PDF** y pulsa
+   **Generar PDF**. Cuando termine, usa **Abrir PDF** para verlo o guardarlo.
+
+Un punto del checklist solo cuenta como cumplido cuando todas sus evidencias
+están bien: si falta algo o hay errores, no se puede marcar como cumplido, ni
+siquiera a mano.
+
+### 7.4 Cerrar la aplicación
+
+- Si cierras **solo la pestaña**, la aplicación sigue funcionando por detrás
+  (por ejemplo, terminando capturas). Volver a abrir el acceso directo abre
+  otra pestaña de la misma aplicación; no se instala ni se abre otra copia.
+- Para cerrarla del todo en Windows: abre el **Administrador de tareas**
+  (`Ctrl` + `Mayús` + `Esc`), busca **Zajuna Sync** y pulsa **Finalizar
+  tarea**.
+
+---
+
+## 8. Solución de problemas frecuentes
 
 | Qué ves | Qué hacer |
 |---|---|
-| SmartScreen sin «Más información» | Política del equipo. No desactives Defender. Pide excepción o el instalador firmado. |
-| «No hay espacio suficiente» | Libera al menos 2 GiB en `C:` y vuelve a ejecutar el Setup. |
-| El antivirus pone el `.exe` en cuarentena | Restaura el archivo desde la cuarentena **solo** si viene del canal oficial. No añadas exclusiones globales. |
-| El instalador se corta a medias | Desinstala (paso 9), borra la carpeta a medias en Archivos de programa si quedó, y reintenta. |
-| El navegador no abre | Abre **Zajuna Sync** otra vez. Si sigue igual, revisa Diagnóstico cuando logres entrar, o el log en `%APPDATA%\zajuna-app\logs\zajuna-core.log`. |
-| La página queda en blanco / no carga | Confirma que no cerraste el proceso de Zajuna Sync. Prueba de nuevo el acceso directo. |
-| Error al guardar la cuenta | Revisa documento y contraseña de Zajuna, y que haya internet. El Setup no sustituye el login de la plataforma. |
-| «Ya hay una instancia» / no pasa nada | La app ya está corriendo: mira las pestañas del navegador o el Administrador de tareas. |
+| SmartScreen sin «Más información» | El equipo bloquea programas sin firma. No desactives Defender; pide al administrador que autorice el instalador. |
+| «No hay espacio suficiente» | Libera al menos 2 GB en el disco `C:` y vuelve a ejecutar el instalador. |
+| El antivirus pone el `.exe` en cuarentena | Restáuralo **solo** si lo descargaste de la página oficial. No añadas exclusiones para todo el equipo. |
+| La instalación se corta a medias | Desinstala (sección 9) y vuelve a ejecutar el instalador. |
+| No se abre el navegador | Abre **Zajuna Sync** otra vez desde el menú Inicio. Si sigue sin abrir, revisa el registro en `%APPDATA%\Zajuna Sync\logs\zajuna-core.log` (en versiones antiguas, `%APPDATA%\zajuna-app\logs\`). |
+| *Esta pestaña no tiene una sesión local válida* | Abriste una dirección guardada o una pestaña vieja. Cierra esa pestaña y abre **Zajuna Sync** desde su acceso directo. |
+| *No pudimos contactar a la aplicación local* | La aplicación se cerró. Ábrela otra vez desde el acceso directo y pulsa **Reintentar**. |
+| Error al conectar la cuenta | Revisa tipo y número de documento, contraseña e internet. Comprueba que puedes entrar a Zajuna en el navegador. Luego usa **Configuración › Probar conexión**. |
+| *Todavía no tienes fichas* / *No pudimos traer tus fichas* | Revisa la conexión y las credenciales y pulsa **Buscar mis fichas**, o sigue y sincroniza después desde **Fichas**. |
+| Zajuna pide CAPTCHA o un código | La aplicación no puede resolverlo por ti. Entra a Zajuna en tu navegador, completa la verificación y vuelve a intentar. |
+| Una captura falló o salió mal | Mira el detalle en **Trabajos**; reintenta desde ahí o usa **Volver a capturar** en **Revisión**. |
+| Abro el acceso directo y no pasa nada | La aplicación ya está abierta: busca su pestaña en el navegador o revisa el Administrador de tareas. |
+
+Si necesitas ayuda, cuenta qué pantalla ves, el mensaje exacto y los pasos
+que hiciste. **Nunca** compartas tu contraseña.
 
 ---
 
-## 9. Desinstalar y volver a intentar
-
-1. Configuración de Windows → **Aplicaciones** → **Aplicaciones instaladas**.
-2. Busca **Zajuna Sync** → **Desinstalar**.
-3. Confirma el desinstalador.
-4. Vuelve al paso 3 con el mismo `.exe` oficial (o uno nuevo que te pasen).
-
-Desde la versión **0.1.3**, desinstalar borra también los datos locales de
-Zajuna Sync: el avance del checklist, las evidencias, las actividades
-seleccionadas, los reportes, los trabajos y las copias de seguridad, que viven
-en `%LOCALAPPDATA%\ZajunaApp`. También se borran los registros de
-`%APPDATA%\zajuna-app`. La contraseña de Zajuna guardada en el Administrador
-de credenciales de Windows se reemplaza la próxima vez que configures la cuenta.
+## 9. Actualizar y desinstalar
 
 ### Cada versión nueva empieza desde cero
 
 Instalar una versión nueva de Zajuna Sync **siempre** empieza con los datos
-vacíos, sin preguntar, y lo mismo pasa con las actualizaciones automáticas. Así
-el checklist arranca en 0 % y no aparecen evidencias, actividades ni trabajos
-de una versión anterior. Antes de instalar una versión nueva:
+vacíos, sin preguntar. Lo mismo pasa con las actualizaciones automáticas. El
+checklist vuelve a 0 % y no se conservan evidencias, actividades ni trabajos
+de la versión anterior. Antes de actualizar:
 
 - genera y guarda el **reporte PDF** de las fichas que necesites conservar;
 - si quieres una copia de tus datos, descárgala desde
   **Configuración › Copias de seguridad** (la instalación nueva también borra
-  las copias guardadas dentro de la app).
+  las copias guardadas dentro de la aplicación).
 
-Para empezar de cero sin reinstalar, usa
-**Configuración › Almacenamiento › Restablecer la aplicación**. En
+**Actualizaciones automáticas.** La aplicación revisa si hay una versión
+nueva al abrirse, la descarga en segundo plano y la instala **cuando cierras**
+la aplicación (nunca a mitad de una captura). Como el instalador no tiene
+firma digital, Windows puede bloquear esa actualización; en ese caso descarga
+el instalador nuevo desde la página de versiones (sección 2).
+
+Para empezar de cero sin reinstalar: **Configuración › Almacenamiento ›
+Restablecer la aplicación** (botón **Restablecer datos**). En
 **Configuración › Acerca de** ves la versión instalada y la carpeta de datos.
 
-Las versiones 0.1.2 y anteriores no borraban nada al desinstalarse. Si vienes de
-una de ellas, la 0.1.3 detecta esos datos antiguos en su primer arranque y los
-borra.
+### Desinstalar en Windows
+
+1. Configuración de Windows → **Aplicaciones** → **Aplicaciones instaladas**.
+2. Busca **Zajuna Sync** → **⋯** → **Desinstalar**, y confirma.
+
+Desinstalar borra también los datos de la aplicación: el avance del
+checklist, las evidencias, las actividades seleccionadas, los reportes, los
+trabajos y las copias de seguridad (carpeta `%LOCALAPPDATA%\ZajunaApp`), y
+los registros (`%APPDATA%\Zajuna Sync` y `%APPDATA%\zajuna-app`). La
+contraseña guardada en el Administrador de credenciales de Windows se
+reemplaza la próxima vez que conectes la cuenta.
+
+Las versiones 0.1.2 y anteriores no borraban nada al desinstalarse. Si vienes
+de una de ellas, la versión nueva detecta esos datos antiguos en su primer
+arranque y los borra.
+
+Para reinstalar, vuelve a la sección 3 con el instalador oficial.
 
 ---
 
-## 10. Anexo: Linux (AppImage)
+## 10. Linux (AppImage)
 
-En Linux el artefacto es un AppImage, no un Setup. Entorno validado: Kali
-Linux (basado en Debian). Comprueba el SHA256 del manifiesto, marca el
-archivo como ejecutable (`chmod +x`) y ábrelo. No hay SmartScreen. Si el
-escritorio bloquea un binario no firmado, no eludas esa protección: usa el
-canal oficial y el checksum.
+En Linux la aplicación es un único archivo `.AppImage`: no se instala, se
+ejecuta. Entorno validado: Kali Linux (basado en Debian). No hay
+aviso de SmartScreen.
 
-### Requisitos del equipo
-
-Las capturas usan Chromium/Puppeteer, así que el consumo depende también de
-cuántas instancias corran en paralelo:
+### Requisitos
 
 | Recurso | Mínimo | Recomendado |
 |---|---|---|
 | Procesador | 4 núcleos | 8 núcleos |
 | Memoria RAM | 4 GB | 8 GB |
-| Almacenamiento | 2 GB libres dedicados a la app | + espacio adicional para capturas (varía según resolución, formato y frecuencia) |
+| Almacenamiento | 2 GB libres para la aplicación | + espacio para capturas (depende de cuántas tomes) |
 
 Con 8 núcleos y 8 GB hay margen para dos o tres capturas simultáneas; con el
-mínimo, evita abrir muchas a la vez. No trates los 2 GB como el espacio total
-de operación: reserva más si vas a capturar mucho y supervisa la carpeta de
-evidencias.
+mínimo, evita lanzar muchas a la vez.
 
-### Primera ejecución
-
-El artefacto de CI se llama `Zajuna.Sync-<versión>.AppImage` (sin espacios; puntos en el nombre de producto).
+Para comprobar tu equipo:
 
 ```bash
-cd ~/Downloads   # o ~/Descargas
-ls -lh
-chmod +x Zajuna.App-0.1.1.AppImage
-ls -l Zajuna.App-0.1.1.AppImage      # confirmar el permiso
-./Zajuna.App-0.1.1.AppImage
-```
-
-Se recomienda iniciarla con el usuario habitual del sistema, no como root, por
-buena práctica de mínimo privilegio — pero root también funciona (empaquetado
-verificado en Kali Linux, MDL-123).
-
-Comprobación rápida de recursos antes de instalar:
-
-```bash
-nproc      # CPU disponible
+nproc      # núcleos de CPU
 free -h    # memoria RAM
 df -h .    # espacio libre
 ```
 
+La contraseña se guarda en el llavero del escritorio (GNOME Keyring, KWallet
+u otro compatible con *Secret Service*); debe estar disponible en tu sesión.
+
+### Primera ejecución
+
+1. Descarga el `.AppImage` desde la
+   [página de versiones](https://github.com/ElBrayayinn/Zajuna-App/releases/latest).
+   Se llama `Zajuna.Sync-<versión>.AppImage` (las versiones antiguas se
+   llamaban `Zajuna.App-<versión>.AppImage`). Si quieres, comprueba su SHA256
+   con `sha256sum` y el `release-manifest-linux.json`.
+2. Abre una terminal en la carpeta de descargas, dale permiso de ejecución y
+   ábrelo (cambia el nombre por el de tu archivo):
+
+   ```bash
+   cd ~/Descargas   # o ~/Downloads
+   chmod +x Zajuna.Sync-0.1.6.AppImage
+   ./Zajuna.Sync-0.1.6.AppImage
+   ```
+
+3. Se abre tu navegador con la pantalla **Conecta tu cuenta de Zajuna**.
+   Desde aquí todo es igual que en Windows (secciones 6 y 7).
+
+Se recomienda abrirla con tu usuario habitual, no como root (aunque root
+también funciona).
+
 ### Instalación opcional en una ubicación global
 
-AppImage no necesita "instalarse" para funcionar, pero si quieres iniciarla
-desde cualquier terminal:
+Si quieres iniciarla escribiendo `zajunaapp` desde cualquier terminal:
 
 ```bash
 sudo mkdir -p /opt/ZajunaApp
-sudo mv ~/Downloads/Zajuna.App-0.1.1.AppImage /opt/ZajunaApp/Zajuna.App.AppImage
-sudo chmod +x /opt/ZajunaApp/Zajuna.App.AppImage
-sudo ln -sf /opt/ZajunaApp/Zajuna.App.AppImage /usr/local/bin/zajunaapp
+sudo mv ~/Descargas/Zajuna.Sync-0.1.6.AppImage /opt/ZajunaApp/Zajuna.Sync.AppImage
+sudo chmod +x /opt/ZajunaApp/Zajuna.Sync.AppImage
+sudo ln -sf /opt/ZajunaApp/Zajuna.Sync.AppImage /usr/local/bin/zajunaapp
 ```
-
-Después se inicia con `zajunaapp` desde cualquier carpeta.
 
 ### Actualizar
 
-Al abrir una versión nueva, el AppImage borra los datos de la versión anterior
-(`$XDG_DATA_HOME/zajuna-app`, por defecto `~/.local/share/zajuna-app`). Genera
-antes los reportes PDF que necesites. Reemplaza el archivo conservando el mismo
-nombre y repite el permiso de ejecución:
+Al abrir una versión nueva se borran los datos de la anterior
+(`~/.local/share/zajuna-app`, o `$XDG_DATA_HOME/zajuna-app`). Genera antes los
+reportes PDF que necesites. Si usaste la instalación global, reemplaza el
+archivo conservando el mismo nombre:
 
 ```bash
-sudo cp Zajuna.App-0.1.1.AppImage /opt/ZajunaApp/Zajuna.App.AppImage
-sudo chmod +x /opt/ZajunaApp/Zajuna.App.AppImage
+sudo cp Zajuna.Sync-0.1.7.AppImage /opt/ZajunaApp/Zajuna.Sync.AppImage
+sudo chmod +x /opt/ZajunaApp/Zajuna.Sync.AppImage
 ```
 
-### Solución de problemas comunes
+### Desinstalar
 
-**"Permission denied" al ejecutar** — falta el permiso de ejecución:
+Borra el archivo `.AppImage` (y, si hiciste la instalación global,
+`/opt/ZajunaApp` y `/usr/local/bin/zajunaapp`). Para borrar también tus datos,
+elimina la carpeta `~/.local/share/zajuna-app`.
+
+### Problemas frecuentes en Linux
+
+**«Permission denied» al ejecutar**: falta el permiso de ejecución.
 
 ```bash
-chmod +x Zajuna.App-0.1.1.AppImage
-./Zajuna.App-0.1.1.AppImage
+chmod +x Zajuna.Sync-0.1.6.AppImage
 ```
 
-**`dlopen(): error loading libfuse.so.2` al ejecutar** — el runtime del
-AppImage necesita `libfuse2` (API FUSE 2.x). Ubuntu la trae como paquete de
-transición (`libfuse2t64`), pero **Kali Linux/Debian rolling ya no la
-empaquetan en absoluto** — solo ofrecen `fuse3`/`libfuse3-4` (verificado en
-Kali 2026.3, MDL-123). No hay paquete que instalar para resolverlo en Kali:
-usa la extracción temporal, que no depende de FUSE (detalle en [`packaging/linux-kali-fuse2.md`](packaging/linux-kali-fuse2.md)):
-
-```bash
-./Zajuna.App-0.1.1.AppImage --appimage-extract-and-run
-```
-
-En otras distribuciones que sí ofrezcan `libfuse2`/`libfuse2t64`, instalarla
-resuelve el mismo error sin necesitar `--appimage-extract-and-run`:
+**`dlopen(): error loading libfuse.so.2`**: el formato AppImage necesita la
+biblioteca `libfuse2`. Ubuntu y sus derivadas la ofrecen (`libfuse2t64` o `libfuse2`);
+instalarla resuelve el error:
 
 ```bash
 sudo apt update
-apt search fuse | grep -E "libfuse|fuse"
+apt search libfuse2
 ```
 
-Para reportar un problema, incluye distribución y versión de Linux,
+Kali Linux y Debian rolling ya no la empaquetan. Ahí, ábrela así, sin
+necesidad de FUSE (detalle en
+[`packaging/linux-kali-fuse2.md`](packaging/linux-kali-fuse2.md)):
+
+```bash
+./Zajuna.Sync-0.1.6.AppImage --appimage-extract-and-run
+```
+
+Para reportar un problema, incluye la distribución y versión de Linux, la
 arquitectura, el mensaje exacto de la terminal y los pasos previos. Nunca
-incluyas credenciales, tokens ni información sensible.
+incluyas contraseñas ni datos personales.
 
 ---
 
+## Notas para el equipo técnico
 
----
-
-## Actualizaciones automáticas (escritorio)
-
-En builds empaquetados, Electron comprueba GitHub Releases
-(`medialabctm-hub/Zajuna-App`) después de arrancar el core. La descarga ocurre
-en segundo plano y la instalación se aplica **al cerrar** la app (no se fuerza
-un reinicio a mitad de una captura).
-
-Una actualización instala una versión nueva, así que también empieza con los
-datos vacíos (ver «Cada versión nueva empieza desde cero»). Genera tus reportes
-PDF antes de cerrar la app cuando haya una actualización descargada.
-
-**Windows sin firma Authenticode:** SmartScreen o la política del equipo pueden
-bloquear la descarga o la aplicación del parche. CSC/Authenticode sigue siendo
-**opcional** en el pipeline; sin certificado, el auto-update puede fallar y eso
-queda en el log (`%APPDATA%\zajuna-app\logs\zajuna-core.log`). Mientras no haya
-firma (MDL-29), la vía segura es descargar el instalador oficial y comprobar el
-SHA256 del manifiesto.
-
-## Relación con otras tareas
-
-- [MDL-29](https://linear.app/medialab-sena/issue/MDL-29): firma Authenticode.
-  Cuando exista, este aviso de SmartScreen debería desaparecer y esta guía se
-  actualizará.
+- La firma digital del instalador (Authenticode) está pendiente
+  ([MDL-29](https://linear.app/medialab-sena/issue/MDL-29),
+  [`signing.md`](signing.md)). Cuando exista, el aviso de SmartScreen debería
+  desaparecer y esta guía se actualizará. Sin firma, la actualización
+  automática puede fallar en Windows y el fallo queda en el registro
+  `zajuna-core.log`.
 - [MDL-28](https://linear.app/medialab-sena/issue/MDL-28): la página pública
-  `downloads.html` **no** enseña a continuar SmartScreen; trata el artefacto
-  sin firma como bloqueo de release comercial. Esta guía es el camino
-  **operativo** para candidatos internos / instructores mientras no haya firma.
-
-Desarrollo en esta estación (npm, Go, Electron): [`run-local.md`](run-local.md).
+  `downloads.html` **no** enseña a continuar SmartScreen y trata el
+  instalador sin firma como bloqueo de release comercial. Esta guía es el
+  camino operativo para instructores mientras no haya firma.
+- La actualización automática consulta GitHub Releases de
+  `medialabctm-hub/Zajuna-App`.
+- Desarrollo en esta estación (npm, Go, Electron): [`run-local.md`](run-local.md).

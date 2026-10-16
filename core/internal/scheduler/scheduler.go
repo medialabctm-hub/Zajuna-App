@@ -144,6 +144,11 @@ func (s *Scheduler) RunDue(ctx context.Context, now time.Time) (int, error) {
 		if nextRunAt.IsZero() {
 			nextRunAt = now
 		}
+		// A nextRunAt far in the past (year 0001 with a 1 s interval) would
+		// spin this loop for billions of steps and block the scheduler.
+		if now.Sub(nextRunAt)/schedule.Interval > 1000 {
+			nextRunAt = now
+		}
 		for !nextRunAt.After(now) {
 			nextRunAt = nextRunAt.Add(schedule.Interval)
 		}

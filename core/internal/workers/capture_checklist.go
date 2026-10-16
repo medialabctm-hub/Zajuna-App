@@ -220,6 +220,10 @@ func (w *CaptureChecklistWorker) Execute(ctx context.Context, job jobs.Job, repo
 	var completed int64
 	concurrency := w.fanoutConcurrency()
 	if err := reporter.Progress(ctx, "capture", 18, fmt.Sprintf("Capturando %d evidencias con hasta %d sesiones en paralelo", len(targets), concurrency)); err != nil {
+		// The identity session is not in the pool yet: close its Chromium.
+		if identitySeed != nil {
+			identitySeed.Close()
+		}
 		return jobs.Result{ErrorCode: "progress_failed", ErrorMessage: err.Error()}
 	}
 

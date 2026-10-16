@@ -711,3 +711,63 @@ func TestSchedulesAndBackupsAPI(t *testing.T) {
 		t.Fatalf("unexpected report API response: %#v", listedReports)
 	}
 }
+
+type deletingCredentialStore struct{ memoryCredentialStore }
+
+func (s *deletingCredentialStore) Delete(user string) error {
+	delete(s.passwords, user)
+	return nil
+}
+
+func TestSetupWithAnotherUserForgetsThePreviousPassword(t *testing.T) {
+	dataDir := t.TempDir()
+	credentials := &deletingCredentialStore{}
+	server := httptest.NewServer(newRouterWithCredentialStore(dataDir, credentials))
+	defer server.Close()
+	for _, body := range []string{`{"zajunaUsername":"user-a","zajunaPassword":"pa"}`, `{"zajunaUsername":"user-b","zajunaPassword":"pb"}`} {
+		response, err := server.Client().Post(server.URL+"/api/setup", "application/json", strings.NewReader(body))
+		if err != nil {
+			t.Fatal(err)
+		}
+		response.Body.Close()
+		if response.StatusCode != http.StatusOK {
+			t.Fatalf("unexpected setup response: %d", response.StatusCode)
+		}
+	}
+	if _, ok := credentials.passwords["user-a"]; ok || credentials.passwords["user-b"] != "pb" {
+		t.Fatalf("only the current user's password must remain: %#v", credentials.passwords)
+	}
+	if _, err := os.Stat(configPath(dataDir) + ".tmp"); !os.IsNotExist(err) {
+		t.Fatalf("writeConfig must not leave its temporary file: %v", err)
+	}
+	if config, err := readConfig(dataDir); err != nil || config.ZajunaUsername != "user-b" {
+		t.Fatalf("unexpected config: %#v (%v)", config, err)
+	}
+}
+
+func TestRestoreUnknownBackupIsNotFoundWithoutSafetySnapshot(t *testing.T) {
+	dataDir := t.TempDir()
+	store, err := sqlite.Open(dataDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	backupManager, err := backup.NewManager(dataDir, store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	server := httptest.NewServer(newRouterWithServices(dataDir, &memoryCredentialStore{}, nil, store, backupManager))
+	defer server.Close()
+	response, err := server.Client().Post(server.URL+"/api/backups/missing.zip/restore", "application/json", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, _ := io.ReadAll(response.Body)
+	response.Body.Close()
+	if response.StatusCode != http.StatusNotFound || strings.Contains(string(body), filepath.Base(dataDir)) {
+		t.Fatalf("unexpected restore response: %d %s", response.StatusCode, body)
+	}
+	if records, err := backupManager.List(); err != nil || len(records) != 0 {
+		t.Fatalf("a rejected restore must not create a safety backup: %#v (%v)", records, err)
+	}
+}

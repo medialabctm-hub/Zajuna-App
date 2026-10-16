@@ -116,7 +116,7 @@ export function JobDetail() {
           </div>
 
           <div className="job-detail-progress-row">
-            <div className={`job-detail-progress-track${job.status === 'failed' ? ' failed' : ''}`} aria-label={`Progreso ${progress}%`}>
+            <div className={`job-detail-progress-track${job.status === 'failed' ? ' failed' : ''}`} role="progressbar" aria-label="Progreso del proceso" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress}>
               <i className={job.status === 'running' ? 'running' : ''} style={{ width: `${progress}%` }} />
             </div>
             <strong>{progress}%</strong>

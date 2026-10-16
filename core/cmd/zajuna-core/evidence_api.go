@@ -189,8 +189,9 @@ func registerEvidenceRoutes(mux *http.ServeMux, store evidence.Store, dataDir st
 		if name == "" {
 			name = strings.TrimSpace(header.Filename)
 		}
-		if len(name) > 240 {
-			name = name[:240]
+		// By runes: a byte cut can split an accent or ñ into invalid UTF-8.
+		if runes := []rune(name); len(runes) > 240 {
+			name = string(runes[:240])
 		}
 		if name == "" {
 			name = "Evidencia manual"

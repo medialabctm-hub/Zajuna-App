@@ -310,7 +310,7 @@ export function Review() {
         await setItemStatus.mutateAsync({ itemCode, fichaId, status: 'SI' })
         marked++
       }
-      toast(`Marcamos ${marked} ítems como cumplidos en el checklist.`)
+      toast(marked === 1 ? 'Marcamos 1 ítem como cumplido en el checklist.' : `Marcamos ${marked} ítems como cumplidos en el checklist.`)
     } catch (error) {
       toast(`${friendlyError(error instanceof Error ? error.message : String(error))} (se marcaron ${marked})`, true)
     } finally {
@@ -584,7 +584,7 @@ export function Review() {
                 {approvedNotMarked.length === 1 ? ' está marcado' : ' están marcados'} como cumplido{approvedNotMarked.length === 1 ? '' : 's'} en el checklist.
               </span>
               <button type="button" className="button primary small" onClick={handleMarkApprovedDone} disabled={markingDone}>
-                {markingDone ? 'Marcando…' : `Marcar ${approvedNotMarked.length} como cumplidos`}
+                {markingDone ? 'Marcando…' : approvedNotMarked.length === 1 ? 'Marcar 1 como cumplido' : `Marcar ${approvedNotMarked.length} como cumplidos`}
               </button>
             </div>
           ) : null}

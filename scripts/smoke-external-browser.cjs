@@ -9,7 +9,7 @@ const devMode = process.env.ZAJUNA_EXTERNAL_DEV === '1';
 const executable = path.resolve(
   process.env.ZAJUNA_PACKAGED_EXECUTABLE ||
     (devMode
-      ? path.join(projectRoot, 'node_modules', 'electron', 'dist', process.platform === 'win32' ? 'electron.exe' : 'Electron')
+      ? path.join(projectRoot, 'node_modules', 'electron', 'dist', process.platform === 'win32' ? 'electron.exe' : 'electron')
       : process.platform === 'win32'
         ? path.join(projectRoot, 'dist', 'win-unpacked', 'Zajuna Sync.exe')
         : path.join(projectRoot, 'dist', 'linux-unpacked', 'zajuna-app')),

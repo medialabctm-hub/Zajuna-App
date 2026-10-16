@@ -33,6 +33,16 @@ function formatBytes(value: number) {
   return `${(value / (1024 * 1024)).toFixed(1)} MB`
 }
 
+// Fuera de Settings: definido dentro, cada render creaba un componente nuevo,
+// React desmontaba el interruptor y el foco del teclado se perdía al pulsarlo.
+function Toggle({ pressed, label, onClick, disabled }: { pressed: boolean; label: string; onClick: () => void; disabled: boolean }) {
+  return (
+    <button className={`toggle settings-toggle${pressed ? ' active' : ''}`} type="button" role="switch" aria-checked={pressed} aria-label={label} onClick={onClick} disabled={disabled}>
+      <i />
+    </button>
+  )
+}
+
 export function Settings() {
   const [searchParams, setSearchParams] = useSearchParams()
   const tabParam = searchParams.get('tab')
@@ -213,14 +223,6 @@ export function Settings() {
     updatePreferences({ ...preferences, [section]: { ...current, [key]: !current[key] } } as AppSettings)
   }
 
-  function Toggle({ pressed, label, onClick }: { pressed: boolean; label: string; onClick: () => void }) {
-    return (
-      <button className={`toggle settings-toggle${pressed ? ' active' : ''}`} type="button" role="switch" aria-checked={pressed} aria-label={label} onClick={onClick} disabled={saveSettings.isPending}>
-        <i />
-      </button>
-    )
-  }
-
   const evidenceCount = (dashboard?.items ?? []).reduce((sum, item) => sum + (Number(item.evidenceCount) || 0), 0)
   const connection = connectionStatus(setup, connectionTest.job)
 
@@ -336,7 +338,7 @@ export function Settings() {
                   <strong>Renovar la sesión automáticamente</strong>
                   <span>Si Zajuna cierra la sesión mientras se preparan evidencias, se inicia sesión de nuevo y esa evidencia se reintenta una vez.</span>
                 </div>
-                <Toggle pressed={preferences.session.autoRenew} label="Renovar la sesión automáticamente" onClick={() => togglePreference('session', 'autoRenew')} />
+                <Toggle pressed={preferences.session.autoRenew} label="Renovar la sesión automáticamente" onClick={() => togglePreference('session', 'autoRenew')} disabled={saveSettings.isPending} />
               </div>
             </section>
           </div>
@@ -355,21 +357,21 @@ export function Settings() {
                 <strong>Página completa en perfil y cronogramas</strong>
                 <span>El perfil del instructor y los cronogramas se capturan con toda la página. Si lo desactivas, solo se guarda el bloque detectado.</span>
               </div>
-              <Toggle pressed={preferences.capture.fullPage} label="Capturar página completa en perfil y cronogramas" onClick={() => togglePreference('capture', 'fullPage')} />
+              <Toggle pressed={preferences.capture.fullPage} label="Capturar página completa en perfil y cronogramas" onClick={() => togglePreference('capture', 'fullPage')} disabled={saveSettings.isPending} />
             </div>
             <div className="settings-row">
               <div>
                 <strong>Reutilizar la sesión entre evidencias</strong>
                 <span>Una misma sesión de Zajuna sirve para varias evidencias. Si lo desactivas, cada evidencia inicia sesión por separado: es más lento y Zajuna puede limitar los accesos.</span>
               </div>
-              <Toggle pressed={preferences.capture.reuseSession} label="Reutilizar la sesión entre evidencias" onClick={() => togglePreference('capture', 'reuseSession')} />
+              <Toggle pressed={preferences.capture.reuseSession} label="Reutilizar la sesión entre evidencias" onClick={() => togglePreference('capture', 'reuseSession')} disabled={saveSettings.isPending} />
             </div>
             <div className="settings-row">
               <div>
                 <strong>Animaciones de carga</strong>
                 <span>Muestra una animación mientras llegan los datos. Solo afecta a esta interfaz, no a las capturas.</span>
               </div>
-              <Toggle pressed={preferences.capture.motion} label="Mostrar animaciones de carga" onClick={() => togglePreference('capture', 'motion')} />
+              <Toggle pressed={preferences.capture.motion} label="Mostrar animaciones de carga" onClick={() => togglePreference('capture', 'motion')} disabled={saveSettings.isPending} />
             </div>
           </section>
           <section className="card settings-section">
@@ -559,7 +561,7 @@ export function Settings() {
                       <button className="button ghost small danger-outline" type="button" onClick={() => handleDeleteBackup(backup.name)} disabled={deleteBackup.isPending}>Eliminar</button>
                     </span>
                   </div>
-                )) : <p className="helper" style={{ marginTop: 10 }}>Todavía no hay copias publicadas.</p>}
+                )) : <p className="helper" style={{ marginTop: 10 }}>Todavía no hay copias guardadas.</p>}
               </div>
             </div>
           </section>
@@ -597,14 +599,14 @@ export function Settings() {
                 <strong>Trabajos terminados</strong>
                 <span>Te avisamos cuando una sincronización o captura finalice.</span>
               </div>
-              <Toggle pressed={preferences.notifications.jobCompleted} label="Avisar cuando un trabajo termine" onClick={() => togglePreference('notifications', 'jobCompleted')} />
+              <Toggle pressed={preferences.notifications.jobCompleted} label="Avisar cuando un trabajo termine" onClick={() => togglePreference('notifications', 'jobCompleted')} disabled={saveSettings.isPending} />
             </div>
             <div className="settings-row">
               <div>
                 <strong>Revisión necesaria</strong>
                 <span>Te avisamos si una ruta necesita confirmación.</span>
               </div>
-              <Toggle pressed={preferences.notifications.needsReview} label="Avisar cuando una ruta necesite revisión" onClick={() => togglePreference('notifications', 'needsReview')} />
+              <Toggle pressed={preferences.notifications.needsReview} label="Avisar cuando una ruta necesite revisión" onClick={() => togglePreference('notifications', 'needsReview')} disabled={saveSettings.isPending} />
             </div>
           </section>
         </div>

@@ -25,6 +25,8 @@ function testInventoriesArtifactsAndBlocksUnsignedRelease() {
   const distRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'zajuna-native-'));
   fs.writeFileSync(path.join(distRoot, 'Zajuna.Sync.Setup-0.1.0.exe'), 'installer');
   fs.writeFileSync(path.join(distRoot, 'release-manifest.json'), '{}');
+  fs.writeFileSync(path.join(distRoot, 'latest.yml'), 'version: 0.1.0');
+  fs.writeFileSync(path.join(distRoot, 'Zajuna.Sync.Setup-0.1.0.exe.blockmap'), 'blockmap');
   const artifacts = listReleaseArtifacts(distRoot);
   assert.equal(artifacts.length, 1);
   assert.equal(artifacts[0].file, 'Zajuna.Sync.Setup-0.1.0.exe');

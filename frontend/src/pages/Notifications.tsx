@@ -28,12 +28,12 @@ export function Notifications() {
               <p className="helper">Avisos generados por trabajos y diagnósticos en este equipo.</p>
             </div>
             <button className="button ghost small" type="button" onClick={() => markAllRead.mutate(undefined, { onError: (error) => toast(friendlyError(error.message), true) })} disabled={!unread || markAllRead.isPending}>
-              {markAllRead.isPending ? 'Guardando…' : 'Marcar todo leído'}
+              {markAllRead.isPending ? 'Guardando…' : 'Marcar todas como leídas'}
             </button>
           </div>
 
           {query.data.length === 0 ? (
-            <div className="empty-state compact"><Icon name="bell" size={20} /><p>No hay notificaciones nuevas.</p></div>
+            <div className="empty-state compact"><Icon name="bell" size={20} /><p>Todavía no hay notificaciones.</p></div>
           ) : (
             <div className="notification-list">
               {query.data.map((item) => (
@@ -46,7 +46,7 @@ export function Notifications() {
                   </div>
                   <div className="notification-actions">
                     {item.jobId ? <Link className="button ghost small" to={`/trabajos/${encodeURIComponent(item.jobId)}`}>Ver trabajo</Link> : null}
-                    {!item.readAt ? <button className="button ghost small" type="button" onClick={() => markRead.mutate(item.id, { onError: (error) => toast(friendlyError(error.message), true) })} disabled={markRead.isPending}>Marcar leído</button> : <span className="status-chip ok">Leída</span>}
+                    {!item.readAt ? <button className="button ghost small" type="button" onClick={() => markRead.mutate(item.id, { onError: (error) => toast(friendlyError(error.message), true) })} disabled={markRead.isPending}>Marcar como leída</button> : <span className="status-chip ok">Leída</span>}
                   </div>
                 </article>
               ))}

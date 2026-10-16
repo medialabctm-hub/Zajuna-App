@@ -78,7 +78,7 @@ func scheduleSheetIssues(ctx context.Context, client any, session zajuna.Session
 	if err != nil || !strings.Contains(strings.ToLower(parsed.Path), "/mod/") {
 		return nil
 	}
-	issues, _ := cachedAJAX(&checklistAJAXCache, &checklistAJAXCache.sheets, session.Sesskey+"|"+target.URL, func() ([]zajuna.SheetIssue, error) {
+	load := func() ([]zajuna.SheetIssue, error) {
 		body, pageErr := pages.GetPage(ctx, session, parsed.RequestURI())
 		if pageErr != nil {
 			return nil, pageErr
@@ -92,7 +92,14 @@ func scheduleSheetIssues(ctx context.Context, client any, session zajuna.Session
 			found = append(found, zajuna.AnalyzeSheet(rows)...)
 		}
 		return found, nil
-	})
+	}
+	// Without a sesskey the key would be the same for every later login and
+	// a fixed sheet (or a transient error) would be reported until restart.
+	if session.Sesskey == "" {
+		issues, _ := load()
+		return issues
+	}
+	issues, _ := cachedAJAX(&checklistAJAXCache, &checklistAJAXCache.sheets, session.Sesskey+"|"+target.URL, load)
 	return issues
 }
 

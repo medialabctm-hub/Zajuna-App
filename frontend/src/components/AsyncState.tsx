@@ -43,7 +43,7 @@ export function MissingActiveFicha({ message }: { message?: string }) {
         <div className="eyebrow">Siguiente paso</div>
         <h2 style={{ marginTop: 7 }}>Elige una ficha para comenzar</h2>
         <p className="helper" style={{ marginTop: 8 }}>
-          {message || 'Todavía no hay una ficha activa. Sincroniza o selecciona un curso para continuar.'}
+          {message || 'Todavía no hay una ficha activa. Sincroniza o selecciona una ficha para continuar.'}
         </p>
         <Link className="button primary" to="/fichas" style={{ marginTop: 18 }}>
           Ver mis fichas

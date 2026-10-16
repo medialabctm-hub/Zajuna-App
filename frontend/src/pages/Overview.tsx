@@ -29,6 +29,7 @@ import {
   friendlyJobType,
   jobStatusClass,
   friendlyJobStage,
+  reportStatusLabel,
 } from '../lib/format'
 import { Icon } from '../components/Icon'
 import { PageError, PageSkeleton } from '../components/AsyncState'
@@ -109,7 +110,7 @@ function ReportRow({ report }: { report: Report }) {
         </div>
       </div>
       <div className="inline">
-        <span className="badge">{report.status}</span>
+        <span className="badge">{reportStatusLabel(report.status)}</span>
         {report.status === 'completed' ? (
           <a className="button ghost small" href={reportDownloadUrl(report.id)} target="_blank" rel="noreferrer">
             Descargar

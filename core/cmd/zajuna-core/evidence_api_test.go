@@ -14,6 +14,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/zajuna-app/core/internal/evidence"
 	"github.com/zajuna-app/core/internal/reports"
@@ -312,5 +313,14 @@ func TestListEvidencesByFichaIsNotTruncatedForLargeGalleries(t *testing.T) {
 	}
 	if status, _ := doRequest(t, server, http.MethodGet, "/api/evidences?limit=500&fichaId="+fichaID, nil, ""); status != http.StatusOK {
 		t.Fatalf("per-ficha listing must accept larger limits, got %d", status)
+	}
+}
+
+func TestUploadEvidenceAPITruncatesLongNamesWithoutSplittingCharacters(t *testing.T) {
+	_, _, fichaID, server := newEvidenceAPIFixture(t)
+	fileName := strings.Repeat("a", 239) + "ñ.png"
+	_, view := uploadEvidence(t, server, fichaID, "6.1", fileName, []byte("\x89PNG long name"))
+	if strings.ContainsRune(view.Name, utf8.RuneError) || utf8.RuneCountInString(view.Name) != 240 || !strings.HasSuffix(view.Name, "ñ") {
+		t.Fatalf("the name must be cut at 240 characters, not bytes: %q", view.Name)
 	}
 }

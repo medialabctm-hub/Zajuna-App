@@ -8,6 +8,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/zajuna-app/core/internal/evidence"
 )
 
 // applyV13 keeps one current evidence per (ficha, item, slot, source), then
@@ -222,7 +224,7 @@ func (s *Store) ClearEvidences(ctx context.Context, fichaID string) (deletedRows
 		if item.path != "" {
 			var remaining int
 			if countErr := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM evidences WHERE file_path = ?`, item.path).Scan(&remaining); countErr == nil && remaining == 0 {
-				if removeErr := os.Remove(item.path); removeErr == nil {
+				if s.removeOwnedEvidenceFile(item.path) {
 					deletedFiles++
 				}
 			}
@@ -310,7 +312,7 @@ func (s *Store) PruneCaptureChecklistEvidence(ctx context.Context, fichaID strin
 		return 0, fmt.Errorf("commit checklist evidence prune: %w", err)
 	}
 	for _, path := range unreferenced {
-		_ = os.Remove(path)
+		s.removeOwnedEvidenceFile(path)
 	}
 	return len(stale), nil
 }
@@ -318,5 +320,70 @@ func (s *Store) PruneCaptureChecklistEvidence(ctx context.Context, fichaID strin
 // ReconcileEvidenceFilesAfterRestore removes leftover files that were not part
 // of the restored backup tree / database references.
 func (s *Store) ReconcileEvidenceFilesAfterRestore(ctx context.Context) error {
+	// Before the collector: a backup made in another data folder (another
+	// Windows user or machine) stores absolute paths of that folder, and the
+	// collector would delete every restored file as unreferenced.
+	if err := s.relocateRestoredEvidencePaths(ctx); err != nil {
+		return err
+	}
 	return s.GarbageCollectEvidenceFiles(ctx)
+}
+
+// relocateRestoredEvidencePaths points evidence rows whose file_path lives
+// outside the current evidences/ folder at the same relative file under it,
+// when that file exists (it came in the restored backup).
+func (s *Store) relocateRestoredEvidencePaths(ctx context.Context) error {
+	if s == nil || s.dataDir == "" {
+		return nil
+	}
+	rows, err := s.db.QueryContext(ctx, `SELECT DISTINCT file_path FROM evidences WHERE file_path != ''`)
+	if err != nil {
+		return fmt.Errorf("list evidence file paths: %w", err)
+	}
+	moves := map[string]string{}
+	for rows.Next() {
+		var stored string
+		if err := rows.Scan(&stored); err != nil {
+			rows.Close()
+			return fmt.Errorf("scan evidence file path: %w", err)
+		}
+		if _, inside := evidence.ResolveEvidencePath(s.dataDir, stored); inside {
+			continue
+		}
+		normalized := strings.ReplaceAll(stored, `\`, "/")
+		index := strings.Index(strings.ToLower(normalized), "/evidences/")
+		if index < 0 {
+			continue
+		}
+		candidate := filepath.Join(s.dataDir, "evidences", filepath.FromSlash(normalized[index+len("/evidences/"):]))
+		resolved, inside := evidence.ResolveEvidencePath(s.dataDir, candidate)
+		if !inside {
+			continue
+		}
+		if info, statErr := os.Stat(resolved); statErr == nil && info.Mode().IsRegular() {
+			moves[stored] = candidate
+		}
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return err
+	}
+	rows.Close()
+	if len(moves) == 0 {
+		return nil
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin evidence relocation: %w", err)
+	}
+	defer tx.Rollback()
+	for from, to := range moves {
+		if _, err := tx.ExecContext(ctx, `UPDATE evidences SET file_path = ? WHERE file_path = ?`, to, from); err != nil {
+			return fmt.Errorf("relocate evidence file path: %w", err)
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit evidence relocation: %w", err)
+	}
+	return nil
 }

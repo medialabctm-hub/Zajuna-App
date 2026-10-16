@@ -1,28 +1,102 @@
 # Zajuna Sync
 
-Aplicación de escritorio local para sincronizar Zajuna, revisar el checklist,
-capturar evidencias y generar reportes.
+**Zajuna Sync** es una aplicación para instructores del SENA que trabajan en
+Zajuna. Trae tus fichas desde Zajuna, te muestra el checklist de cada una,
+toma por ti las capturas de pantalla que sirven como evidencia y genera el
+reporte final en PDF.
+
+Todo ocurre en tu propio computador: la aplicación se abre en tu navegador
+(Chrome, Edge, Firefox…), tus evidencias y reportes se quedan en el equipo y
+la contraseña se guarda en el almacén seguro del sistema operativo. Solo
+necesitas internet para entrar a Zajuna.
+
+Funciona en **Windows 10/11 (64 bits)** y en **Linux**. macOS no está
+soportado.
+
+## Instalar en 3 pasos
+
+1. **Descarga el instalador.** Entra a la página de
+   [versiones publicadas (Releases)](https://github.com/ElBrayayinn/Zajuna-App/releases/latest)
+   y, en la sección *Assets*, descarga:
+   - Windows: el archivo que termina en **`.exe`** (por ejemplo
+     `Zajuna.Sync.Setup-<versión>.exe`).
+   - Linux: el archivo que termina en **`.AppImage`**.
+2. **Ejecuta el instalador.** Haz doble clic en el archivo descargado. Si
+   Windows muestra el aviso azul *«Windows protegió su PC»*, pulsa
+   **Más información** y luego **Ejecutar de todas formas**. Aparece porque
+   el instalador todavía no tiene firma digital; no hace falta desactivar el
+   antivirus. La instalación termina sola en uno o dos minutos.
+3. **Abre la aplicación y conecta tu cuenta.** Abre **Zajuna Sync** desde el
+   menú Inicio o el escritorio. Se abrirá una pestaña en tu navegador con la
+   pantalla *Conecta tu cuenta de Zajuna*: elige tu tipo de documento,
+   escribe tu número y tu contraseña de Zajuna y pulsa **Continuar**. La
+   primera vez la aplicación busca tus fichas y prepara las rutas de tus
+   cursos automáticamente.
+
+Guía completa, con cada pantalla, el primer uso, solución de problemas y cómo
+desinstalar: **[docs/guia-instalacion.md](docs/guia-instalacion.md)**.
+
+## Qué puedes hacer con la aplicación
+
+| Pantalla | Para qué sirve |
+|---|---|
+| **Resumen** | Ver el avance de la ficha activa y el siguiente paso recomendado. |
+| **Fichas** | Traer tus fichas desde Zajuna y elegir con cuál trabajar. |
+| **Checklist** | Revisar cada punto del checklist y su estado. |
+| **Guías** | Lo que solo tú puedes hacer dentro de Zajuna, explicado paso a paso. |
+| **Actividades** | Marcar las actividades técnicas que tú calificas. |
+| **Evidencias** | Ver, previsualizar y agregar las capturas y archivos. |
+| **Revisión** | Aprobar las evidencias correctas y volver a capturar las que fallaron. |
+| **Trabajos** | Ver qué está haciendo la aplicación y reintentar lo que falló. |
+| **Reportes** | Generar y descargar el reporte final en PDF. |
+| **Configuración** / **Diagnóstico** | Cambiar la cuenta, probar la conexión, copias de seguridad y estado de la aplicación. |
+
+## ¿Qué hay en cada carpeta?
+
+| Carpeta | Qué contiene, en palabras sencillas |
+|---|---|
+| [`docs/`](docs/) | Documentación: la [guía de instalación](docs/guia-instalacion.md), notas de cada versión, decisiones técnicas y actas de pruebas. |
+| [`frontend/`](frontend/) | Las pantallas que ves en el navegador (botones, menús, colores). |
+| [`core/`](core/) | El "motor" de la aplicación: se conecta a Zajuna, toma las capturas, guarda los datos en el equipo y arma los reportes. |
+| [`desktop/`](desktop/) | El programa que se instala en Windows/Linux: enciende el motor y abre la aplicación en tu navegador. |
+| [`scripts/`](scripts/) | Herramientas automáticas para construir el instalador y probar que todo funcione. |
+| [`build/`](build/) | Iconos de la aplicación y ajustes del instalador de Windows. |
+
+Archivos sueltos en la raíz: `package.json` (lista de dependencias y comandos
+del proyecto), `README.md` (este documento), `AGENTS.md` y `CLAUDE.md`
+(reglas de trabajo para los asistentes de programación).
+
+---
+
+## Para desarrolladores
+
+Todo lo que sigue es técnico: cómo está construida la aplicación, cómo
+compilarla, probarla y empaquetarla.
+
+### Documentación técnica
+
+- Migración completa, decisiones técnicas, tareas abiertas y matriz de
+  pruebas: [`docs/desktop-migration.md`](docs/desktop-migration.md).
+- Cierre de Linear M0/M1 (2026-08-20):
+  [`docs/hardening-2026-08-20.md`](docs/hardening-2026-08-20.md).
+- Validación autenticada contra Zajuna real, con el contrato de login de dos
+  pasos y el registro de selectores por curso:
+  [`docs/mdl-33-2026-08-26.md`](docs/mdl-33-2026-08-26.md).
+- Gate de integración más reciente (MDL-34), con el ciclo completo de
+  instalar/usar/desinstalar Windows:
+  [`docs/release-gate-2026-09-11.md`](docs/release-gate-2026-09-11.md).
+- Notas de la versión actual: [`docs/release-0.1.6.md`](docs/release-0.1.6.md).
+- Arquitectura: [`docs/architecture.md`](docs/architecture.md); API local y
+  workers: [`docs/api-local.md`](docs/api-local.md); sistema visual:
+  [`docs/design-system.md`](docs/design-system.md).
+- Cómo arrancar en local: [`docs/run-local.md`](docs/run-local.md).
+
+### Arquitectura actual
 
 La aplicación instalada funciona como un launcher silencioso: inicia el core
 Go y abre el localhost en el navegador del sistema. Electron no crea ninguna
 ventana ni WebView; solo mantiene el proceso local y evita instancias
 duplicadas.
-
-La migración completa, las decisiones técnicas, las tareas abiertas y la
-matriz de pruebas están en [`docs/desktop-migration.md`](docs/desktop-migration.md).
-El cierre de Linear M0/M1 (2026-08-20) está en
-[`docs/hardening-2026-08-20.md`](docs/hardening-2026-08-20.md). La validación
-autenticada contra Zajuna real, con el contrato de login de dos pasos y el
-registro de selectores por curso, está en
-[`docs/mdl-33-2026-08-26.md`](docs/mdl-33-2026-08-26.md). El gate de
-integración más reciente (MDL-34), con el ciclo completo de instalar/usar/
-desinstalar Windows, está en
-[`docs/release-gate-2026-09-11.md`](docs/release-gate-2026-09-11.md).
-Cómo arrancar en local: [`docs/run-local.md`](docs/run-local.md).
-Cómo instalarla en un equipo (SmartScreen, Setup y primer uso):
-[`docs/guia-instalacion.md`](docs/guia-instalacion.md).
-
-## Arquitectura actual
 
 ```text
 Electron
@@ -39,7 +113,19 @@ No requiere n8n, Docker, MySQL, ngrok, JWT ni un servidor remoto. La única
 dependencia externa es la conexión HTTPS de Zajuna. La contraseña se guarda en
 el almacén seguro del sistema operativo.
 
-## Desarrollo
+Carpetas, en detalle:
+
+- `frontend/`: interfaz React y sistema visual.
+- `core/`: API, SQLite, workers, capturas y reportes Go.
+- `desktop/`: ciclo de vida Electron y supervisor del core.
+- `scripts/`: sincronización, build, staging, metadata y smoke.
+- `build/`: iconos y `installer.nsh` (macros NSIS que borran los datos locales
+  al instalar/desinstalar).
+- `docs/`: arquitectura, API, auditorías, plan de migración y registro de hardening.
+- `core/cmd/zajuna-core/web/`: salida generada de `npm run frontend:sync`; no
+  se edita a mano.
+
+### Desarrollo
 
 ```powershell
 npm install
@@ -70,7 +156,7 @@ cd frontend
 npm run dev
 ```
 
-## Pruebas
+### Pruebas
 
 ```powershell
 npm run build --prefix frontend
@@ -96,7 +182,7 @@ El smoke visual comprueba Resumen en desktop, tablet y móvil; el smoke
 empaquetado inicia el ejecutable, verifica `/api/health` en loopback, el
 frontend embebido, los deep links SPA, assets y respuestas 404 de API/static.
 
-### Pruebas contra Zajuna real
+#### Pruebas contra Zajuna real
 
 El E2E autenticado necesita una cuenta de prueba. Las credenciales van solo en
 variables de entorno de la sesión: nunca en un archivo ni en un commit.
@@ -116,7 +202,7 @@ ruta el registro de selectores por curso (`docs/evidence/mdl-33-selectors.json`)
 sin credenciales, nombres, host ni rutas locales. El procedimiento completo está
 en [`docs/mdl-33-2026-08-26.md`](docs/mdl-33-2026-08-26.md).
 
-## Empaquetado
+### Empaquetado
 
 El empaquetado debe ejecutarse en el sistema objetivo para incluir el Chromium
 correcto:
@@ -128,10 +214,19 @@ npm run package:linux
 
 macOS no es una plataforma soportada. `npm run build:platforms` genera los
 cores Go para Windows/Linux x64 y ARM64. `scripts/package.cjs` exige que el
-runner coincida con la plataforma,
-staging del core + Playwright, y genera `dist/release-manifest.json` y
-`dist/sbom.cyclonedx.json`. El instalador Windows probado está en `dist/` y
-actualmente no tiene firma digital.
+runner coincida con la plataforma, hace el staging del core + Playwright, y
+genera `dist/release-manifest.json` y `dist/sbom.cyclonedx.json`. El
+instalador Windows (`dist/Zajuna.Sync.Setup-<versión>.exe`, NSIS de un clic,
+instalación por usuario) actualmente no tiene firma digital
+([`docs/signing.md`](docs/signing.md)).
+
+En GitHub, `.github/workflows/packaging.yml` empaqueta Windows (NSIS) y Linux
+(AppImage) al subir un tag `v*` o a mano, y
+`.github/workflows/native-installers.yml` solo a mano (`workflow_dispatch`).
+Ambos dejan el instalador, el manifiesto y el SBOM como *artifacts* del run de
+Actions; la publicación en GitHub Releases
+(`medialabctm-hub/Zajuna-App`, de donde lee el auto-update) se hace a mano
+adjuntando esos archivos.
 
 El smoke específico del modo externo puede ejecutarse contra un paquete o,
 durante desarrollo, contra Electron directamente:
@@ -141,11 +236,3 @@ npm run test:smoke:external-browser
 $env:ZAJUNA_EXTERNAL_DEV = '1'
 npm run test:smoke:external-browser
 ```
-
-## Carpetas principales
-
-- `frontend/`: interfaz React y sistema visual.
-- `core/`: API, SQLite, workers, capturas y reportes Go.
-- `desktop/`: ciclo de vida Electron y supervisor del core.
-- `scripts/`: sincronización, build, staging, metadata y smoke.
-- `docs/`: arquitectura, API, auditorías, plan de migración y registro de hardening.

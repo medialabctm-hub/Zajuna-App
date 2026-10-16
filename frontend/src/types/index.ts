@@ -281,7 +281,8 @@ export interface RouteTarget {
   coveredItemCodes?: string[]
   groupName: string
   url?: string
-  routeKind: 'course' | 'page' | 'phase' | 'forum' | 'assign'
+  /** Tipo de página en Zajuna (course, page, phase, forum, assign, grading, resource, url…); el core puede omitirlo. */
+  routeKind?: string
   name?: string
   activityTitle?: string
   cssSelector?: string

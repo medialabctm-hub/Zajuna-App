@@ -53,6 +53,8 @@ func (s *Store) CaptureGaps(ctx context.Context, fichaID string) (map[string]Cap
 // (scope) with what it found: absences and failures as "<itemCode>: detail"
 // lines. Items outside the scope keep the gaps of their own last capture.
 func (s *Store) RecordCaptureGaps(ctx context.Context, fichaID string, scope []string, absences, failures []string) error {
+	s.gapsMu.Lock()
+	defer s.gapsMu.Unlock()
 	gaps, err := s.CaptureGaps(ctx, fichaID)
 	if err != nil {
 		return err

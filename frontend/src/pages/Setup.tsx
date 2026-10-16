@@ -20,7 +20,7 @@ export function Setup() {
     } catch (err) {
       const message = err instanceof Error ? err.message : 'No se pudo guardar la configuración.'
       setError(message)
-      toast(message, true)
+      toast(friendlyError(message), true)
     }
   }
 
@@ -65,7 +65,7 @@ export function Setup() {
               <span>Si Zajuna solicita una verificación adicional, te avisaremos y podrás resolverla desde la ventana del navegador.</span>
             </div>
             {error && (
-              <p className="helper" style={{ color: 'var(--no)', marginTop: 14 }}>
+              <p className="helper" role="alert" style={{ color: 'var(--no)', marginTop: 14 }}>
                 {friendlyError(error)}
               </p>
             )}

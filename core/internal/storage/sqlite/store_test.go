@@ -2,6 +2,7 @@ package sqlite
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"path/filepath"
@@ -426,5 +427,73 @@ func TestReconcileInterruptedJobsAfterSimulatedRestart(t *testing.T) {
 	orphan, err := store.GetJob(context.Background(), "job-orphan")
 	if err != nil || orphan.Status != jobs.StatusRetrying || orphan.ErrorCode != "interrupted" {
 		t.Fatalf("running job was not recovered: %#v (%v)", orphan, err)
+	}
+}
+
+func TestUnknownFichaIsNotFound(t *testing.T) {
+	store, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	ctx := context.Background()
+	if err := store.SetActiveFicha(ctx, "nope"); !errors.Is(err, sql.ErrNoRows) {
+		t.Fatalf("SetActiveFicha of an unknown ficha must wrap sql.ErrNoRows, got %v", err)
+	}
+	if _, err := store.GetChecklistDashboard(ctx, "nope"); !errors.Is(err, sql.ErrNoRows) {
+		t.Fatalf("dashboard of an unknown ficha must be sql.ErrNoRows, got %v", err)
+	}
+	if _, err := store.GetChecklistItemDetail(ctx, "nope", "1.1"); !errors.Is(err, sql.ErrNoRows) {
+		t.Fatalf("item detail of an unknown ficha must be sql.ErrNoRows, got %v", err)
+	}
+}
+
+func TestOpenRefusesNewerSchema(t *testing.T) {
+	dir := t.TempDir()
+	store, err := Open(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.DB().Exec(`INSERT INTO schema_migrations(version, applied_at) VALUES(?, '2099-01-01T00:00:00Z')`, currentSchemaVersion+1); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if reopened, err := Open(dir); err == nil {
+		reopened.Close()
+		t.Fatal("a core must not open a database with a newer schema")
+	}
+}
+
+func TestRecordCaptureGapsKeepsConcurrentItems(t *testing.T) {
+	store, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	ctx := context.Background()
+	for round := 0; round < 20; round++ {
+		var wg sync.WaitGroup
+		for _, code := range []string{"1.1", "9.1"} {
+			wg.Add(1)
+			go func(code string) {
+				defer wg.Done()
+				if err := store.RecordCaptureGaps(ctx, "f1", []string{code}, []string{code + ": falta"}, nil); err != nil {
+					t.Error(err)
+				}
+			}(code)
+		}
+		wg.Wait()
+		gaps, err := store.CaptureGaps(ctx, "f1")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, ok := gaps["1.1"]; !ok {
+			t.Fatalf("round %d lost the gap of 1.1: %#v", round, gaps)
+		}
+		if _, ok := gaps["9.1"]; !ok {
+			t.Fatalf("round %d lost the gap of 9.1: %#v", round, gaps)
+		}
 	}
 }

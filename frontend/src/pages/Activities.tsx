@@ -13,7 +13,7 @@ export function Activities() {
 
   if (dashboardQuery.isLoading || (activeFichaId && activitiesQuery.isLoading)) return <PageSkeleton label="Cargando actividades" />
   if (dashboardQuery.isError && isNotFound(dashboardQuery.error)) {
-    return <MissingActiveFicha message="Las actividades se consultan por ficha. Selecciona un curso para continuar." />
+    return <MissingActiveFicha message="Las actividades se consultan por ficha. Selecciona una ficha para continuar." />
   }
   if (dashboardQuery.isError) return <PageError message="No pudimos cargar la ficha activa." action={<Link className="button" to="/fichas">Elegir una ficha</Link>} />
   if (!activeFichaId) {

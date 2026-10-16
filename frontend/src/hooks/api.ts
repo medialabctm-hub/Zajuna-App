@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { ApiError, api } from '../api/client'
 import { readStoredConnectionTest, writeStoredConnectionTest, type StoredConnectionTest } from '../lib/connectionStatus'
+import { isTerminalJobStatus, jobJustFinished } from '../lib/jobStatus'
 import type { Job, JobStatus } from '../types'
 
 const POLL_MS = 5000
@@ -205,6 +206,8 @@ export function useJobs() {
     // Finished jobs create notifications and a ficha sync rewrites the list.
     queryClient.invalidateQueries({ queryKey: ['notifications'] })
     queryClient.invalidateQueries({ queryKey: ['fichas'] })
+    // Buscar rutas crea mapas de curso (el primer arranque espera por ellos).
+    queryClient.invalidateQueries({ queryKey: ['courseMaps'] })
   }, [query.data, queryClient])
 
   return query
@@ -236,14 +239,23 @@ export function useJob(jobId?: string) {
     enabled: !!jobId,
     retry: retryTransient,
     refetchInterval: (query) => {
-      const status = query.state.data?.status
-      return status && ['completed', 'failed', 'cancelled'].includes(status) ? false : POLL_MS
+      return isTerminalJobStatus(query.state.data?.status) ? false : POLL_MS
     },
   })
 }
 
 export function useJobEvents(jobId?: string, enabled = true, jobStatus?: JobStatus) {
-  const terminal = jobStatus && ['completed', 'failed', 'cancelled'].includes(jobStatus)
+  const queryClient = useQueryClient()
+  const terminal = isTerminalJobStatus(jobStatus)
+  const previousStatus = useRef<JobStatus | undefined>(jobStatus)
+  // Al terminar el trabajo el sondeo se detiene; sin una última lectura la
+  // línea de tiempo se quedaba sin los eventos finales (resultado o error).
+  useEffect(() => {
+    if (jobId && jobJustFinished(previousStatus.current, jobStatus)) {
+      queryClient.invalidateQueries({ queryKey: ['jobEvents', jobId] })
+    }
+    previousStatus.current = jobStatus
+  }, [jobId, jobStatus, queryClient])
   return useQuery({
     queryKey: ['jobEvents', jobId],
     queryFn: () => api.getJobEvents(jobId as string),
@@ -327,6 +339,8 @@ export function useSaveActivities() {
     mutationFn: api.saveActivities,
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['activities', variables.fichaId] })
+      // Los objetivos de captura de 6.1 y 10.1.x salen de las actividades elegidas.
+      queryClient.invalidateQueries({ queryKey: ['targets', variables.fichaId] })
       queryClient.invalidateQueries({ queryKey: ['dashboard'] })
     },
   })
@@ -471,6 +485,10 @@ export function useDeleteEvidence() {
       queryClient.invalidateQueries({ queryKey: ['dashboard'] })
       queryClient.invalidateQueries({ queryKey: ['evidenceGroups'] })
       queryClient.invalidateQueries({ queryKey: ['evidences'] })
+      // La evidencia borrada deja de contar en Revisión, el detalle y las guías.
+      queryClient.invalidateQueries({ queryKey: ['evidenceReview'] })
+      queryClient.invalidateQueries({ queryKey: ['checklistItemDetail'] })
+      queryClient.invalidateQueries({ queryKey: ['checklistGuides'] })
     },
   })
 }
@@ -481,8 +499,11 @@ export function useClearEvidences() {
     mutationFn: (fichaId?: string) => api.clearEvidences(fichaId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['evidences'] })
+      queryClient.invalidateQueries({ queryKey: ['evidenceGroups'] })
+      queryClient.invalidateQueries({ queryKey: ['evidenceReview'] })
       queryClient.invalidateQueries({ queryKey: ['dashboard'] })
-      queryClient.invalidateQueries({ queryKey: ['checklist'] })
+      queryClient.invalidateQueries({ queryKey: ['checklistItemDetail'] })
+      queryClient.invalidateQueries({ queryKey: ['checklistGuides'] })
     },
   })
 }
@@ -544,6 +565,7 @@ export function useVerifyEvidences() {
       queryClient.invalidateQueries({ queryKey: ['checklistGuides'] })
       // Verifying marks fully approved items as fulfilled in the checklist.
       queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+      queryClient.invalidateQueries({ queryKey: ['checklistItemDetail'] })
     },
   })
 }
@@ -558,6 +580,7 @@ export function useSetEvidenceReview() {
       queryClient.invalidateQueries({ queryKey: ['evidenceReview'] })
       // A decision can mark (or withdraw) the item in the checklist.
       queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+      queryClient.invalidateQueries({ queryKey: ['checklistItemDetail'] })
     },
   })
 }

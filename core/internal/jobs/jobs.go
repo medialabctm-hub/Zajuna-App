@@ -300,6 +300,12 @@ func (r *Runtime) execute(id string) {
 	}()
 	job, err = r.store.MarkRunning(r.ctx, id)
 	if err != nil {
+		// A transient store error (SQLite busy) must not strand the job in
+		// queued/retrying until the next start: try again shortly. A lost
+		// CAS means the job is no longer runnable and is dropped.
+		if !errors.Is(err, ErrInvalidTransition) && r.ctx.Err() == nil {
+			r.enqueueRetry(id, time.Second)
+		}
 		return
 	}
 

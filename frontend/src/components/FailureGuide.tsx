@@ -28,7 +28,7 @@ export function FailureGuide({ job, compact = false, showDismiss = false }: { jo
 
   function retry() {
     if (job.type === 'sync-fichas') {
-      syncFichas.mutate(account, { onSuccess: () => toast('Volvimos a sincronizar tus fichas.'), onError })
+      syncFichas.mutate(account, { onSuccess: () => toast('Estamos sincronizando tus fichas de nuevo.'), onError })
     } else if (job.type === 'discover-course-maps') {
       // Reintenta la ficha que falló, no la que esté activa ahora.
       const fichaId = job.fichaId || dashboard?.activeFichaId
@@ -36,7 +36,7 @@ export function FailureGuide({ job, compact = false, showDismiss = false }: { jo
         toast('Elige una ficha activa antes de buscar rutas.', true)
         return
       }
-      discover.mutate({ ...account, fichaId }, { onSuccess: () => toast('Volvimos a buscar las rutas del curso.'), onError })
+      discover.mutate({ ...account, fichaId }, { onSuccess: () => toast('Estamos buscando las rutas del curso de nuevo.'), onError })
     } else if (job.type === 'capture-checklist') {
       // Reintenta exactamente lo que falló: su ficha y sus ítems.
       const fichaId = job.fichaId || dashboard?.activeFichaId

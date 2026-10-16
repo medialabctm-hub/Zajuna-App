@@ -5,11 +5,15 @@ import { PageError, PageSkeleton } from '../components/AsyncState'
 import { Icon } from '../components/Icon'
 import { useCreateBackup, useDashboard, useGenerateReport, useReports, isNotFound } from '../hooks/api'
 import { useToast } from '../hooks/useToast'
+import { friendlyError } from '../lib/friendlyError'
 import { formatDate, jobStatusClass, reportStatusLabel } from '../lib/format'
 import type { JobStatus, Report } from '../types'
 
+const MIN_EVIDENCE_LIMIT = 10
+const MAX_EVIDENCE_LIMIT = 500
+
 function getErrorMessage(error: unknown) {
-  return error instanceof Error ? error.message : String(error)
+  return friendlyError(error instanceof Error ? error.message : String(error))
 }
 
 function ReportRow({ report }: { report: Report }) {
@@ -30,7 +34,7 @@ function ReportRow({ report }: { report: Report }) {
         <span className={`status-chip ${jobStatusClass(report.status as JobStatus)}`}>{reportStatusLabel(report.status)}</span>
         {report.status === 'completed' ? (
           <a className="button secondary small" href={reportDownloadUrl(report.id)} target="_blank" rel="noreferrer">
-            Abrir PDF
+            Abrir {String(report.format || 'pdf').toUpperCase()}
           </a>
         ) : null}
       </div>
@@ -70,7 +74,8 @@ export function Reports() {
         title: `Reporte de la ficha ${dashboard.ficha.externalId}`,
         fichaId: dashboard.activeFichaId,
         format,
-        evidenceLimit,
+        // El campo admite escribir cualquier número; se respeta el rango anunciado.
+        evidenceLimit: Math.min(MAX_EVIDENCE_LIMIT, Math.max(MIN_EVIDENCE_LIMIT, evidenceLimit)),
       },
       {
         onSuccess: () => toast('Estamos preparando tu reporte.'),
@@ -134,8 +139,8 @@ export function Reports() {
               <input
                 id="report-limit"
                 type="number"
-                min={10}
-                max={500}
+                min={MIN_EVIDENCE_LIMIT}
+                max={MAX_EVIDENCE_LIMIT}
                 step={10}
                 value={evidenceLimit}
                 onChange={(event) => setEvidenceLimit(Number(event.target.value) || 100)}

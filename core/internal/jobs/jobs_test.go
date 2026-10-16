@@ -3,6 +3,7 @@ package jobs
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"sync"
 	"testing"
 	"time"
@@ -407,4 +408,47 @@ func TestSubmitCancelsQueuedJobWhenContextCancels(t *testing.T) {
 	if !foundCancelled {
 		t.Fatalf("expected cancelled job after cancelled enqueue, got %#v", store.jobs)
 	}
+}
+
+type flakyMarkRunningStore struct {
+	*memoryStore
+	failures int
+}
+
+func (s *flakyMarkRunningStore) MarkRunning(ctx context.Context, id string) (Job, error) {
+	s.mu.Lock()
+	fail := s.failures > 0
+	if fail {
+		s.failures--
+	}
+	s.mu.Unlock()
+	if fail {
+		return Job{}, errors.New("database is locked")
+	}
+	return s.memoryStore.MarkRunning(ctx, id)
+}
+
+func TestRuntimeRetriesAJobWhoseStartHitATransientStoreError(t *testing.T) {
+	store := &flakyMarkRunningStore{memoryStore: newMemoryStore(), failures: 1}
+	runtime, err := NewRuntime(store, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := runtime.Register(demoWorker{}); err != nil {
+		t.Fatal(err)
+	}
+	runtime.Start(context.Background())
+	defer runtime.Close()
+	job, err := runtime.Submit(context.Background(), "demo", map[string]string{"fixture": "ok"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		if stored, _ := store.GetJob(context.Background(), job.ID); stored.Status == StatusCompleted {
+			return
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	t.Fatal("a job must not stay queued after a transient MarkRunning error")
 }

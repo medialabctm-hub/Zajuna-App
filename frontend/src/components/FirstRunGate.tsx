@@ -141,7 +141,7 @@ function FirstRunBody({
       <h1>{failedRoutes ? 'No pudimos preparar las rutas' : phase === 'fichas-failed' ? 'No pudimos traer tus fichas' : 'Todavía no tienes fichas'}</h1>
       <p className="muted">
         {failedRoutes
-          ? 'Puedes reintentar ahora o seguir: las rutas también se buscan después, ficha por ficha, desde Resumen.'
+          ? 'Puedes reintentar ahora o seguir: las rutas también se buscan después, ficha por ficha, desde Fichas.'
           : 'Revisa tu conexión y tus credenciales, y vuelve a intentar. También puedes seguir y sincronizar más tarde desde Fichas.'}
       </p>
       <div className="form-actions">

@@ -118,6 +118,12 @@ func registerBackupRoutes(mux *http.ServeMux, manager *backup.Manager) {
 			writeError(w, http.StatusServiceUnavailable, errors.New("las copias locales no están disponibles"))
 			return
 		}
+		// An unknown name is a 404 and must not leave a safety snapshot behind
+		// nor echo the absolute path of the data folder in the error.
+		if _, err := manager.Resolve(r.PathValue("name")); err != nil {
+			writeError(w, http.StatusNotFound, errors.New("backup no encontrado"))
+			return
+		}
 		// Always create a safety snapshot before staging a restore. The app keeps
 		// running against the current DB; the staged archive applies on restart.
 		safety, err := manager.Create(r.Context())

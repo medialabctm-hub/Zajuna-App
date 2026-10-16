@@ -392,6 +392,15 @@ func newRouterWithServices(dataDir string, credentials secrets.Store, jobRuntime
 			writeError(w, http.StatusInternalServerError, err)
 			return
 		}
+		// Changing the Zajuna user must not leave the previous user's
+		// password behind in the system credential store.
+		if previousUser := strings.TrimSpace(previous.ZajunaUsername); previousUser != "" && previousUser != request.ZajunaUsername {
+			if deleter, ok := credentials.(credentialDeleter); ok {
+				if err := deleter.Delete(previousUser); err != nil {
+					log.Printf("no se pudo borrar la credencial del usuario anterior: %v", err)
+				}
+			}
+		}
 		// Completing setup should take the user directly into a usable local
 		// workspace. Queue the first ficha sync while retaining the fast setup
 		// response; the UI can follow the normal jobs polling endpoint. Tests
@@ -587,7 +596,18 @@ func writeConfig(dataDir string, config appConfig) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(configPath(dataDir), append(contents, '\n'), 0o600)
+	// Temporary file + rename: a crash mid-write must not leave a truncated
+	// config.json that every endpoint then reports as damaged.
+	path := configPath(dataDir)
+	temporary := path + ".tmp"
+	if err := os.WriteFile(temporary, append(contents, '\n'), 0o600); err != nil {
+		return err
+	}
+	if err := os.Rename(temporary, path); err != nil {
+		_ = os.Remove(temporary)
+		return err
+	}
+	return nil
 }
 
 func writeJSON(w http.ResponseWriter, status int, value any) {

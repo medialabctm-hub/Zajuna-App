@@ -301,3 +301,83 @@ type fakeSnapshotter struct{}
 func (fakeSnapshotter) SnapshotDatabase(_ context.Context, target string) error {
 	return os.WriteFile(target, []byte("snapshot"), 0o600)
 }
+
+func TestApplyPendingRecreatesFoldersRemovedAfterTheBackup(t *testing.T) {
+	dataDir := t.TempDir()
+	store, err := sqlite.Open(dataDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	evidencePath := filepath.Join(dataDir, "evidences", "manual", "f1", "a.png")
+	if err := os.MkdirAll(filepath.Dir(evidencePath), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(evidencePath, []byte("png"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	manager, err := NewManager(dataDir, store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	record, err := manager.Create(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.StageRestore(context.Background(), filepath.Base(record.Path)); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+	// "Restablecer datos" removes evidences/ before the copy is restored.
+	if err := os.RemoveAll(filepath.Join(dataDir, "evidences")); err != nil {
+		t.Fatal(err)
+	}
+	applied, err := ApplyPending(dataDir)
+	if err != nil || !applied {
+		t.Fatalf("restore was not applied: %v", err)
+	}
+	if contents, err := os.ReadFile(evidencePath); err != nil || string(contents) != "png" {
+		t.Fatalf("evidence was not restored: %q (%v)", contents, err)
+	}
+}
+
+func TestRollbackAppliedBringsBackThePreviousWAL(t *testing.T) {
+	dataDir := t.TempDir()
+	store, err := sqlite.Open(dataDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	manager, err := NewManager(dataDir, store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	record, err := manager.Create(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.StageRestore(context.Background(), filepath.Base(record.Path)); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+	walPath := filepath.Join(dataDir, "zajuna.db-wal")
+	// Stand-in for the WAL a killed core leaves with unflushed transactions.
+	if err := os.WriteFile(walPath, []byte("previous-wal"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	applied, err := ApplyPending(dataDir)
+	if err != nil || !applied {
+		t.Fatalf("restore was not applied: %v", err)
+	}
+	if _, err := os.Stat(walPath); !os.IsNotExist(err) {
+		t.Fatalf("the previous WAL must not stay beside the restored database: %v", err)
+	}
+	if err := RollbackApplied(dataDir); err != nil {
+		t.Fatal(err)
+	}
+	if contents, err := os.ReadFile(walPath); err != nil || string(contents) != "previous-wal" {
+		t.Fatalf("rollback must bring back the previous WAL: %q (%v)", contents, err)
+	}
+}

@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/zajuna-app/core/internal/checklist"
@@ -28,6 +29,10 @@ const currentSchemaVersion = 14
 type Store struct {
 	db      *sql.DB
 	dataDir string
+
+	// gapsMu serializes the read-merge-write of RecordCaptureGaps: two
+	// capture jobs of the same ficha must not overwrite each other's gaps.
+	gapsMu sync.Mutex
 }
 
 type FichaRecord struct {
@@ -165,7 +170,10 @@ func (s *Store) Migrate(ctx context.Context) error {
 	if err := s.db.QueryRowContext(ctx, `SELECT COALESCE(MAX(version), 0) FROM schema_migrations`).Scan(&version); err != nil {
 		return fmt.Errorf("read schema version: %w", err)
 	}
-	if version >= currentSchemaVersion {
+	if version > currentSchemaVersion {
+		return fmt.Errorf("la base local usa el schema %d, más nuevo que el soportado por este core (%d)", version, currentSchemaVersion)
+	}
+	if version == currentSchemaVersion {
 		return nil
 	}
 
@@ -1079,7 +1087,7 @@ func (s *Store) SetActiveFicha(ctx context.Context, fichaID string) error {
 	var exists int
 	if err := s.db.QueryRowContext(ctx, `SELECT 1 FROM fichas WHERE id = ?`, fichaID).Scan(&exists); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return fmt.Errorf("ficha %q no existe", fichaID)
+			return fmt.Errorf("ficha %q no existe: %w", fichaID, sql.ErrNoRows)
 		}
 		return fmt.Errorf("validate active ficha: %w", err)
 	}
@@ -1104,11 +1112,13 @@ func (s *Store) GetChecklistDashboard(ctx context.Context, fichaID string) (Chec
 	if strings.TrimSpace(fichaID) == "" {
 		return ChecklistDashboard{}, sql.ErrNoRows
 	}
-	if err := s.EnsureChecklistItems(ctx, fichaID); err != nil {
-		return ChecklistDashboard{}, err
-	}
+	// The ficha first: an unknown id is a 404 (sql.ErrNoRows), not a
+	// foreign-key failure while initializing its checklist.
 	ficha, err := s.getFichaByID(ctx, fichaID)
 	if err != nil {
+		return ChecklistDashboard{}, err
+	}
+	if err := s.EnsureChecklistItems(ctx, fichaID); err != nil {
 		return ChecklistDashboard{}, err
 	}
 	items, err := s.listChecklistItems(ctx, fichaID)
@@ -1330,6 +1340,9 @@ func (s *Store) GetChecklistItemDetail(ctx context.Context, fichaID, itemCode st
 	itemCode = strings.TrimSpace(itemCode)
 	if fichaID == "" || itemCode == "" {
 		return ChecklistItemDetail{}, sql.ErrNoRows
+	}
+	if _, err := s.getFichaByID(ctx, fichaID); err != nil {
+		return ChecklistItemDetail{}, err
 	}
 	if err := s.EnsureChecklistItems(ctx, fichaID); err != nil {
 		return ChecklistItemDetail{}, err
@@ -1965,8 +1978,19 @@ func (s *Store) DeleteEvidence(ctx context.Context, id string) (evidence.Record,
 func (s *Store) removeEvidenceFileIfUnreferenced(ctx context.Context, path string) {
 	var remaining int
 	if err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM evidences WHERE file_path = ?`, path).Scan(&remaining); err == nil && remaining == 0 {
-		_ = os.Remove(path)
+		s.removeOwnedEvidenceFile(path)
 	}
+}
+
+// removeOwnedEvidenceFile deletes a file referenced by an evidence row only
+// when it lives under <dataDir>/evidences: a restored or tampered database
+// must never make the core delete an arbitrary user file.
+func (s *Store) removeOwnedEvidenceFile(path string) bool {
+	resolved, inside := evidence.ResolveEvidencePath(s.dataDir, path)
+	if !inside {
+		return false
+	}
+	return os.Remove(resolved) == nil
 }
 
 func (s *Store) CreateReport(ctx context.Context, record reports.Record) error {

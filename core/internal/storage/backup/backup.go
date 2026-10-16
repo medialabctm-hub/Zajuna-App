@@ -434,11 +434,32 @@ func ApplyPending(dataDir string) (bool, error) {
 			return false, fmt.Errorf("inspect restore target %s: %w", file, statErr)
 		}
 		replacements = append(replacements, item)
+		// A reset may have removed the folder (evidences/manual/<ficha>/).
+		if err := os.MkdirAll(filepath.Dir(target), 0o700); err != nil {
+			rollback()
+			return false, fmt.Errorf("prepare restore folder %s: %w", file, err)
+		}
 		if err := os.Rename(source, target); err != nil {
 			rollback()
 			return false, fmt.Errorf("apply restore target %s: %w", file, err)
 		}
 		_ = os.Chmod(target, 0o600)
+	}
+	// The previous database's WAL/SHM belong to it: keep them beside its
+	// .restore-old copy so a rollback gets back its unflushed transactions,
+	// and so a rollback never pairs it with the restored database's WAL.
+	for _, sidecar := range []string{"zajuna.db-wal", "zajuna.db-shm"} {
+		target := filepath.Join(dataDir, sidecar)
+		item := replacement{target: target, old: target + ".restore-old"}
+		_ = os.RemoveAll(item.old)
+		if _, statErr := os.Stat(target); statErr == nil {
+			if err := os.Rename(target, item.old); err != nil {
+				rollback()
+				return false, fmt.Errorf("prepare restore target %s: %w", sidecar, err)
+			}
+			item.hadOld = true
+		}
+		replacements = append(replacements, item)
 	}
 	marker := appliedRestore{Items: make([]appliedItem, 0, len(replacements))}
 	for _, item := range replacements {
@@ -453,8 +474,6 @@ func ApplyPending(dataDir string) (bool, error) {
 		rollback()
 		return false, fmt.Errorf("write restore marker: %w", err)
 	}
-	_ = os.RemoveAll(filepath.Join(dataDir, "zajuna.db-wal"))
-	_ = os.RemoveAll(filepath.Join(dataDir, "zajuna.db-shm"))
 	if err := os.RemoveAll(pendingPath); err != nil {
 		return false, fmt.Errorf("remove pending restore: %w", err)
 	}

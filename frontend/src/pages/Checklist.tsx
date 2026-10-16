@@ -63,7 +63,7 @@ function getRouteStatus(reviews: RouteReview[], key: string): RouteReviewStatus 
 }
 
 function humanRoute(target: RouteTarget): string {
-  const kindLabel = ROUTE_KIND_LABELS[target.routeKind] || 'sección del curso'
+  const kindLabel = (target.routeKind && ROUTE_KIND_LABELS[target.routeKind]) || 'sección del curso'
   const location = target.url || target.cssSelector
   return location ? `${kindLabel} · ${location}` : kindLabel
 }
@@ -131,7 +131,7 @@ function TaskRow({
           {filled} / {maxEvidences}
         </small>
       </div>
-      <div className="status-seg-group" role="group" aria-label="Cambiar estado">
+      <div className="status-seg-group" role="group" aria-label={`Cambiar estado del ítem ${item.itemCode}`}>
         {segments.map((segment) => (
           <button
             key={segment.value}
@@ -472,12 +472,18 @@ function PreviewModal({
   const format = String(evidence.format || '').toLowerCase()
   const src = evidenceDownloadUrl(evidence.id)
   const closeRef = useRef<HTMLButtonElement>(null)
+  // onClose cambia en cada render del padre (el sondeo lo re-renderiza); si
+  // fuera dependencia del efecto, el foco saltaba al botón «Cerrar» cada vez.
+  const onCloseRef = useRef(onClose)
+  useEffect(() => {
+    onCloseRef.current = onClose
+  })
 
   useEffect(() => {
     const previous = document.activeElement as HTMLElement | null
     closeRef.current?.focus()
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose()
+      if (event.key === 'Escape') onCloseRef.current()
       if (event.key !== 'Tab') return
       const dialog = closeRef.current?.closest('[role="dialog"]')
       const focusable = Array.from(dialog?.querySelectorAll<HTMLElement>('button, a[href], iframe, input, select, textarea, [tabindex]:not([tabindex="-1"])') || []).filter((element) => !element.hasAttribute('disabled'))
@@ -497,7 +503,7 @@ function PreviewModal({
       document.removeEventListener('keydown', handleKeyDown)
       previous?.focus?.()
     }
-  }, [onClose])
+  }, [])
   return (
     <div
       id="evidence-modal"

@@ -38,3 +38,15 @@ func TestValidateHTTPURLAllowsFixtureWhenExplicitlyEnabled(t *testing.T) {
 		t.Fatalf("expected fixture URL to be allowed: %v", err)
 	}
 }
+
+func TestRedactTextRemovesJSONCredentialValues(t *testing.T) {
+	value := RedactText(`M.cfg = {"wwwroot":"https://zajuna.sena.edu.co","sesskey":"k1Secret","Password" : "p a\"ss"}`)
+	for _, secret := range []string{"k1Secret", "p a", `ss"`} {
+		if strings.Contains(value, secret) {
+			t.Fatalf("RedactText leaked %q: %s", secret, value)
+		}
+	}
+	if !strings.Contains(value, `"wwwroot":"https://zajuna.sena.edu.co"`) {
+		t.Fatalf("non-sensitive JSON values must survive: %s", value)
+	}
+}

@@ -254,7 +254,7 @@ export function Evidences() {
               Puedes subir una captura o documento que ya tengas en este equipo.
             </p>
             <div className="manual-upload">
-              <label htmlFor="manual-evidence-item">Relacionar con una actividad (opcional)</label>
+              <label htmlFor="manual-evidence-item">Relacionar con un ítem del checklist (opcional)</label>
               <select
                 id="manual-evidence-item"
                 value={uploadItemCode}
@@ -597,7 +597,7 @@ function Task({
           </span>
         </div>
         <div className="task-evidences">
-          {item.evidences.length ? (
+          {item.evidences?.length ? (
             item.evidences.map((evidence) => (
               <button key={evidence.id} className="evidence-link" type="button" onClick={() => onPreview(evidence)}>
                 Ver evidencia {evidence.slotNumber || 1}
@@ -618,7 +618,7 @@ function Task({
           {filled} / {maxEvidences}
         </small>
       </div>
-      <div className="status-seg-group" role="group" aria-label="Cambiar estado">
+      <div className="status-seg-group" role="group" aria-label={`Cambiar estado del ítem ${item.itemCode}`}>
         <button
           type="button"
           className={`status-seg si ${current === 'SI' ? 'active' : ''}`}
@@ -671,14 +671,20 @@ function PreviewModal({
   const src = evidenceDownloadUrl(evidence.id)
   const title = evidence.name || 'Vista previa de evidencia'
   const closeRef = useRef<HTMLButtonElement>(null)
+  // Los manejadores cambian en cada render del padre; si fueran dependencias
+  // del efecto, el foco saltaba a «Cerrar» con cada re-render o al navegar.
+  const handlersRef = useRef({ onClose, onPrevious, onNext })
+  useEffect(() => {
+    handlersRef.current = { onClose, onPrevious, onNext }
+  })
 
   useEffect(() => {
     const previous = document.activeElement as HTMLElement | null
     closeRef.current?.focus()
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose()
-      if (event.key === 'ArrowLeft') onPrevious()
-      if (event.key === 'ArrowRight') onNext()
+      if (event.key === 'Escape') handlersRef.current.onClose()
+      if (event.key === 'ArrowLeft') handlersRef.current.onPrevious()
+      if (event.key === 'ArrowRight') handlersRef.current.onNext()
       if (event.key !== 'Tab') return
       const dialog = closeRef.current?.closest('[role="dialog"]')
       const focusable = Array.from(dialog?.querySelectorAll<HTMLElement>('button, a[href], iframe, input, select, textarea, [tabindex]:not([tabindex="-1"])') || []).filter((element) => !element.hasAttribute('disabled'))
@@ -698,7 +704,7 @@ function PreviewModal({
       document.removeEventListener('keydown', handleKeyDown)
       previous?.focus?.()
     }
-  }, [onClose, onNext, onPrevious])
+  }, [])
 
   return (
     <div

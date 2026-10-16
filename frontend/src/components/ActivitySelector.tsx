@@ -122,7 +122,7 @@ export function ActivitySelector({ data, fichaId, fichaCode }: { data: Activitie
     : dirty
       ? { tone: 'warn', text: 'Tienes cambios sin guardar. Pulsa “Guardar selección” para aplicarlos.' }
       : hasSavedSelection
-        ? { tone: 'ok', text: `Selección guardada: ${saved.size} actividades técnicas. Paso listo: ya puedes preparar las evidencias.` }
+        ? { tone: 'ok', text: `Selección guardada: ${saved.size === 1 ? '1 actividad técnica' : `${saved.size} actividades técnicas`}. Paso listo: ya puedes preparar las evidencias.` }
         : { tone: 'warn', text: 'Aún no has guardado una selección. Sin este paso no se pueden preparar las evidencias.' }
 
   return (
